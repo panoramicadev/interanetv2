@@ -135,6 +135,7 @@ export function CreditoPanel({
   rut,
   variant = "full",
   footer,
+  soloDocumentos = false,
 }: {
   clientName: string | null | undefined;
   rut?: string | null;
@@ -145,6 +146,12 @@ export function CreditoPanel({
    * contenedor con relleno propio que las desalinee.
    */
   footer?: React.ReactNode;
+  /**
+   * Solo la lista de documentos pendientes, sin "Panorama de crédito" ni
+   * "Antigüedad de la deuda". Lo usa el CRM, donde esos dos bloques sobraban;
+   * la ficha de Clientes y el Panel de Trabajo siguen viendo el panel completo.
+   */
+  soloDocumentos?: boolean;
 }) {
   const { data, isLoading, isError } = useCredito(clientName, rut);
 
@@ -260,6 +267,8 @@ export function CreditoPanel({
   // ── Versión completa (pestaña Crédito de la ficha) ──
   return (
     <div className="space-y-4">
+      {!soloDocumentos && (
+      <>
       {/* Resumen */}
       <Card className="border-0 shadow-sm">
         <CardHeader className="pb-3">
@@ -388,6 +397,8 @@ export function CreditoPanel({
           )}
         </CardContent>
       </Card>
+      </>
+      )}
 
       {/* Documentos pendientes */}
       <Card className="border-0 shadow-sm">
@@ -407,6 +418,9 @@ export function CreditoPanel({
           ) : (
             listaDocs
           )}
+          {/* Sin el Panorama, las acciones (estado de cuenta, cobrar) van acá
+              para que no se pierdan. */}
+          {soloDocumentos && acciones && <div className="mt-4">{acciones}</div>}
         </CardContent>
       </Card>
     </div>
