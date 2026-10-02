@@ -26,7 +26,7 @@ import { CadenaSucursalesCard } from "@/components/clients/cadena-sucursales-car
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import { useBotonMenuArriba } from "@/components/layout/dashboard-layout";
 import ComparativeKPICards from "@/components/dashboard/comparative-kpi-cards";
-import ComparativeAccumulatedTotal from "@/components/dashboard/comparative-accumulated-total";
+import ResumenConsolidado from "@/components/dashboard/resumen-consolidado";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
 import ComparativeSalespeopleTable from "@/components/dashboard/comparative-salespeople-table";
 import ComparativeProductsTable from "@/components/dashboard/comparative-products-table";
@@ -87,6 +87,7 @@ function ScopeBanner() {
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { mesAnioEs } from "@/lib/fecha-es";
 // Logo con las letras en NEGRO y sin el sello "30 Años": la barra móvil ahora es blanca
 // y el logo de letras blancas quedaba invisible. Sale del archivo de marca
 // `logo panoramica ppto`, recortado para dejar solo el arco y la palabra.
@@ -307,9 +308,10 @@ export default function Dashboard() {
     if ((selection.period === "month" || selection.period === "months") && selection.months) {
       selection.months.forEach(month => {
         selection.years.forEach(year => {
-          // month is already 1-12, use it directly for the period string
-          // but subtract 1 for Date object (which expects 0-11)
-          const monthName = format(new Date(year, month - 1), "MMM yyyy");
+          // month is already 1-12, use it directly for the period string.
+          // El nombre va por `mesAnioEs`: `format(..., "MMM yyyy")` sin locale devuelve
+          // el mes en inglés ("Jan 2026") y así salía rotulado el gráfico comparativo.
+          const monthName = mesAnioEs(month - 1, year);
           periods.push({
             period: `${year}-${String(month).padStart(2, '0')}`,
             label: monthName,
@@ -1978,12 +1980,17 @@ export default function Dashboard() {
           />
         ) : isComparativeMode ? (
           <>
-            {/* Total Acumulado - arriba de los gráficos */}
-            <ComparativeAccumulatedTotal
+            {/* Consolidado de lo seleccionado, ARRIBA de los gráficos: el gráfico muestra
+                una barra por mes (o por día), pero lo primero que se quiere saber es
+                cuánto suma todo junto y cómo le fue contra el mismo tramo del año
+                anterior. Lo calcula el servidor sobre la unión de los tramos, no sumando
+                acá mes a mes: los clientes son cuentas de distintos. */}
+            <ResumenConsolidado
               periods={comparativePeriods}
               segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
               salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
               client={selectedClient ?? undefined}
+              product={globalFilter.type === "product" ? globalFilter.value : undefined}
             />
 
             {/* Comparative KPI Cards con gráficos */}

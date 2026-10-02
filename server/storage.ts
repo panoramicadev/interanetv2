@@ -3029,6 +3029,13 @@ export class DatabaseStorage implements IStorage {
   async getSalesMetrics(filters: {
     startDate?: string;
     endDate?: string;
+    /**
+     * Varios tramos de fechas a la vez (unión). Lo usa el resumen consolidado del
+     * dashboard cuando se eligen meses o días sueltos: "enero, marzo y abril" no es un
+     * rango continuo, así que un solo startDate/endDate metería febrero adentro.
+     * Cuando viene, manda sobre startDate/endDate.
+     */
+    ranges?: Array<{ startDate: string; endDate: string }>;
     salesperson?: string;
     segment?: string;
     client?: string;
@@ -3044,9 +3051,10 @@ export class DatabaseStorage implements IStorage {
     activeCustomers: number;
     gdvSales: number;
   }> {
-    const { startDate, endDate, salesperson, segment, client, supplier, product, clientScope } = filters;
+    const { startDate, endDate, ranges, salesperson, segment, client, supplier, product, clientScope } = filters;
+    const rangesKey = (ranges || []).map(r => `${r.startDate}~${r.endDate}`).join('|');
     // Cache key based on all filter parameters (incluye el scope del encargado)
-    const cacheKey = `salesMetrics:${startDate || ''}:${endDate || ''}:${salesperson || ''}:${segment || ''}:${client || ''}:${supplier || ''}:${product || ''}:${(filters as any).branch || ''}:${(clientScope || []).join(',')}`;
+    const cacheKey = `salesMetrics:${startDate || ''}:${endDate || ''}:${rangesKey}:${salesperson || ''}:${segment || ''}:${client || ''}:${supplier || ''}:${product || ''}:${(filters as any).branch || ''}:${(clientScope || []).join(',')}`;
     const cached = this.getCached<{
       totalSales: number; totalTransactions: number; salesTransactionCount: number;
       totalOrders: number; totalUnits: number; activeCustomers: number; gdvSales: number;
@@ -3055,11 +3063,25 @@ export class DatabaseStorage implements IStorage {
 
     const conditions = [];
 
-    if (startDate) {
-      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
-    }
-    if (endDate) {
-      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
+    if (ranges && ranges.length > 0) {
+      // Unión de tramos: (fecha dentro de A) OR (fecha dentro de B) OR ...
+      conditions.push(
+        or(
+          ...ranges.map(r =>
+            and(
+              sql`${factVentas.feemdo} >= ${r.startDate}::date`,
+              sql`${factVentas.feemdo} <= ${r.endDate}::date`,
+            )
+          )
+        )!
+      );
+    } else {
+      if (startDate) {
+        conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
+      }
+      if (endDate) {
+        conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
+      }
     }
     if (salesperson) {
       conditions.push(eq(factVentas.nokofu, salesperson));
@@ -3113,20 +3135,32 @@ export class DatabaseStorage implements IStorage {
   async getNewClientsCount(filters: {
     startDate: string;
     endDate: string;
+    /**
+     * Varios tramos a la vez (unión), igual que en getSalesMetrics. "Nuevo" sigue
+     * queriendo decir que su primera compra cae adentro de lo seleccionado, así que
+     * el corte del NOT EXISTS va contra el inicio del tramo más antiguo.
+     */
+    ranges?: Array<{ startDate: string; endDate: string }>;
     salesperson?: string;
     segment?: string;
     client?: string;
     clientScope?: string[];
   }): Promise<number> {
-    const { startDate, endDate, salesperson, segment, client, clientScope } = filters;
+    const { startDate, endDate, ranges, salesperson, segment, client, clientScope } = filters;
     // La matriz de una cadena incluye a sus sucursales (ver condicionNombreCliente).
     const filtroCliente = client ? sql`AND ${await condicionNombreCliente(sql`fv."nokoen"`, client)}` : sql``;
+
+    const tramos = ranges && ranges.length > 0 ? ranges : [{ startDate, endDate }];
+    const primerDia = tramos.map(r => r.startDate).sort()[0];
+    const ventana = sql.join(
+      tramos.map(r => sql`(fv."feemdo" >= ${r.startDate}::date AND fv."feemdo" <= ${r.endDate}::date)`),
+      sql` OR `,
+    );
 
     const result = await db.execute(sql`
       SELECT COUNT(DISTINCT fv."nokoen") as new_clients
       FROM ventas.fact_ventas fv
-      WHERE fv."feemdo" >= ${startDate}::date
-        AND fv."feemdo" <= ${endDate}::date
+      WHERE (${ventana})
         AND fv."tido" != 'GDV'
         ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
         ${segment ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segment)}` : sql``}
@@ -3135,7 +3169,7 @@ export class DatabaseStorage implements IStorage {
         AND NOT EXISTS (
           SELECT 1 FROM ventas.fact_ventas fv2
           WHERE fv2."nokoen" = fv."nokoen"
-            AND fv2."feemdo" < ${startDate}::date
+            AND fv2."feemdo" < ${primerDia}::date
             AND fv2."tido" != 'GDV'
             ${salesperson ? sql`AND fv2."nokofu" = ${salesperson}` : sql``}
         )

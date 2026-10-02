@@ -1,6 +1,6 @@
 import { useQueries } from "@tanstack/react-query";
 import { CHART_COLORS_SOFT } from "@/lib/chart-palette";
-import { DollarSign, Package, TrendingUp, BarChart3 } from "lucide-react";
+import { DollarSign, Package, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Bar } from "react-chartjs-2";
 import {
@@ -90,15 +90,6 @@ export default function ComparativeKPICards({ periods, segment, salesperson, cli
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i}>
-              <CardContent className="p-6">
-                <div className="h-20 bg-gray-200 rounded animate-pulse" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {[1, 2].map((i) => (
             <Card key={i}>
@@ -116,9 +107,6 @@ export default function ComparativeKPICards({ periods, segment, salesperson, cli
   const salesData = allData.map(d => d?.totalSales || 0);
   const unitsData = allData.map(d => d?.totalUnits || 0);
   const transactionsData = allData.map(d => d?.totalTransactions || 0);
-  const totalSales = salesData.reduce((a, b) => a + b, 0);
-  const totalUnits = unitsData.reduce((a, b) => a + b, 0);
-  const totalTransactions = transactionsData.reduce((a, b) => a + b, 0);
 
   const barOptions = {
     responsive: true,
@@ -225,53 +213,13 @@ export default function ComparativeKPICards({ periods, segment, salesperson, cli
     }]
   };
 
+  // Las tarjetas de totales (ventas, unidades, transacciones) y el cartel de "Modo
+  // Comparativo" vivían acá arriba. Se fueron a `resumen-consolidado.tsx`, que va antes
+  // de este bloque en el dashboard: ahí los totales se calculan en el servidor sobre la
+  // unión de los períodos —no sumando uno a uno— y traen la variación contra el mismo
+  // tramo del año anterior. Este componente queda solo con los gráficos por período.
   return (
     <div className="space-y-6">
-      <Card className="bg-blue-50 border-blue-200">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <BarChart3 className="h-5 w-5 text-blue-600" />
-            <div>
-              <div className="font-semibold text-blue-900">Modo Comparativo</div>
-              <div className="text-sm text-blue-700">Comparando {periods.length} períodos</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-2 text-blue-600 mb-2">
-              <DollarSign className="h-5 w-5" />
-              <span className="text-sm font-medium">Total Ventas</span>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{formatCurrency(totalSales)}</div>
-            <div className="text-xs text-gray-500 mt-1">{periods.length} períodos combinados</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-2 text-orange-600 mb-2">
-              <Package className="h-5 w-5" />
-              <span className="text-sm font-medium">Total Unidades</span>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{formatNumber(totalUnits)}</div>
-            <div className="text-xs text-gray-500 mt-1">{periods.length} períodos combinados</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-2 text-green-600 mb-2">
-              <TrendingUp className="h-5 w-5" />
-              <span className="text-sm font-medium">Total Transacciones</span>
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{formatNumber(totalTransactions)}</div>
-            <div className="text-xs text-gray-500 mt-1">{periods.length} períodos combinados</div>
-          </CardContent>
-        </Card>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
