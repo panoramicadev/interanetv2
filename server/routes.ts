@@ -31602,12 +31602,40 @@ export function registerRoutes(app: Express): Server {
   //
   // Devuelve además el período anterior del mismo largo para mostrar la variación.
   app.get('/api/margen/resumen', requireCommercialAccess, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
-    const { period, filterType, segment, salesperson, client, product, family, branch } = req.query;
+    const { period, periods, filterType, segment, salesperson, client, product, family, branch } = req.query;
+
+    // `periods` (lista separada por comas) es el modo consolidado: varios meses, días o
+    // años a la vez. Se arma la UNIÓN de esos tramos y se compara contra el MISMO tramo
+    // del año anterior, igual que las otras tarjetas del resumen consolidado. Sin
+    // `periods` el endpoint se comporta exactamente como antes: un período y la
+    // comparación contra el mes anterior.
+    const listaPeriodos = String(periods || '')
+      .split(',')
+      .map((x: string) => x.trim())
+      .filter(Boolean);
+    const esConsolidado = listaPeriodos.length > 0;
+
+    if (esConsolidado && listaPeriodos.length > 120) {
+      return res.status(400).json({ message: 'Demasiados períodos en una sola consulta' });
+    }
 
     const range = getDateRange(period as string, filterType as string);
     const startDate = (req.query.startDate as string) || range.startDate;
     const endDate = (req.query.endDate as string) || range.endDate;
-    if (!startDate || !endDate) {
+
+    const tramosConsolidado = esConsolidado
+      ? unirTramos(
+          listaPeriodos
+            .map((x: string) => getDateRange(x, filterType as string))
+            .filter((r): r is { startDate: string; endDate: string } => Boolean(r.startDate && r.endDate))
+            .map(r => ({ startDate: r.startDate, endDate: r.endDate })),
+        )
+      : [];
+
+    if (esConsolidado && tramosConsolidado.length === 0) {
+      return res.status(400).json({ message: 'Ningún período quedó en un rango de fechas válido' });
+    }
+    if (!esConsolidado && (!startDate || !endDate)) {
       return res.status(400).json({ message: 'Faltan las fechas del período' });
     }
 
@@ -31619,8 +31647,8 @@ export function registerRoutes(app: Express): Server {
     // se solaparía con el período mismo; ahí se cae a la ventana anterior del mismo largo.
     const parseLocal = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
     const fmtLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const curStart = parseLocal(startDate);
-    const curEnd = parseLocal(endDate);
+    const curStart = parseLocal(esConsolidado ? tramosConsolidado[0].startDate : startDate!);
+    const curEnd = parseLocal(esConsolidado ? tramosConsolidado[tramosConsolidado.length - 1].endDate : endDate!);
     const lengthDays = Math.max(0, Math.round((curEnd.getTime() - curStart.getTime()) / 86400000));
 
     // Corre una fecha un mes hacia atrás. new Date(y, -1, d) ya resuelve enero → diciembre
@@ -31634,12 +31662,23 @@ export function registerRoutes(app: Express): Server {
 
     let prevStart = unMesAntes(curStart);
     let prevEnd = unMesAntes(curEnd);
-    let comparacion: 'mes-anterior' | 'ventana-anterior' = 'mes-anterior';
+    let comparacion: 'mes-anterior' | 'ventana-anterior' | 'anio-anterior' = 'mes-anterior';
     if (prevEnd.getTime() >= curStart.getTime()) {
       comparacion = 'ventana-anterior';
       prevEnd = new Date(curStart); prevEnd.setDate(prevEnd.getDate() - 1);
       prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - lengthDays);
     }
+
+    // En consolidado la comparación es el mismo tramo del AÑO anterior, para que el
+    // margen se lea contra lo mismo que las otras tarjetas de esa fila; correr cuatro
+    // meses "un mes atrás" se pisaría con el período mismo y no diría nada.
+    const tramosActuales = esConsolidado
+      ? tramosConsolidado
+      : [{ startDate: startDate!, endDate: endDate! }];
+    const tramosAnteriores = esConsolidado
+      ? tramosConsolidado.map(tramoAnioAnterior)
+      : [{ startDate: fmtLocal(prevStart), endDate: fmtLocal(prevEnd) }];
+    if (esConsolidado) comparacion = 'anio-anterior';
 
     // Scope de datos del encargado de área (mismas sucursales que ve en el resto)
     const clientScope = await getEncargadoScopeKoens((req as any).user);
@@ -31692,7 +31731,11 @@ export function registerRoutes(app: Express): Server {
     })();
 
     // Recorte común: las mismas condiciones para el período actual y el anterior.
-    const lineas = (s: string, e: string) => sql`
+    //
+    // Recibe una LISTA de tramos, no un desde–hasta: en modo consolidado la selección
+    // puede tener huecos (enero, marzo y abril) y un rango continuo metería febrero
+    // adentro. Con un solo tramo queda igual que antes.
+    const lineas = (tramos: Array<{ startDate: string; endDate: string }>) => sql`
       SELECT
         fv."monto" AS revenue,
         ${LINE_COST_GRI_EXPR} * (CASE WHEN fv."tido" = 'NCV' THEN -1 ELSE 1 END) AS line_cost,
@@ -31706,8 +31749,10 @@ export function registerRoutes(app: Express): Server {
         -- costo 0 e infla el margen. Mismo criterio que el panel de Fletes y que
         -- Comisiones (server/commissions.ts), para que las tres cuadren.
         AND (fv."nokoprct" IS NULL OR fv."nokoprct" NOT ILIKE '%flete%')
-        AND fv."feemdo" >= ${s}::date
-        AND fv."feemdo" <= ${e}::date
+        AND (${sql.join(
+          tramos.map(t => sql`(fv."feemdo" >= ${t.startDate}::date AND fv."feemdo" <= ${t.endDate}::date)`),
+          sql` OR `,
+        )})
         ${salespersonV ? sql`AND fv."nokofu" = ${salespersonV}` : sql``}
         ${segmentV ? sql`AND ${segmentSqlEq(sql`fv."noruen"`, segmentV)}` : sql``}
         ${clientCondition ? sql`AND ${clientCondition}` : sql``}
@@ -31718,8 +31763,8 @@ export function registerRoutes(app: Express): Server {
     `;
 
     const result = await db.execute(sql`
-      WITH curr AS (${lineas(startDate, endDate)}),
-           prev AS (${lineas(fmtLocal(prevStart), fmtLocal(prevEnd))})
+      WITH curr AS (${lineas(tramosActuales)}),
+           prev AS (${lineas(tramosAnteriores)})
       SELECT
         (SELECT COALESCE(SUM(revenue), 0) FROM curr)::TEXT AS revenue,
         (SELECT COALESCE(SUM(line_cost), 0) FROM curr)::TEXT AS cost,
@@ -31739,10 +31784,20 @@ export function registerRoutes(app: Express): Server {
     const prevMarginPct = prevRevenue > 0 ? (prevMargin / prevRevenue) * 100 : 0;
 
     res.json({
-      dateRange: { startDate, endDate },
-      prevDateRange: { startDate: fmtLocal(prevStart), endDate: fmtLocal(prevEnd) },
+      dateRange: {
+        startDate: tramosActuales[0].startDate,
+        endDate: tramosActuales[tramosActuales.length - 1].endDate,
+      },
+      prevDateRange: {
+        startDate: tramosAnteriores[0].startDate,
+        endDate: tramosAnteriores[tramosAnteriores.length - 1].endDate,
+      },
+      // Los tramos de verdad, que con huecos no son un rango continuo.
+      tramos: tramosActuales,
+      tramosAnteriores,
       // 'mes-anterior' = mismo tramo de días del mes pasado; 'ventana-anterior' = el
-      // período abarcaba más de un mes y se comparó contra la ventana previa del mismo largo.
+      // período abarcaba más de un mes y se comparó contra la ventana previa del mismo
+      // largo; 'anio-anterior' = modo consolidado, mismo tramo del año pasado.
       comparacion,
       revenue,
       cost,

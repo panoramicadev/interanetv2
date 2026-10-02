@@ -24,9 +24,38 @@ export const KPI_CHIP_FILA = "flex items-center gap-3 pb-2";
 export const KPI_TITULO =
   "text-xs sm:text-sm lg:text-base font-semibold text-gray-900 dark:text-white";
 
-/** Cifra grande. Nunca en naranjo: el color queda para la variación. */
-export const KPI_CIFRA =
-  "text-base min-[400px]:text-lg lg:text-xl 2xl:text-2xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0";
+/**
+ * Cifra grande. Nunca en naranjo: el color queda para la variación.
+ *
+ * **No lleva `text-ellipsis`**: son cifras de plata y un `$1.482.930…` no es un dato, es
+ * un dato perdido (corrección del usuario, oct-2026). Antes la clase recortaba con
+ * puntos suspensivos y en pantallas angostas desaparecían los dígitos grandes, que son
+ * justo los que importan.
+ *
+ * Para que quepa entera sin recortar, el tamaño sale de `kpiCifraClase(valor)`, que baja
+ * un escalón cuando la cifra es larga. `KPI_CIFRA` sigue exportada con el tamaño normal
+ * para los llamadores que muestran valores cortos.
+ */
+export const KPI_CIFRA_BASE =
+  "font-bold text-gray-900 dark:text-white mb-1 whitespace-nowrap min-w-0";
+
+export const KPI_CIFRA = `text-base min-[400px]:text-lg lg:text-xl 2xl:text-2xl ${KPI_CIFRA_BASE}`;
+
+/**
+ * Clases de la cifra grande ajustadas al largo de lo que se va a mostrar.
+ *
+ * El escalón se elige por cantidad de caracteres del texto YA formateado
+ * (`"$1.482.930.455"` son 14). Es a propósito que solo bajen los tamaños chicos: en
+ * escritorio la tarjeta tiene ancho de sobra y la cifra se sigue leyendo grande; el
+ * problema vive en el teléfono y en las pantallas de baja resolución.
+ */
+export function kpiCifraClase(valor: string | number): string {
+  const largo = String(valor).length;
+  if (largo <= 11) return KPI_CIFRA;
+  if (largo <= 14) return `text-sm min-[400px]:text-base sm:text-lg lg:text-xl 2xl:text-2xl ${KPI_CIFRA_BASE}`;
+  if (largo <= 17) return `text-xs min-[400px]:text-sm sm:text-base lg:text-lg 2xl:text-xl ${KPI_CIFRA_BASE}`;
+  return `text-[11px] min-[400px]:text-xs sm:text-sm lg:text-base 2xl:text-lg ${KPI_CIFRA_BASE}`;
+}
 
 /**
  * Valor de la fila de variación (el `+22.1%`, el acumulado del año, los `-1,0 pts`).

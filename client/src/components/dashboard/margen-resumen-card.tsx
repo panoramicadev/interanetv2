@@ -3,7 +3,7 @@ import { Percent, Loader2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { mesEs } from "@/lib/fecha-es";
 import { ICONO_CHIP, ICONO_CHIP_ICONO } from "@/lib/icono-chip";
-import { KPI_CIFRA, KPI_TITULO, KPI_VARIACION_COLOR } from "@/lib/kpi-tarjeta";
+import { kpiCifraClase, KPI_TITULO, KPI_VARIACION_COLOR } from "@/lib/kpi-tarjeta";
 
 // Tarjeta de margen que acompaña a cualquier dashboard.
 //
@@ -20,7 +20,11 @@ import { KPI_CIFRA, KPI_TITULO, KPI_VARIACION_COLOR } from "@/lib/kpi-tarjeta";
 interface MargenResumen {
   dateRange: { startDate: string; endDate: string };
   prevDateRange: { startDate: string; endDate: string };
-  comparacion: "mes-anterior" | "ventana-anterior";
+  /**
+   * Contra qué se comparó. 'anio-anterior' solo aparece en el modo consolidado del
+   * endpoint (varios períodos a la vez), que esta tarjeta no usa.
+   */
+  comparacion: "mes-anterior" | "ventana-anterior" | "anio-anterior";
   revenue: number;
   cost: number;
   margin: number;
@@ -156,7 +160,7 @@ export default function MargenResumenCard(props: MargenResumenCardProps) {
                   única distinta. El acento naranjo queda para la variación, igual que
                   el "+17,8%" de Ventas Totales. */}
               <p
-                className={KPI_CIFRA}
+                className={kpiCifraClase(formatPct(data?.marginPct ?? 0))}
                 data-testid="text-margen-pct"
               >
                 {formatPct(data?.marginPct ?? 0)}

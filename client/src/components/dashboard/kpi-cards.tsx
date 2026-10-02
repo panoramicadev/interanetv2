@@ -18,7 +18,7 @@ import MargenResumenCard from "@/components/dashboard/margen-resumen-card";
 import { useFilter } from "@/contexts/FilterContext";
 import { mesEs, mesEsCapitalizado, mesAnioEs } from "@/lib/fecha-es";
 import { ICONO_CHIP, ICONO_CHIP_ICONO } from "@/lib/icono-chip";
-import { KPI_CIFRA, KPI_TITULO, KPI_VARIACION_COLOR } from "@/lib/kpi-tarjeta";
+import { kpiCifraClase, KPI_TITULO, KPI_VARIACION_COLOR } from "@/lib/kpi-tarjeta";
 
 interface SalesMetrics {
   totalSales: number;
@@ -830,8 +830,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 {conToggle && renderToggleFacturadoCombinado()}
               </div>
 
+              {/* El tamaño sale del largo de la cifra: la plata se muestra ENTERA, nunca
+                  recortada con puntos suspensivos. */}
               <p
-                className={`${KPI_CIFRA} transition-all`}
+                className={`${kpiCifraClase(effectiveCombined ? formatCurrency(combinedTotal) : kpi.value)} transition-all`}
                 data-testid={kpi.testId}
                 title={effectiveCombined ? formatCurrency(combinedTotal) : kpi.value}
               >
@@ -896,15 +898,17 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                   <div className="flex flex-col gap-y-1 text-sm lg:text-base text-gray-700 dark:text-gray-300 mb-1">
                     {/* La etiqueta va en el mismo gris que "Meta a la Fecha" del bloque
                         de Presupuesto (pedido del usuario, sep-2026): así la cifra, que
-                        es lo que se lee, queda un tono más oscura que su nombre. */}
-                    <span className="truncate" title={`Facturas: ${kpi.value}`}>
+                        es lo que se lee, queda un tono más oscura que su nombre.
+                        Sin `truncate` (oct-2026): son montos, y un "$1.482.930…" no es un
+                        dato. Si no cabe, que baje de línea entero. */}
+                    <span title={`Facturas: ${kpi.value}`}>
                       <span className="text-gray-500 dark:text-gray-400">Fact:</span> {kpi.value}
                     </span>
-                    <span className="truncate" title={`GDV: ${formatCurrency(gdvSales)}`}>
+                    <span title={`GDV: ${formatCurrency(gdvSales)}`}>
                       <span className="text-gray-500 dark:text-gray-400">GDV:</span> {formatCurrency(gdvSales)}
                     </span>
                   </div>
-                  <p className="text-sm lg:text-base text-gray-700 dark:text-gray-300 truncate" title={`NVV: ${formatCurrency(nvvTotal)}`}>
+                  <p className="text-sm lg:text-base text-gray-700 dark:text-gray-300" title={`NVV: ${formatCurrency(nvvTotal)}`}>
                     <span className="text-gray-500 dark:text-gray-400">NVV:</span> {formatCurrency(nvvTotal)}
                   </p>
                 </div>
@@ -990,7 +994,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </p>
               </div>
               <p
-                className={KPI_CIFRA}
+                className={kpiCifraClase(kpi.value)}
                 data-testid={kpi.testId}
                 title={kpi.value}
               >
@@ -1017,19 +1021,19 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 <div className="flex flex-col gap-y-1 text-sm lg:text-base text-gray-700 dark:text-gray-300">
                   <div className="flex items-baseline gap-x-2 flex-wrap">
                     <span className="text-gray-500 dark:text-gray-400">Clientes totales:</span>
-                    <span className="truncate" title={formatNumber(totalCustomers)}>
+                    <span title={formatNumber(totalCustomers)}>
                       {formatNumber(totalCustomers)}
                     </span>
                   </div>
                   <div className="flex items-baseline gap-x-2 flex-wrap">
                     <span className="text-gray-500 dark:text-gray-400">Unidades vendidas:</span>
-                    <span className="truncate" title={formatNumber(totalUnits)}>
+                    <span title={formatNumber(totalUnits)}>
                       {formatNumber(totalUnits)}
                     </span>
                   </div>
                   <div className="flex items-baseline gap-x-2 flex-wrap">
                     <span className="text-gray-500 dark:text-gray-400">Órdenes:</span>
-                    <span className="truncate" title={formatNumber(totalOrders)}>
+                    <span title={formatNumber(totalOrders)}>
                       {formatNumber(totalOrders)}
                     </span>
                   </div>
@@ -1233,7 +1237,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             </div>
 
             <p
-              className={`${KPI_CIFRA} transition-all`}
+              className={`${kpiCifraClase(formatCurrency(displayValue))} transition-all`}
               data-testid={kpi.testId}
               title={formatCurrency(displayValue)}
             >

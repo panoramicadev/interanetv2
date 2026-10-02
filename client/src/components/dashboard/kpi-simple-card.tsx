@@ -2,7 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import { ICONO_CHIP, ICONO_CHIP_ICONO } from "@/lib/icono-chip";
 import {
   KPI_CHIP_FILA,
-  KPI_CIFRA,
+  kpiCifraClase,
   KPI_DETALLE,
   KPI_DETALLE_ETIQUETA,
   KPI_TARJETA,
@@ -72,7 +72,9 @@ export default function TarjetaKpi({
           <p className={KPI_TITULO}>{titulo}</p>
         </div>
 
-        <p className={KPI_CIFRA} data-testid={testId} title={valor}>
+        {/* El tamaño sale del largo del valor: una cifra de plata se muestra ENTERA,
+            nunca recortada con puntos suspensivos. */}
+        <p className={kpiCifraClase(valor)} data-testid={testId} title={valor}>
           {valor}
         </p>
 
@@ -93,9 +95,10 @@ export default function TarjetaKpi({
               {detalles.map((detalle) => (
                 <div key={detalle.etiqueta} className="flex items-baseline gap-x-2 flex-wrap">
                   <span className={KPI_DETALLE_ETIQUETA}>{detalle.etiqueta}:</span>
-                  <span className="truncate" title={detalle.valor}>
-                    {detalle.valor}
-                  </span>
+                  {/* Sin `truncate`: acá abajo también hay cifras de plata y recortarlas
+                      con puntos suspensivos es perder el dato. La fila ya es `flex-wrap`,
+                      así que si no cabe el valor baja a la línea de abajo, entero. */}
+                  <span title={detalle.valor}>{detalle.valor}</span>
                 </div>
               ))}
             </div>
