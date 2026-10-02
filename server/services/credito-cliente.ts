@@ -22,8 +22,9 @@
  * línea de crédito, los días de crédito (dccr) y los datos de contacto que
  * encabezan el estado de cuenta.
  *
- * Alcance: la empresa completa (casa matriz + sucursales que comparten nombre
- * o RUT), igual que el resto de la ficha.
+ * Alcance: la empresa completa: las fichas que comparten nombre o RUT, más la
+ * casa matriz y las sucursales de su jerarquía (parent_client_id), igual que
+ * el crédito que el cliente ve en su panel del Market.
  */
 import { sql } from 'drizzle-orm';
 import { resolverLineaCredito, type OrigenLineaCredito } from '@shared/credito';
@@ -112,8 +113,31 @@ export async function obtenerCreditoCliente(filtro: {
        OR (${cleanRut} <> '' AND REPLACE(REPLACE(REPLACE(UPPER(rten), '.', ''), '-', ''), ' ', '') = ${cleanRut})
     ORDER BY parent_client_id NULLS FIRST
   `);
-  const fichaRows = filasDe(fichaResult);
-  const principal = fichaRows[0] || null;
+  const coincidencias = filasDe(fichaResult);
+  const principal = coincidencias[0] || null;
+
+  // Sumar las sucursales de la jerarquía (casa matriz + hijas por
+  // parent_client_id), aunque tengan otro nombre y otro RUT: es como el Market
+  // arma la empresa del cliente (resolveClientScope en routes.ts). Sin esto, el
+  // Panel de Trabajo y la ficha mostraban solo la fila que calzaba por nombre, y
+  // la línea y la deuda de las sucursales quedaban fuera, mientras el cliente las
+  // veía en su panel del Market. Las filas que calzaron van primero, así la
+  // línea sigue saliendo de la ficha consultada antes que de una sucursal.
+  const raices = Array.from(new Set(
+    coincidencias.map((f) => String(f.parent_client_id || f.id)).filter(Boolean),
+  ));
+  const jerarquia = raices.length > 0
+    ? filasDe(await db.execute(sql`
+        SELECT id, koen, nokoen, rten, cpen, crto, dccr, kofuen, parent_client_id, ficha_overrides,
+               dien, comuna, cmen, foen
+        FROM clients
+        WHERE id IN (${sql.join(raices.map((r) => sql`${r}`), sql`, `)})
+           OR parent_client_id IN (${sql.join(raices.map((r) => sql`${r}`), sql`, `)})
+        ORDER BY parent_client_id NULLS FIRST
+      `))
+    : [];
+  const vistos = new Set(coincidencias.map((f) => String(f.id)));
+  const fichaRows = [...coincidencias, ...jerarquia.filter((f) => !vistos.has(String(f.id)))];
   const koens = Array.from(new Set(fichaRows.map((f) => f.koen).filter(Boolean))) as string[];
 
   // Línea de crédito: la de la casa matriz; si no tiene, la primera sucursal
