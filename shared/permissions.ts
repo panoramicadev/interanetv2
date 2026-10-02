@@ -296,7 +296,7 @@ export const PERMISSIONS: PermissionDef[] = [
   // ── Tintometría ──────────────────────────────────────────────
   {
     key: "tintometria.carta",
-    label: "Carta de colores",
+    label: "Pantonera Digital",
     description: "Pantonera Panorámica y Sherwin-Williams: código, nombre y color",
     group: "tintometria",
     href: "/tintometria/carta",

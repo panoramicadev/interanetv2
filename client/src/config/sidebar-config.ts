@@ -218,7 +218,7 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
     children: [
       {
         href: "/tintometria/carta",
-        label: "Carta de colores",
+        label: "Pantonera Digital",
         icon: Palette,
       },
       {
@@ -231,16 +231,8 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
         label: "Administrar Datos",
         icon: Settings,
       },
-      {
-        href: "/tintometria/calculadora",
-        label: "Calcular Costos",
-        icon: DollarSign,
-      },
-      {
-        href: "/tintometria/selector",
-        label: "Selector Visual",
-        icon: PaintBucket,
-      },
+      // Calcular Costos y Selector Visual ocultos por ahora (oct-2026): las
+      // rutas /tintometria/calculadora y /tintometria/selector siguen activas.
     ],
     separator: true,
   },
@@ -409,7 +401,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       children: [
         {
           href: "/tintometria/carta",
-          label: "Carta de colores",
+          label: "Pantonera Digital",
           icon: Palette,
         },
         {
@@ -422,16 +414,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           label: "Administrar Datos",
           icon: Settings,
         },
-        {
-          href: "/tintometria/calculadora",
-          label: "Calcular Costos",
-          icon: DollarSign,
-        },
-        {
-          href: "/tintometria/selector",
-          label: "Selector Visual",
-          icon: PaintBucket,
-        },
+        // Calcular Costos y Selector Visual ocultos por ahora (oct-2026): las
+        // rutas /tintometria/calculadora y /tintometria/selector siguen activas.
       ],
     },
 
@@ -653,7 +637,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       children: [
         {
           href: "/tintometria/carta",
-          label: "Carta de colores",
+          label: "Pantonera Digital",
           icon: Palette,
         },
         {
@@ -666,16 +650,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           label: "Administrar Datos",
           icon: Settings,
         },
-        {
-          href: "/tintometria/calculadora",
-          label: "Calcular Costos",
-          icon: DollarSign,
-        },
-        {
-          href: "/tintometria/selector",
-          label: "Selector Visual",
-          icon: PaintBucket,
-        },
+        // Calcular Costos y Selector Visual ocultos por ahora (oct-2026): las
+        // rutas /tintometria/calculadora y /tintometria/selector siguen activas.
       ],
     },
 
@@ -799,7 +775,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       children: [
         {
           href: "/tintometria/carta",
-          label: "Carta de colores",
+          label: "Pantonera Digital",
           icon: Palette,
         },
         {
@@ -812,16 +788,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           label: "Administrar Datos",
           icon: Settings,
         },
-        {
-          href: "/tintometria/calculadora",
-          label: "Calcular Costos",
-          icon: DollarSign,
-        },
-        {
-          href: "/tintometria/selector",
-          label: "Selector Visual",
-          icon: PaintBucket,
-        },
+        // Calcular Costos y Selector Visual ocultos por ahora (oct-2026): las
+        // rutas /tintometria/calculadora y /tintometria/selector siguen activas.
       ],
     },
   ],

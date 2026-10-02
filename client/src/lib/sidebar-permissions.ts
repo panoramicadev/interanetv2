@@ -140,11 +140,13 @@ const EXTRA_GROUPS: ExtraGroupTemplate[] = [
     label: "Tintometría",
     icon: Palette,
     children: [
-      { key: "tintometria.carta", href: "/tintometria/carta", label: "Carta de colores", icon: Palette },
+      { key: "tintometria.carta", href: "/tintometria/carta", label: "Pantonera Digital", icon: Palette },
       { key: "tintometria.solicitudes", href: "/tintometria/solicitudes", label: "Solicitudes a laboratorio", icon: FlaskConical },
       { key: "tintometria.admin", href: "/tintometria/admin", label: "Administrar Datos", icon: Settings },
-      { key: "tintometria.calculadora", href: "/tintometria/calculadora", label: "Calcular Costos", icon: DollarSign },
-      { key: "tintometria.selector", href: "/tintometria/selector", label: "Selector Visual", icon: PaintBucket },
+      // Ocultos por ahora (oct-2026), igual que en sidebar-config: si quedan
+      // acá, los "extras" los reponen a quien tenga el permiso.
+      // { key: "tintometria.calculadora", href: "/tintometria/calculadora", label: "Calcular Costos", icon: DollarSign },
+      // { key: "tintometria.selector", href: "/tintometria/selector", label: "Selector Visual", icon: PaintBucket },
     ],
   },
   // Mantención (CMMS) oculto del sidebar para todos los roles: el módulo está

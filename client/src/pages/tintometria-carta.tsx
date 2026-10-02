@@ -109,10 +109,14 @@ export default function TintometriaCartaPage() {
           <Palette className={ICONO_CHIP_ICONO} />
         </div>
         <div className="min-w-0">
-          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Carta de colores</h1>
-          <p className="hidden sm:block text-sm text-slate-500 dark:text-slate-400">
-            Pantonera Panorámica y cartilla Sherwin-Williams. Toca un color para ver su ficha
-            {verFormulas ? " y su fórmula" : ""}.
+          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+            <span className="text-[#fd6301]">Copper</span> Color
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Pantonera Digital
+            {deLaCartilla.length > 0 && (
+              <span className="tabular-nums"> {deLaCartilla.length.toLocaleString("es-CL")} colores</span>
+            )}
           </p>
         </div>
       </div>

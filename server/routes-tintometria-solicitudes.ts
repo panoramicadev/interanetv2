@@ -589,7 +589,7 @@ export function registerTintometriaSolicitudesRoutes(app: Express) {
         await registrarEvento(s.id, req.user, 'laboratorio', 'respondida', d.respuesta ?? null);
 
         const partes = [
-          formulaId ? 'la fórmula ya está en la carta de colores para el operador' : null,
+          formulaId ? 'la fórmula ya está en la Pantonera Digital para el operador' : null,
           pidePrecio ? `el precio es ${money(d.precio)}${d.precioUnidad ? ` ${escapar(d.precioUnidad)}` : ''}` : null,
         ].filter(Boolean);
         enviar({

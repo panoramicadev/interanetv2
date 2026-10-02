@@ -67,7 +67,7 @@ export function registerTintometriaRoutes(app: Express) {
       res.json(filas);
     } catch (error: any) {
       console.error('[tintometria] no se pudo leer la carta:', error.message);
-      res.status(500).json({ message: 'No se pudo cargar la carta de colores' });
+      res.status(500).json({ message: 'No se pudo cargar la Pantonera Digital' });
     }
   });
 
