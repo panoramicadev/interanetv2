@@ -313,6 +313,9 @@ export default function CustomColorRequestModal({ open, onClose, vendedor }: Pro
         visitorPhone: form.visitorPhone.trim() || null,
         visitorCompany: form.visitorCompany.trim() || null,
         visitorCity: form.visitorCity.trim() || null,
+        // Con el RUT el servidor reconoce al cliente y no lo manda al CRM
+        // como si fuera un prospecto.
+        visitorRut: cliente?.rten || null,
         segmento: form.segmento || undefined,
         message: [
           `COTIZACIÓN COLOR PERSONALIZADO`,
