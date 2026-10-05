@@ -40,8 +40,7 @@ export type FormatoEstadoCuenta = 'pdf' | 'xlsx';
 
 const EMPRESA = 'Pinturas Panorámica';
 
-const LINEA_CONSULTAS =
-  `Ante cualquier consulta, escríbanos a ${CONTACTO_COBRANZA.correo}, con copia a ${CONTACTO_COBRANZA.copia}.`;
+const LINEA_CONSULTAS = `Ante cualquier consulta, escríbanos a ${CONTACTO_COBRANZA.consultas}.`;
 
 const TIPO_CONTENIDO: Record<FormatoEstadoCuenta, string> = {
   pdf: 'application/pdf',
@@ -238,7 +237,7 @@ export async function generarEstadoCuentaPdf(
   if (credito.docs.length > 0) {
     dibujarDatosPago(doc, y + 18);
   } else {
-    doc.font('Helvetica').fontSize(8).fillColor(COLOR.tintaSuave)
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(COLOR.tinta)
       .text(LINEA_CONSULTAS, MARGEN, y + 10, { width: ANCHO_UTIL });
   }
 
@@ -625,10 +624,15 @@ function dibujarDatosPago(doc: Pdf, y0: number): void {
   ]);
   y += ALTO_CUERPO;
 
+  // Las consultas van en negrita y con un solo correo: el del comprobante no
+  // atiende preguntas, y así no se confunde con el bloque de arriba.
   doc.font('Helvetica').fontSize(8).fillColor(COLOR.tintaSuave)
-    .text(`Si ya pagó alguno de estos documentos, por favor omítalo. ${LINEA_CONSULTAS}`, MARGEN, y + 10, {
+    .text('Si ya pagó alguno de estos documentos, por favor omítalo. ', MARGEN, y + 10, {
       width: ANCHO_UTIL,
-    });
+      continued: true,
+    })
+    .font('Helvetica-Bold').fillColor(COLOR.tinta)
+    .text(LINEA_CONSULTAS);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
