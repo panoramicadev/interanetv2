@@ -1157,6 +1157,11 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE inventario_marketing_movimientos ADD COLUMN IF NOT EXISTS cliente_nombre VARCHAR(255)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_inv_marketing_mov_item" ON inventario_marketing_movimientos (item_id)`);
 
+    // Inventario: stock comprometido en notas de venta (migración 093). El
+    // Tomador muestra el disponible por bodega (stock − comprometido).
+    await db.execute(sql`ALTER TABLE inventory_products ADD COLUMN IF NOT EXISTS comprometido1 NUMERIC(15, 2) DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE inventory_products ADD COLUMN IF NOT EXISTS comprometido2 NUMERIC(15, 2) DEFAULT 0`);
+
     // Panel de Trabajo: change-log por sección + marcadores de visto por usuario
     // (migración 062 — runtime bootstrap porque el runner no es confiable en prod).
     console.log('  🔔 Verificando tablas de cambios del Panel de Trabajo...');

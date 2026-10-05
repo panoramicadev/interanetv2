@@ -1668,7 +1668,9 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
 
     inventoryData.forEach((item: any) => {
       const sku = item.productSku;
-      const quantity = Number(item.availableQuantity || item.stock2 || 0);
+      // Disponible = físico − comprometido en notas de venta. Con `??` y no `||`:
+      // un disponible en cero es un dato, no un "falta el campo".
+      const quantity = Number(item.availableQuantity ?? item.stock2 ?? 0);
       const warehouseName = item.warehouseName || item.warehouseCode || 'Sin bodega';
 
       if (sku) {
