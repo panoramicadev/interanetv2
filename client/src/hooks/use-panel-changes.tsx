@@ -8,6 +8,9 @@
  *  - markSeen/enterSection: al entrar a una pestaña se marcan vistos sus
  *    cambios y los ids afectados quedan como "highlights" para destacar las
  *    tarjetas modificadas durante la visita.
+ *  - markEntitySeen: los cambios "por ficha" (tareas y seguimientos de cliente)
+ *    NO se dan por vistos al entrar a la pestaña. La tarjeta queda destacada,
+ *    y contando en el badge, hasta que se abre esa ficha.
  *  - PanelChangesContext/usePanelHighlights: los sub-componentes de cada
  *    pestaña leen los ids destacados sin prop-drilling.
  */
@@ -64,6 +67,8 @@ export interface PanelChangeItem {
   userId: string;
   userName: string | null;
   createdAt: string;
+  /** Se da por visto al abrir su ficha (entityId), no al entrar a la pestaña. */
+  porFicha?: boolean;
 }
 
 export interface PanelChangesController {
@@ -75,6 +80,10 @@ export interface PanelChangesController {
   /** Ids de entidades a destacar por sección durante la visita actual. */
   highlights: Partial<Record<PanelSection, Set<string>>>;
   markSeen: (section: PanelSection) => void;
+  /** Llamar al abrir (y al cerrar) una ficha: da por vistos sus cambios. */
+  markEntitySeen: (entityId: string) => void;
+  /** Ids de fichas con cambios sin ver (para filtrar "con novedades"). */
+  pendingEntityIds: Set<string>;
   markAllSeen: () => void;
   /** Llamar al pinchar una pestaña ya activa (el cambio de pestaña se maneja solo). */
   enterSection: (section: PanelSection) => void;
@@ -117,17 +126,60 @@ export function usePanelChangesController(opts: {
     return c;
   }, [visibleItems]);
 
-  const [highlights, setHighlights] = useState<Partial<Record<PanelSection, Set<string>>>>({});
+  // Destacado "de la visita": ids capturados al marcar vista una sección. Solo
+  // cubre los cambios que se van al entrar; los por-ficha se destacan mientras
+  // sigan en el summary (ver `highlights` más abajo).
+  const [visitHighlights, setVisitHighlights] = useState<Partial<Record<PanelSection, Set<string>>>>({});
+
+  // Cuántos cambios de cada sección se van al entrar a la pestaña.
+  const countsAlEntrar = useMemo(() => {
+    const c: Partial<Record<PanelSection, number>> = {};
+    for (const it of visibleItems) if (!it.porFicha) c[it.section] = (c[it.section] ?? 0) + 1;
+    return c;
+  }, [visibleItems]);
+
+  const pendingEntityIds = useMemo(
+    () => new Set(visibleItems.filter((i) => i.porFicha && i.entityId).map((i) => i.entityId as string)),
+    [visibleItems],
+  );
+
+  const highlights = useMemo(() => {
+    const out: Partial<Record<PanelSection, Set<string>>> = { ...visitHighlights };
+    for (const it of visibleItems) {
+      if (!it.porFicha || !it.entityId) continue;
+      const actual = out[it.section];
+      // Copiar antes de sumar: el Set de la visita es estado de React.
+      const set = actual && actual !== visitHighlights[it.section] ? actual : new Set(actual);
+      set.add(it.entityId);
+      out[it.section] = set;
+    }
+    return out;
+  }, [visitHighlights, visibleItems]);
+
+  const pendingEntityIdsRef = useRef(pendingEntityIds);
+  pendingEntityIdsRef.current = pendingEntityIds;
+
+  const markEntitySeen = useCallback((entityId: string) => {
+    if (!entityId || !pendingEntityIdsRef.current.has(entityId)) return;
+    // Se saca del summary en el momento: la tarjeta deja de destacarse al
+    // abrirla, sin esperar la respuesta ni el próximo sondeo.
+    queryClient.setQueryData<{ items: PanelChangeItem[] }>(["/api/panel-changes/summary"], (prev) =>
+      prev ? { ...prev, items: prev.items.filter((i) => !(i.porFicha && i.entityId === entityId)) } : prev,
+    );
+    apiRequest("/api/panel-changes/seen", { method: "POST", data: { entityId } })
+      .catch(() => {})
+      .finally(() => queryClient.invalidateQueries({ queryKey: ["/api/panel-changes/summary"] }));
+  }, []);
 
   const markSeen = useCallback(
     (section: PanelSection) => {
       // Capturar los ids a destacar ANTES de marcar visto (después desaparecen del summary).
       const ids = new Set(
         visibleItems
-          .filter((i) => i.section === section && i.entityId)
+          .filter((i) => i.section === section && i.entityId && !i.porFicha)
           .map((i) => i.entityId as string),
       );
-      setHighlights((prev) => ({ ...prev, [section]: ids }));
+      setVisitHighlights((prev) => ({ ...prev, [section]: ids }));
       apiRequest("/api/panel-changes/seen", {
         method: "POST",
         data: { section, segmento: segmentoFilter },
@@ -141,11 +193,15 @@ export function usePanelChangesController(opts: {
   const markAllSeen = useCallback(() => {
     const next: Partial<Record<PanelSection, Set<string>>> = {};
     for (const s of PANEL_SECTIONS) {
+      // Los por-ficha no se capturan: "marcar todo" los da por vistos de verdad
+      // y dejarlos destacados contradice lo que se acaba de pedir.
       next[s] = new Set(
-        visibleItems.filter((i) => i.section === s && i.entityId).map((i) => i.entityId as string),
+        visibleItems
+          .filter((i) => i.section === s && i.entityId && !i.porFicha)
+          .map((i) => i.entityId as string),
       );
     }
-    setHighlights(next);
+    setVisitHighlights(next);
     apiRequest("/api/panel-changes/seen", { method: "POST", data: { all: true } })
       .then(() => queryClient.invalidateQueries({ queryKey: ["/api/panel-changes/summary"] }))
       .catch(() => {});
@@ -155,8 +211,10 @@ export function usePanelChangesController(opts: {
   // fresca sin re-dispararse en cada refetch del summary.
   const markSeenRef = useRef(markSeen);
   markSeenRef.current = markSeen;
-  const countsRef = useRef(counts);
-  countsRef.current = counts;
+  // Solo lo que se va al entrar gatilla el "visto" de la sección: con cambios
+  // por-ficha pendientes el badge sigue en pie y no hay nada que marcar.
+  const countsRef = useRef(countsAlEntrar);
+  countsRef.current = countsAlEntrar;
 
   const activeSection = PANEL_TAB_TO_SECTION[activeTab];
   const hasData = !!items;
@@ -169,7 +227,7 @@ export function usePanelChangesController(opts: {
     if ((countsRef.current[activeSection] ?? 0) > 0) {
       markSeenRef.current(activeSection);
     } else {
-      setHighlights((prev) =>
+      setVisitHighlights((prev) =>
         prev[activeSection]?.size ? { ...prev, [activeSection]: new Set<string>() } : prev,
       );
     }
@@ -179,7 +237,17 @@ export function usePanelChangesController(opts: {
     if ((countsRef.current[section] ?? 0) > 0) markSeenRef.current(section);
   }, []);
 
-  return { visibleItems, counts, total: visibleItems.length, highlights, markSeen, markAllSeen, enterSection };
+  return {
+    visibleItems,
+    counts,
+    total: visibleItems.length,
+    highlights,
+    markSeen,
+    markEntitySeen,
+    pendingEntityIds,
+    markAllSeen,
+    enterSection,
+  };
 }
 
 export const PanelChangesContext = createContext<PanelChangesController | null>(null);

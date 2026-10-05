@@ -1188,6 +1188,37 @@ export async function bootstrapDatabase(): Promise<void> {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_panel_change_seen_user_id" ON panel_change_seen (user_id)`);
 
+    // Visto por ficha (migración 092): los cambios de una tarea o seguimiento
+    // quedan destacados hasta abrir esa ficha, no hasta entrar a la pestaña.
+    const yaExistiaVistoPorFicha = await db.execute(sql`SELECT to_regclass('public.panel_change_entity_seen') AS t`);
+    const estrenaVistoPorFicha = !((yaExistiaVistoPorFicha as any).rows?.[0]?.t);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS panel_change_entity_seen (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL,
+        entity_id VARCHAR NOT NULL,
+        last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CONSTRAINT panel_change_entity_seen_unique UNIQUE (user_id, entity_id)
+      )
+    `);
+    if (estrenaVistoPorFicha) {
+      // Solo la primera vez: lo que cada usuario ya había dado por visto con el
+      // marcador de pestaña se traspasa a sus fichas, para que el estreno no
+      // les destaque de golpe los cambios de las últimas dos semanas.
+      await db.execute(sql`
+        INSERT INTO panel_change_entity_seen (user_id, entity_id, last_seen_at)
+        SELECT s.user_id, l.entity_id, max(s.last_seen_at)
+        FROM panel_change_seen s
+        JOIN panel_change_log l
+          ON l.section = s.section AND coalesce(l.segmento, '__all') = s.segmento
+        WHERE l.entity_id IS NOT NULL
+          AND l.section IN ('seguimiento', 'tareas')
+          AND l.entity_type IN ('task', 'actividad')
+        GROUP BY s.user_id, l.entity_id
+        ON CONFLICT DO NOTHING
+      `);
+    }
+
     // Web Push (PWA): suscripciones por dispositivo para notificaciones push
     // (migración 063 — runtime bootstrap porque el runner no es confiable en prod).
     console.log('  📲 Verificando tabla de suscripciones Web Push...');

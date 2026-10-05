@@ -11,11 +11,25 @@
  * El "visto" se guarda por (usuario, sección, segmento) para que un cambio en
  * otra área no se dé por visto al revisar la propia. Los cambios sin segmento
  * viven en el bucket '__all'.
+ *
+ * Excepción — visto POR FICHA: los cambios sobre una tarea o un seguimiento de
+ * cliente no se dan por vistos al entrar a la pestaña, sino al abrir esa ficha
+ * (panel_change_entity_seen). Con decenas de clientes en seguimiento, entrar a
+ * la pestaña borraba todos los avisos de una vez y había que revisarlos uno a
+ * uno para saber cuál tenía novedades (pedido del usuario, oct-2026).
  */
 import type { Express } from "express";
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, notInArray, or, sql, type SQL } from "drizzle-orm";
 import { db } from "./db";
-import { panelChangeLog, panelChangeSeen, salespeopleUsers, users } from "@shared/schema";
+import {
+  panelChangeEntitySeen,
+  panelChangeLog,
+  panelChangeSeen,
+  salespeopleUsers,
+  taskAssignments,
+  tasks,
+  users,
+} from "@shared/schema";
 import { requireAuth } from "./auth";
 import { sendPushToPanelUsers } from "./push";
 
@@ -41,6 +55,30 @@ const SEGMENTO_BUCKETS = ["ferreterias", "construccion", "digital", "marketing",
 
 const RETENTION_DAYS = 14;
 const SUMMARY_LIMIT = 300;
+
+// Secciones cuyas tarjetas son fichas que se abren (tarea / seguimiento de
+// cliente) y tipos de cambio que apuntan a una de ellas: en ambos el entityId
+// es el id de la tarea.
+const SECCIONES_POR_FICHA = ["seguimiento", "tareas"];
+const TIPOS_DE_FICHA = ["task", "actividad"];
+
+/**
+ * ¿Este cambio se da por visto al abrir su ficha (y no al entrar a la pestaña)?
+ * Los borrados quedan fuera: la ficha ya no existe y no habría cómo abrirla.
+ */
+export function esCambioPorFicha(c: {
+  section: string;
+  entityType: string;
+  entityId?: string | null;
+  action: string;
+}): boolean {
+  return (
+    !!c.entityId &&
+    c.action !== "deleted" &&
+    SECCIONES_POR_FICHA.includes(c.section) &&
+    TIPOS_DE_FICHA.includes(c.entityType)
+  );
+}
 
 export function panelUserName(user: any): string {
   if (!user) return "";
@@ -116,6 +154,14 @@ export function panelTaskTitle(
 // ==================================================
 // Visibilidad: quién ve qué cambio
 // --------------------------------------------------
+// Nadie ve sus propios cambios: avisarle a alguien de lo que acaba de escribir
+// es ruido y tapa lo que hicieron los demás.
+//
+// Además del alcance por autor de abajo, cada quien ve los cambios hechos por
+// CUALQUIERA sobre las fichas que tiene a la vista (ver filtroFichasDelUsuario):
+// quien comenta el seguimiento de un cliente puede ser de otra área (cobranza,
+// recepción) y no estar en el equipo del responsable.
+//
 // El change-log solo guarda el AUTOR del cambio (userId), así que el alcance
 // se define por autor:
 //   admin                      → ve todos los cambios
@@ -207,6 +253,46 @@ export async function autoresVisiblesParaUsuario(user: any): Promise<string[] | 
   } catch (error: any) {
     console.error("⚠️ [panel-changes] No se pudo calcular la visibilidad:", error?.message);
     return [user?.id].filter(Boolean) as string[];
+  }
+}
+
+/**
+ * Cambios sobre las fichas (tareas / seguimientos) que el usuario tiene a la
+ * vista en el panel, sin importar quién los hizo. Mismo criterio que
+ * getTasksWithAssignmentsOptimized en storage.ts: las que creó, las que tiene
+ * asignadas y, si es supervisor o encargado, las asignadas a su equipo. El
+ * vendedor solo ve las asignadas. Ante un error se cierra (no suma nada).
+ */
+async function filtroFichasDelUsuario(user: any, propios: string[]): Promise<SQL> {
+  try {
+    if (propios.length === 0) return sql`false`;
+    const rol = String(user?.role ?? "");
+    let asignados = propios;
+    if (ROLES_CON_EQUIPO.includes(rol)) {
+      const equipo = await db
+        .select({ id: salespeopleUsers.id })
+        .from(salespeopleUsers)
+        .where(inArray(salespeopleUsers.supervisorId, propios));
+      asignados = Array.from(new Set([...propios, ...equipo.map((v) => v.id)]));
+    }
+    const lista = (ids: string[]) => sql.join(ids.map((id) => sql`${id}`), sql`, `);
+    const creadaPorMi =
+      rol === "salesperson" ? sql`false` : sql`${tasks.createdByUserId} IN (${lista(propios)})`;
+    return sql`(
+      ${panelChangeLog.entityType} IN (${lista(TIPOS_DE_FICHA)})
+      AND ${panelChangeLog.entityId} IN (
+        SELECT ${tasks.id} FROM ${tasks}
+        WHERE ${creadaPorMi}
+          OR EXISTS (
+            SELECT 1 FROM ${taskAssignments}
+            WHERE ${taskAssignments.taskId} = ${tasks.id}
+              AND ${taskAssignments.assigneeId} IN (${lista(asignados)})
+          )
+      )
+    )`;
+  } catch (error: any) {
+    console.error("⚠️ [panel-changes] No se pudieron calcular las fichas visibles:", error?.message);
+    return sql`false`;
   }
 }
 
@@ -314,30 +400,40 @@ export function registerPanelChangesRoutes(app: Express): void {
     try {
       const userId = req.user.id;
       const since = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
-      // Cada quien ve solo lo que le compete: admin todo, supervisor lo suyo y
-      // lo de sus vendedores, vendedor solo lo suyo.
-      const autoresVisibles = await autoresVisiblesParaUsuario(req.user);
-      const filtroAutor =
-        autoresVisibles === null
-          ? undefined
-          : autoresVisibles.length > 0
-            ? inArray(panelChangeLog.userId, autoresVisibles)
-            : sql`false`;
-      const [changes, markers] = await Promise.all([
+      // Cada quien ve lo que le compete (ver "Visibilidad" arriba): los cambios
+      // de su equipo y los de cualquiera sobre sus fichas, nunca los propios.
+      const [propios, autoresVisibles] = await Promise.all([
+        expandirIdsDeUsuario([userId]).catch(() => [userId] as string[]),
+        autoresVisiblesParaUsuario(req.user),
+      ]);
+      let filtroVisible: SQL | undefined;
+      if (autoresVisibles !== null) {
+        const porAutor =
+          autoresVisibles.length > 0 ? inArray(panelChangeLog.userId, autoresVisibles) : sql`false`;
+        filtroVisible = or(porAutor, await filtroFichasDelUsuario(req.user, propios));
+      }
+      const noPropios = propios.length > 0 ? notInArray(panelChangeLog.userId, propios) : undefined;
+      const [changes, markers, fichasVistas] = await Promise.all([
         db
           .select()
           .from(panelChangeLog)
-          .where(and(gte(panelChangeLog.createdAt, since), filtroAutor))
+          .where(and(gte(panelChangeLog.createdAt, since), noPropios, filtroVisible))
           .orderBy(desc(panelChangeLog.createdAt))
           .limit(SUMMARY_LIMIT),
         db.select().from(panelChangeSeen).where(eq(panelChangeSeen.userId, userId)),
+        db.select().from(panelChangeEntitySeen).where(eq(panelChangeEntitySeen.userId, userId)),
       ]);
       const seenMap = new Map(markers.map((m) => [`${m.section}|${m.segmento}`, m.lastSeenAt]));
-      const items = changes.filter((c) => {
-        const bucket = c.segmento ?? "__all";
-        const seenAt = seenMap.get(`${c.section}|${bucket}`);
-        return !seenAt || (c.createdAt !== null && c.createdAt > seenAt);
-      });
+      const fichaVistaMap = new Map(fichasVistas.map((m) => [m.entityId, m.lastSeenAt]));
+      const items = changes
+        .map((c) => ({ ...c, porFicha: esCambioPorFicha(c) }))
+        .filter((c) => {
+          // Por ficha: sigue pendiente hasta que se abre ESA ficha.
+          const seenAt = c.porFicha
+            ? fichaVistaMap.get(c.entityId as string)
+            : seenMap.get(`${c.section}|${c.segmento ?? "__all"}`);
+          return !seenAt || (c.createdAt !== null && c.createdAt > seenAt);
+        });
       res.json({ items });
     } catch (error: any) {
       console.error("Error obteniendo cambios del panel:", error);
@@ -346,14 +442,27 @@ export function registerPanelChangesRoutes(app: Express): void {
   });
 
   // Marca como vistos los cambios de una sección (o de todas, con {all:true})
-  // para el usuario actual, en el área que está mirando.
+  // para el usuario actual, en el área que está mirando. Con {entityId} marca
+  // vista una sola ficha (al abrirla). Entrar a una sección NO da por vistas
+  // sus fichas; "marcar todo" ({all:true}) sí.
   app.post("/api/panel-changes/seen", requireAuth, async (req: any, res) => {
     try {
-      const { section, segmento, all } = (req.body ?? {}) as {
+      const { section, segmento, all, entityId } = (req.body ?? {}) as {
         section?: string;
         segmento?: string;
         all?: boolean;
+        entityId?: string;
       };
+      if (typeof entityId === "string" && entityId.trim()) {
+        await db
+          .insert(panelChangeEntitySeen)
+          .values({ userId: req.user.id, entityId: entityId.trim(), lastSeenAt: sql`now()` as any })
+          .onConflictDoUpdate({
+            target: [panelChangeEntitySeen.userId, panelChangeEntitySeen.entityId],
+            set: { lastSeenAt: sql`now()` as any },
+          });
+        return res.json({ ok: true });
+      }
       const sections: PanelSection[] = all
         ? PANEL_SECTIONS
         : PANEL_SECTIONS.includes(section as PanelSection)
@@ -383,6 +492,20 @@ export function registerPanelChangesRoutes(app: Express): void {
           target: [panelChangeSeen.userId, panelChangeSeen.section, panelChangeSeen.segmento],
           set: { lastSeenAt: dbNow as any },
         });
+      if (all) {
+        const lista = (valores: string[]) => sql.join(valores.map((v) => sql`${v}`), sql`, `);
+        await db.execute(sql`
+          INSERT INTO panel_change_entity_seen (user_id, entity_id, last_seen_at)
+          SELECT ${String(req.user.id)}::varchar, l.entity_id, now()
+          FROM panel_change_log l
+          WHERE l.created_at >= now() - make_interval(days => ${RETENTION_DAYS})
+            AND l.entity_id IS NOT NULL
+            AND l.section IN (${lista(SECCIONES_POR_FICHA)})
+            AND l.entity_type IN (${lista(TIPOS_DE_FICHA)})
+          GROUP BY l.entity_id
+          ON CONFLICT (user_id, entity_id) DO UPDATE SET last_seen_at = now()
+        `);
+      }
       res.json({ ok: true });
     } catch (error: any) {
       console.error("Error marcando cambios como vistos:", error);

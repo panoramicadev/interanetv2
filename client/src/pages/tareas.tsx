@@ -525,6 +525,16 @@ export default function TareasPage() {
   // Estado para vista de detalle de tarea
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
+  // Abrir una ficha (tarea o seguimiento) da por vistos SUS cambios; las demás
+  // siguen destacadas. Se repite al cerrarla para cubrir lo que haya llegado
+  // mientras estaba abierta, que ya se leyó en pantalla.
+  const { markEntitySeen } = panelChanges;
+  useEffect(() => {
+    if (!selectedTaskId) return;
+    markEntitySeen(selectedTaskId);
+    return () => markEntitySeen(selectedTaskId);
+  }, [selectedTaskId, markEntitySeen]);
+
   // Task Groups state
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -562,6 +572,9 @@ export default function TareasPage() {
   const [seguimientoOrden, setSeguimientoOrden] = useState<'default' | 'pendientes' | 'sin-movimiento'>('default');
   const toggleSeguimientoOrden = (orden: 'pendientes' | 'sin-movimiento') =>
     setSeguimientoOrden((prev) => (prev === orden ? 'default' : orden));
+  // Filtro de Seguimiento: deja solo los clientes que piden acción (pedido del
+  // usuario, oct-2026: con decenas de clientes había que revisarlos uno a uno).
+  const [seguimientoFiltro, setSeguimientoFiltro] = useState<'todos' | 'pendientes' | 'novedades' | 'cobranza'>('todos');
 
   // Selección múltiple / eliminación masiva (solo administrador). En celular queda
   // apagada siempre: el botón que la enciende vive en la barra de escritorio, y si
@@ -1365,6 +1378,21 @@ export default function TareasPage() {
     return null;
   };
 
+  // Semáforo de crédito de la lista de Seguimiento: la cartera de todos los
+  // clientes en seguimiento en UNA consulta (una fila no puede pedir la suya).
+  // Se arma con todos los seguimientos, no con los filtrados, para que buscar no
+  // dispare una consulta nueva por cada tecla.
+  const codigosEnSeguimiento = useMemo(
+    () => Array.from(new Set(
+      (tasksQuery.data || [])
+        .filter((t) => (t as any).payload?.kind === 'seguimiento_cliente')
+        .map((t) => String((t as any).clienteId || "").trim())
+        .filter((c) => c && c !== 'PROSPECTO')
+    )),
+    [tasksQuery.data],
+  );
+  const { data: creditoPorCliente } = useCreditoSemaforo(codigosEnSeguimiento);
+
   // Filter tasks based on view mode and user role
   const filteredTasks = tasksQuery.data?.filter((task) => {
     // View mode filter
@@ -1414,6 +1442,17 @@ export default function TareasPage() {
         `${task.title} ${task.description ?? ""} ${(task as any).clienteNombre ?? ""} ${assigneeNames}`,
       );
       if (!terms.every((t) => haystack.includes(t))) return false;
+    }
+
+    // Filtro de Seguimiento: solo los clientes que piden acción.
+    if (activeTab === 'seguimiento' && seguimientoFiltro !== 'todos') {
+      if (seguimientoFiltro === 'pendientes' && pendientesDeCliente(task) === 0) return false;
+      // Novedades: cambios de otros que todavía no se abren (ver use-panel-changes).
+      if (seguimientoFiltro === 'novedades' && !panelChanges.pendingEntityIds.has(task.id)) return false;
+      if (seguimientoFiltro === 'cobranza') {
+        const codigo = String((task as any).clienteId || "").trim();
+        if (!((creditoPorCliente?.[codigo]?.overdue ?? 0) > 0)) return false;
+      }
     }
 
     // Cliente filter
@@ -1481,20 +1520,6 @@ export default function TareasPage() {
       .map((t) => (t as any).clienteNombre)
   ));
 
-  // Semáforo de crédito de la lista de Seguimiento: la cartera de todos los
-  // clientes en seguimiento en UNA consulta (una fila no puede pedir la suya).
-  // Se arma con todos los seguimientos, no con los filtrados, para que buscar no
-  // dispare una consulta nueva por cada tecla.
-  const codigosEnSeguimiento = useMemo(
-    () => Array.from(new Set(
-      (tasksQuery.data || [])
-        .filter((t) => (t as any).payload?.kind === 'seguimiento_cliente')
-        .map((t) => String((t as any).clienteId || "").trim())
-        .filter((c) => c && c !== 'PROSPECTO')
-    )),
-    [tasksQuery.data],
-  );
-  const { data: creditoPorCliente } = useCreditoSemaforo(codigosEnSeguimiento);
 
   // Clientes que hoy están en seguimiento — alimentan las sugerencias del
   // buscador de esa pestaña (el título del seguimiento es el nombre del cliente
@@ -2072,6 +2097,33 @@ export default function TareasPage() {
           ))}
         </div>
       )}
+    </div>
+  );
+
+  // Filtro de Seguimiento: va pegado al buscador, no en una franja propia.
+  const seguimientoFiltroBox = (
+    <div className={`flex items-center gap-3 bg-white dark:bg-slate-800/60 border rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:shadow transition-all ${
+      seguimientoFiltro !== 'todos'
+        ? 'border-orange-300 dark:border-orange-500/50'
+        : 'border-slate-200/70 dark:border-slate-700/60 hover:border-emerald-200'
+    }`}>
+      <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 flex-shrink-0">
+        <Filter className="h-4 w-4" />
+      </div>
+      <div className="flex flex-col leading-none">
+        <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Mostrar</span>
+        <Select value={seguimientoFiltro} onValueChange={(v) => setSeguimientoFiltro(v as typeof seguimientoFiltro)}>
+          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-2 w-auto bg-transparent font-semibold text-sm text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-seguimiento-filtro">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos los clientes</SelectItem>
+            <SelectItem value="pendientes">Con tareas pendientes</SelectItem>
+            <SelectItem value="novedades">Con novedades sin ver</SelectItem>
+            <SelectItem value="cobranza">Con cobranza atrasada</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 
@@ -2957,6 +3009,7 @@ export default function TareasPage() {
           {activeTab === 'seguimiento' && isSalesperson && (
             <div className="flex items-center justify-between gap-3 flex-wrap">
               {seguimientoSearchBox}
+              {seguimientoFiltroBox}
               <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium px-3 py-1">
                 {filteredTasks.length} cliente{filteredTasks.length !== 1 ? 's' : ''}
               </Badge>
@@ -3603,7 +3656,10 @@ export default function TareasPage() {
                 };
                 // Con el buscador activo solo importan las coincidencias: no sumamos
                 // colaboradores vacíos ni dejamos cards en cero ensuciando el resultado.
-                const searching = seguimientoSearchDebounced.trim().length > 0;
+                // El filtro se comporta como el buscador: solo importan los clientes
+                // que calzan, y las tarjetas se muestran abiertas.
+                const filtrando = seguimientoFiltro !== 'todos';
+                const searching = seguimientoSearchDebounced.trim().length > 0 || filtrando;
                 if (!searching) {
                   if (user.role === 'supervisor' || user.role === 'encargado_area') {
                     (supervisorSalespeople || []).forEach((sp) => ensureMember(sp.id, sp.salespersonName, 'salesperson'));
@@ -3839,6 +3895,7 @@ export default function TareasPage() {
                     {/* Buscador de clientes en seguimiento */}
                     <div className="flex items-center gap-3 flex-wrap">
                       {seguimientoSearchBox}
+                      {seguimientoFiltroBox}
                       {searching && (
                         <span className="text-xs font-semibold text-slate-500 whitespace-nowrap" data-testid="text-seguimiento-search-count">
                           {teamTotal} resultado{teamTotal !== 1 ? 's' : ''}
@@ -4012,13 +4069,15 @@ export default function TareasPage() {
                         </div>
                         <h3 className="text-base font-bold text-slate-700 dark:text-white mb-1">Sin coincidencias</h3>
                         <p className="text-sm text-slate-500 mb-4 max-w-sm mx-auto">
-                          Ningún cliente en seguimiento coincide con «{seguimientoSearchDebounced.trim()}».
+                          {seguimientoSearchDebounced.trim()
+                            ? `Ningún cliente en seguimiento coincide con «${seguimientoSearchDebounced.trim()}»${filtrando ? ' con el filtro elegido' : ''}.`
+                            : 'Ningún cliente en seguimiento cumple el filtro elegido.'}
                         </p>
                         <button
-                          onClick={() => setSeguimientoSearch("")}
+                          onClick={() => { setSeguimientoSearch(""); setSeguimientoFiltro('todos'); }}
                           className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg px-4 py-2 transition-colors"
                         >
-                          <X className="h-4 w-4" /> Limpiar búsqueda
+                          <X className="h-4 w-4" /> {filtrando ? 'Quitar filtros' : 'Limpiar búsqueda'}
                         </button>
                       </div>
                     ) : !isMarketing ? (
