@@ -308,7 +308,9 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
 
   // --- Vendedores del selector y de la asignación de la obra ---
   // El admin elige entre todos; el supervisor, solo dentro de su equipo (el
-  // servidor ignora igual cualquier vendedor de afuera).
+  // servidor ignora igual cualquier vendedor de afuera). Los supervisores
+  // también venden y pueden quedar a cargo de una obra, así que entran en la
+  // lista; el supervisor se ve a sí mismo además de su equipo.
   const { data: vendedores = [] } = useQuery<Array<{ id: string; salespersonName: string; fullName?: string }>>({
     queryKey: esSupervisor ? ["/api/supervisor", user?.id, "salespeople"] : ["/api/users/salespeople", "control-obras"],
     queryFn: async () => {
@@ -316,9 +318,15 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
         esSupervisor ? `/api/supervisor/${user?.id}/salespeople` : "/api/users/salespeople",
       );
       const lista = await res.json();
-      return esSupervisor
-        ? lista
-        : lista.filter((v: any) => v.role === "salesperson" && v.isActive !== false);
+      if (esSupervisor) {
+        const yo = user as any;
+        return lista.some((v: any) => v.id === yo?.id)
+          ? lista
+          : [{ id: yo.id, salespersonName: yo.salespersonName || `${yo.firstName || ""} ${yo.lastName || ""}`.trim() || yo.email }, ...lista];
+      }
+      return lista.filter(
+        (v: any) => (v.role === "salesperson" || v.role === "supervisor") && v.isActive !== false,
+      );
     },
     enabled: mandaEnCartera && !!user?.id,
   });
