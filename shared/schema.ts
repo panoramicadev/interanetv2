@@ -399,6 +399,10 @@ export const inventoryProducts = pgTable("inventory_products", {
   categoria: varchar("categoria"), // Product category/family
   stock1: numeric("stock1", { precision: 15, scale: 2 }).default("0"), // STFI1 - Stock in primary unit
   stock2: numeric("stock2", { precision: 15, scale: 2 }).default("0"), // STFI2 - Stock in secondary unit
+  // Stock comprometido en notas de venta pendientes: está físicamente en la
+  // bodega pero ya tiene dueño. Disponible para vender = stock − comprometido.
+  comprometido1: numeric("comprometido1", { precision: 15, scale: 2 }).default("0"), // STOCNV1
+  comprometido2: numeric("comprometido2", { precision: 15, scale: 2 }).default("0"), // STOCNV2
   precioMedio: numeric("precio_medio", { precision: 15, scale: 2 }), // PM - Precio Medio from ERP
   valorInventario: numeric("valor_inventario", { precision: 15, scale: 2 }), // Calculated: stock2 × precioMedio
   activo: boolean("activo").default(true), // Product is active in inventory
@@ -1042,6 +1046,12 @@ export const insertInventoryProductSchema = createInsertSchema(inventoryProducts
     typeof val === 'number' ? val.toString() : val
   ).optional(),
   stock2: z.union([z.string(), z.number()]).transform(val =>
+    typeof val === 'number' ? val.toString() : val
+  ).optional(),
+  comprometido1: z.union([z.string(), z.number()]).transform(val =>
+    typeof val === 'number' ? val.toString() : val
+  ).optional(),
+  comprometido2: z.union([z.string(), z.number()]).transform(val =>
     typeof val === 'number' ? val.toString() : val
   ).optional(),
   precioMedio: z.union([z.string(), z.number(), z.null()]).transform(val =>

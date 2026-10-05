@@ -23282,8 +23282,13 @@ export class DatabaseStorage implements IStorage {
           unit1: item.unidad1 || '',
           unit2: item.unidad2 || '',
           unit: item.unidad2 || '',
-          reservedQuantity: 0,
-          availableQuantity: parseFloat(item.stock2?.toString() || '0'),
+          // Comprometido en notas de venta: sigue en la bodega pero no se puede
+          // volver a vender. El disponible nunca baja de cero.
+          reservedQuantity: parseFloat(item.comprometido2?.toString() || '0'),
+          availableQuantity: Math.max(
+            0,
+            parseFloat(item.stock2?.toString() || '0') - parseFloat(item.comprometido2?.toString() || '0'),
+          ),
           averagePrice: parseFloat(item.precioMedio?.toString() || '0'),
           totalValue: parseFloat(item.valorInventario?.toString() || '0'),
           lastUpdated: item.ultimaSincronizacion || new Date(),
@@ -23542,7 +23547,10 @@ export class DatabaseStorage implements IStorage {
 
       // Fetch complete inventory from ERP (product × sucursal × bodega with stocks)
       console.log('📦 Extrayendo inventario completo desde ERP...');
-      const result = await pool.request().query(`
+      // El comprometido (STOCNV) se pide aparte del stock físico: si la columna
+      // no estuviera en esta instalación del ERP, la sincronización sigue con
+      // el stock de siempre y el comprometido en cero, en vez de fallar entera.
+      const consultaInventario = (conComprometido: boolean) => `
         SELECT 
           m.KOPR as sku,
           m.KOSU as sucursal,
@@ -23554,6 +23562,7 @@ export class DatabaseStorage implements IStorage {
           p.FMPR as categoria,
           m.STFI1 as stock1,
           m.STFI2 as stock2,
+          ${conComprometido ? 'm.STOCNV1 as comprometido1, m.STOCNV2 as comprometido2,' : ''}
           p.PM as precioMedio
         FROM MAEST m
         LEFT JOIN MAEPR p ON m.KOPR = p.KOPR
@@ -23562,7 +23571,15 @@ export class DatabaseStorage implements IStorage {
           AND m.KOPR != ''
           AND (m.STFI1 > 0 OR m.STFI2 > 0)
         ORDER BY m.KOSU, m.KOBO, m.KOPR
-      `);
+      `;
+      let result;
+      try {
+        result = await pool.request().query(consultaInventario(true));
+      } catch (errorComprometido: any) {
+        if (!/STOCNV/i.test(String(errorComprometido?.message || ''))) throw errorComprometido;
+        console.warn('⚠️  MAEST sin columnas STOCNV: el inventario se sincroniza sin stock comprometido.', errorComprometido?.message);
+        result = await pool.request().query(consultaInventario(false));
+      }
 
       await pool.close();
       pool = null;
@@ -23606,6 +23623,8 @@ export class DatabaseStorage implements IStorage {
           const categoria = row.categoria?.toString()?.trim() || null;
           const stock1 = parseFloat(row.stock1) || 0;
           const stock2 = parseFloat(row.stock2) || 0;
+          const comprometido1 = parseFloat(row.comprometido1) || 0;
+          const comprometido2 = parseFloat(row.comprometido2) || 0;
           const precioMedio = row.precioMedio ? parseFloat(row.precioMedio) : null;
 
           // Calculate inventory value using UD1 (stock1)
@@ -23624,6 +23643,8 @@ export class DatabaseStorage implements IStorage {
             categoria,
             stock1: stock1.toString(),
             stock2: stock2.toString(),
+            comprometido1: comprometido1.toString(),
+            comprometido2: comprometido2.toString(),
             precioMedio: precioMedio?.toString() || null,
             valorInventario: valorInventario?.toString() || null,
             activo: true,

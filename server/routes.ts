@@ -8210,6 +8210,9 @@ export function registerRoutes(app: Express): Server {
         pl.minimo as minimo,
         pl.canal_digital as canal_digital,
         COALESCE(stk.total_stock, 0) as total_stock,
+        COALESCE(stk.total_fisico, 0) as total_fisico,
+        COALESCE(stk.total_comprometido, 0) as total_comprometido,
+        stk.bodegas as stock_bodegas,
         pc.breve_resena
       FROM ecommerce_products ep
       LEFT JOIN price_list pl ON ep.price_list_id = pl.id
@@ -8220,10 +8223,31 @@ export function registerRoutes(app: Express): Server {
       -- así que sumamos stock2 (STFI2) por SKU y filtramos activos, igual que v1.
       -- Antes leía de product_stock (otra sincronización), lo que devolvía 0
       -- aunque hubiera stock real. Join por sku = price_list.codigo.
+      -- Lo que se puede vender es el DISPONIBLE: stock físico menos lo ya
+      -- comprometido en notas de venta, bodega por bodega (una bodega sobre-
+      -- comprometida queda en cero, no le resta a las demás).
       LEFT JOIN (
-        SELECT sku, SUM(COALESCE(stock2, 0)) as total_stock
-        FROM inventory_products
-        WHERE activo = true
+        SELECT
+          sku,
+          SUM(GREATEST(fisico - comprometido, 0)) as total_stock,
+          SUM(fisico) as total_fisico,
+          SUM(comprometido) as total_comprometido,
+          json_agg(json_build_object(
+            'nombre', nombre,
+            'disponible', GREATEST(fisico - comprometido, 0),
+            'fisico', fisico,
+            'comprometido', comprometido
+          ) ORDER BY nombre) as bodegas
+        FROM (
+          SELECT
+            sku,
+            COALESCE(NULLIF(TRIM(nombre_bodega), ''), bodega) as nombre,
+            SUM(COALESCE(stock2, 0)) as fisico,
+            SUM(COALESCE(comprometido2, 0)) as comprometido
+          FROM inventory_products
+          WHERE activo = true
+          GROUP BY sku, COALESCE(NULLIF(TRIM(nombre_bodega), ''), bodega)
+        ) por_bodega
         GROUP BY sku
       ) stk ON stk.sku = pl.codigo
       LEFT JOIN product_content pc ON pc.codigo = pl.codigo
@@ -8348,7 +8372,16 @@ export function registerRoutes(app: Express): Server {
         desc10_5_3: row.desc10_5_3,
         minimo: row.minimo,
         canalDigital: row.canal_digital,
+        // `stock` es el disponible para vender (físico − comprometido).
         stock: parseFloat(row.total_stock) || 0,
+        stockFisico: parseFloat(row.total_fisico) || 0,
+        stockComprometido: parseFloat(row.total_comprometido) || 0,
+        stockBodegas: (Array.isArray(row.stock_bodegas) ? row.stock_bodegas : []).map((b: any) => ({
+          nombre: String(b.nombre || ''),
+          disponible: Number(b.disponible) || 0,
+          fisico: Number(b.fisico) || 0,
+          comprometido: Number(b.comprometido) || 0,
+        })),
         minUnit: row.min_unit,
         stepSize: row.step_size,
         description: row.description,

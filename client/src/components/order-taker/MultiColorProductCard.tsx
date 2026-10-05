@@ -27,7 +27,10 @@ export interface FormatVariant {
   format: string;
   price: string | null;
   priceList: string | null;
-  stock: number;
+  stock: number;             // disponible para vender: físico − comprometido
+  stockFisico?: number;
+  stockComprometido?: number; // en notas de venta pendientes
+  stockBodegas?: Array<{ nombre: string; disponible: number; fisico: number; comprometido: number }>;
   hex?: string | null;       // hex real desde color_palette (vía API)
   imageUrl?: string | null;  // imagen de la variante (rara vez poblada)
 }
@@ -326,6 +329,22 @@ export function MultiColorProductCard({
                   </span>
                 </div>
               );
+              // Desglose del stock: disponible por bodega y cuánto hay comprometido
+              // en notas de venta (ya descontado del número de arriba).
+              const bodegas = (v?.stockBodegas ?? []).filter((b) => b.fisico > 0 || b.comprometido > 0);
+              const comprometido = Math.floor(Number(v?.stockComprometido ?? 0));
+              const stockDetalle = bodegas.length > 0 && (
+                <div data-testid={`stock-bodegas-${sku}`} style={{ display: "flex", alignItems: "center", gap: "2px 10px", flexWrap: "wrap", fontSize: 10, fontWeight: 600, color: "#64748b" }}>
+                  {bodegas.map((b) => (
+                    <span key={b.nombre} style={{ whiteSpace: "nowrap" }}>
+                      {b.nombre}: <span style={{ fontWeight: 800, color: b.disponible > 0 ? "#0f172a" : "#dc2626" }}>{Math.floor(b.disponible)}</span>
+                    </span>
+                  ))}
+                  {comprometido > 0 && (
+                    <span style={{ whiteSpace: "nowrap", color: "#b45309" }}>{comprometido} comprometido{comprometido === 1 ? "" : "s"} en notas de venta</span>
+                  )}
+                </div>
+              );
               const tierSelect = (
                 <select value={line.tier} onChange={(e) => setTier(sku, e.target.value)} style={{ flex: 1, minWidth: 0, padding: "7px 9px", border: "1px solid #e2e8f0", borderRadius: 9, fontFamily: FONT, fontSize: 12, background: "#fff", outline: "none", cursor: "pointer" }}>
                   {tiers.map((t) => <option key={t.key} value={t.key}>{t.label}: {clp(t.price)}</option>)}
@@ -366,16 +385,20 @@ export function MultiColorProductCard({
                       {tierSelect}
                       {stepper}
                     </div>
+                    {stockDetalle}
                   </div>
                 );
               }
               return (
-                <div key={sku} style={{ display: "flex", alignItems: "center", gap: 10, background: "#fafbfc", border: "1px solid #eef0f3", borderRadius: 11, padding: "9px 11px" }}>
-                  {colorFormat}
-                  {tierSelect}
-                  {stepper}
-                  {lineTotal}
-                  {removeBtn}
+                <div key={sku} style={{ display: "flex", flexDirection: "column", gap: 7, background: "#fafbfc", border: "1px solid #eef0f3", borderRadius: 11, padding: "9px 11px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {colorFormat}
+                    {tierSelect}
+                    {stepper}
+                    {lineTotal}
+                    {removeBtn}
+                  </div>
+                  {stockDetalle}
                 </div>
               );
             })}
