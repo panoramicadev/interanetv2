@@ -11,6 +11,10 @@
  * - Idempotente por contacto: si el visitante ya está en el pipeline (mismo
  *   email o RUT, lead activo) NO se duplica; se le agrega un hito con la nueva
  *   cotización y se le asegura la etiqueta.
+ * - Solo prospectos: quien ya es cliente (cuenta del Panorámica Market o ficha
+ *   en la base de clientes) NO genera un lead nuevo. Su cotización queda en
+ *   Cotizaciones web y sale igual el aviso interno; el CRM es para contactos
+ *   que todavía hay que convertir (ver esClienteActual).
  * - El lead se asigna al encargado/supervisor del área, que es quien ve los
  *   leads de todo su equipo (ver getVendedorScope en server/routes.ts). Si no
  *   hay a quién asignar el lead queda con un vendedor placeholder y solo lo ve
@@ -24,10 +28,12 @@ import {
   crmSeguimientoHitos,
   salespeopleUsers,
   clients,
+  users,
   type QuoteRequest,
   type QuoteRequestItem,
 } from '@shared/schema';
-import { and, desc, eq, ilike, inArray, isNull, or } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { normalizeRut, rutMatchKey } from '@shared/rut';
 import {
   ETIQUETA_COTIZACION_WEB,
   getSegmentoCotizacionWeb,
@@ -135,11 +141,66 @@ async function findExistingLead(email?: string | null, rut?: string | null) {
   return existing || null;
 }
 
+/** Quien envía la cotización con la sesión iniciada (el POST es público: puede no haber). */
+type SesionCotizacion = { role?: string | null } | null | undefined;
+
+/**
+ * ¿El contacto ya es cliente? Un cliente que cotiza (p. ej. un color especial
+ * desde el Panorámica Market) no es un prospecto y no debe entrar al CRM.
+ *
+ * Cuenta como cliente quien:
+ *  - cotiza con una sesión del Market (rol `client`), o tiene una cuenta del
+ *    Market con ese correo;
+ *  - calza por RUT o por correo con la base de clientes.
+ */
+export async function esClienteActual(
+  request: Pick<QuoteRequest, 'visitorEmail' | 'visitorRut'>,
+  sesion?: SesionCotizacion,
+): Promise<boolean> {
+  if (sesion?.role === 'client') return true;
+
+  const email = request.visitorEmail?.trim().toLowerCase() || '';
+  if (email) {
+    const [cuenta] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.role, 'client'), sql`lower(${users.email}) = ${email}`))
+      .limit(1);
+    if (cuenta) return true;
+  }
+
+  const filtros: any[] = [];
+  // El ERP guarda RTEN sin dígito verificador y el alta manual lo guarda
+  // completo y con formato: se compara contra las dos formas (ver rutMatchKey).
+  const rutCuerpo = rutMatchKey(request.visitorRut);
+  if (rutCuerpo.length >= 6) {
+    const rutCompleto = normalizeRut(request.visitorRut);
+    filtros.push(
+      sql`regexp_replace(upper(coalesce(${clients.rten}, '')), '[^0-9K]', '', 'g') IN (${rutCuerpo}, ${rutCompleto})`,
+    );
+  }
+  if (email) {
+    filtros.push(sql`lower(trim(${clients.email})) = ${email}`);
+    filtros.push(sql`lower(trim(${clients.emailcomer})) = ${email}`);
+  }
+  if (filtros.length === 0) return false;
+
+  const [cliente] = await db
+    .select({ id: clients.id })
+    .from(clients)
+    .where(or(...filtros)!)
+    .limit(1);
+  return !!cliente;
+}
+
 /**
  * Crea (o actualiza) el lead del CRM a partir de una solicitud del cotizador
- * web. Devuelve el id del lead, o null si no se pudo crear.
+ * web. Devuelve el id del lead, o null si no se creó (cliente actual, o falla).
  */
-export async function syncQuoteRequestToCrm(request: QuoteRequest): Promise<string | null> {
+export async function syncQuoteRequestToCrm(
+  request: QuoteRequest,
+  opts: { clienteActual?: boolean } = {},
+): Promise<string | null> {
   const segmento = getSegmentoCotizacionWeb(request.segmento);
   const items = (request.items as QuoteRequestItem[]) || [];
   const resumen = describeItems(items);
@@ -178,6 +239,13 @@ export async function syncQuoteRequestToCrm(request: QuoteRequest): Promise<stri
     return existing.id;
   }
 
+  // Cliente actual sin lead en el pipeline: no se crea uno. (Si alguien ya lo
+  // tenía en el CRM, arriba se le sumó el hito y no se pierde el aviso.)
+  if (opts.clienteActual) {
+    console.log(`[CRM] Cotización web ${request.id} de un cliente actual (${request.visitorEmail}): no se crea lead`);
+    return null;
+  }
+
   const owner = await resolveOwnerForSegmento(request.segmento);
   if (!owner) {
     console.warn(
@@ -187,16 +255,6 @@ export async function syncQuoteRequestToCrm(request: QuoteRequest): Promise<stri
     );
   }
 
-  // Vínculo con la base de clientes del ERP cuando el RUT calza.
-  let clienteId: string | null = null;
-  if (request.visitorRut?.trim()) {
-    const [erpClient] = await db.select({ id: clients.id })
-      .from(clients)
-      .where(eq(clients.rten, request.visitorRut.trim()))
-      .limit(1);
-    if (erpClient) clienteId = erpClient.id;
-  }
-
   const [created] = await db.insert(crmSeguimientoClientes).values({
     nombre: request.visitorName,
     telefono: request.visitorPhone || null,
@@ -204,7 +262,6 @@ export async function syncQuoteRequestToCrm(request: QuoteRequest): Promise<stri
     empresa: request.visitorCompany || null,
     rut: request.visitorRut || null,
     comuna: request.visitorCity || null,
-    clienteId,
     segmento: segmento?.crmSegmento || null,
     vendedorId: owner?.id || VENDEDOR_SIN_ASIGNAR_ID,
     vendedorNombre: owner?.name || VENDEDOR_SIN_ASIGNAR_NOMBRE,
@@ -247,18 +304,24 @@ export async function syncQuoteRequestToCrm(request: QuoteRequest): Promise<stri
 /**
  * Envuelve syncQuoteRequestToCrm: nunca lanza y deja el vínculo en
  * quote_requests.crm_seguimiento_id. Pensado para el POST público.
+ * `clienteActual` avisa que no se creó lead porque el contacto ya es cliente.
  */
-export async function linkQuoteRequestToCrm(request: QuoteRequest): Promise<string | null> {
+export async function linkQuoteRequestToCrm(
+  request: QuoteRequest,
+  sesion?: SesionCotizacion,
+): Promise<{ leadId: string | null; clienteActual: boolean }> {
+  let clienteActual = false;
   try {
-    const leadId = await syncQuoteRequestToCrm(request);
+    clienteActual = await esClienteActual(request, sesion);
+    const leadId = await syncQuoteRequestToCrm(request, { clienteActual });
     if (leadId) {
       await db.update(quoteRequests)
         .set({ crmSeguimientoId: leadId, updatedAt: new Date() })
         .where(eq(quoteRequests.id, request.id));
     }
-    return leadId;
+    return { leadId, clienteActual };
   } catch (err: any) {
     console.error('[CRM] No se pudo llevar la cotización web al CRM:', err?.message || err);
-    return null;
+    return { leadId: null, clienteActual };
   }
 }

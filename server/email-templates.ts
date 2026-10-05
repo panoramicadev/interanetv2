@@ -525,6 +525,8 @@ interface QuoteInternalNotifyData {
   segmento?: string | null;
   /** Lead creado en el CRM de seguimiento, si se pudo crear. */
   crmLeadId?: string | null;
+  /** El contacto ya es cliente: por eso no se le creó un lead. */
+  clienteActual?: boolean;
   message?: string | null;
   items: Array<{ productName: string; color?: string; format?: string; quantity: number }>;
 }
@@ -563,6 +565,9 @@ export function buildQuoteInternalNotifyEmail(data: QuoteInternalNotifyData): { 
     <p style="color: #16a34a; font-size: 13px; margin: 0 0 16px 0;">
       ✅ Ya quedó en el CRM de ${data.segmento || 'su segmento'} con la etiqueta <strong>COTIZACIÓN WEB</strong>.
       <a href="${PUBLIC_BASE_URL.replace(/\/$/, '')}/seguimiento-clientes/${data.crmLeadId}" style="color: #fd6301;">Ver el lead</a>
+    </p>` : data.clienteActual ? `
+    <p style="color: #555; font-size: 13px; margin: 0 0 16px 0;">
+      Ya es cliente: la cotización quedó en Cotizaciones web y no se creó un lead en el CRM.
     </p>` : ''}
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0; border: 1px solid #eee; border-radius: 6px; overflow: hidden;">
       <thead>

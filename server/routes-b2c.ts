@@ -176,9 +176,10 @@ export function registerB2CRoutes(app: Express) {
       const request = await createQuoteRequest(validationResult.data);
 
       // La solicitud cae además como lead en el CRM del segmento declarado,
-      // etiquetada "COTIZACIÓN WEB". Nunca puede tumbar el POST público: la
-      // cotización ya quedó guardada en quote_requests.
-      const crmLeadId = await linkQuoteRequestToCrm(request);
+      // etiquetada "COTIZACIÓN WEB", salvo que quien cotiza ya sea cliente.
+      // Nunca puede tumbar el POST público: la cotización ya quedó guardada
+      // en quote_requests.
+      const { leadId: crmLeadId, clienteActual } = await linkQuoteRequestToCrm(request, req.user);
 
       // Customer-facing auto-confirmation
       try {
@@ -212,6 +213,7 @@ export function registerB2CRoutes(app: Express) {
           visitorRut: validationResult.data.visitorRut,
           segmento: segmentoCotizacionWebLabel(validationResult.data.segmento),
           crmLeadId,
+          clienteActual,
           message: validationResult.data.message,
           items: (validationResult.data.items || []) as any[],
         });
