@@ -14689,6 +14689,9 @@ export class DatabaseStorage implements IStorage {
       (task as any).actividadesTotal = Number(act?.total ?? 0);
       (task as any).actividadesPendientes = Number(act?.pendientes ?? 0);
       (task as any).ultimaInteraccion = marcas.length > 0 ? new Date(Math.max(...marcas)).toISOString() : null;
+      // Fecha del último mensaje del chat, aparte del resto: el botón "Chat" del panel
+      // cuenta qué clientes tuvieron conversación reciente (pedido del usuario, oct-2026).
+      (task as any).ultimoChat = com?.ultima ? new Date(com.ultima as any).toISOString() : null;
 
       // Último movimiento con texto: el más reciente entre el último comentario del
       // chat y la última actividad registrada. La tarjeta del panel lo muestra debajo
