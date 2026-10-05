@@ -14791,8 +14791,12 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: "Task not found" });
       }
 
-      // Only admin, supervisor, or task creator can delete task
-      const canDelete = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
+      // Only admin, supervisor, or task creator can delete task.
+      // Un seguimiento de cliente solo lo borra la jefatura: el vendedor que lo
+      // creó ya no (pedido del usuario, oct-2026).
+      const esJefatura = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area';
+      const esSeguimiento = (task as any).payload?.kind === 'seguimiento_cliente';
+      const canDelete = esJefatura || (!esSeguimiento && task.createdByUserId === user.id);
       if (!canDelete) {
         return res.status(403).json({ message: "Not authorized to delete this task" });
       }
