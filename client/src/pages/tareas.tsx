@@ -1419,8 +1419,45 @@ export default function TareasPage() {
   );
   const { data: creditoPorCliente } = useCreditoSemaforo(codigosEnSeguimiento);
 
+  // Botones del resumen de Seguimiento: cada uno parte a los clientes en dos grupos y
+  // al tocar un número filtra la lista a ese grupo. Los usa la vista por colaborador
+  // (admin y supervisores) y la lista simple del vendedor.
+  // Crédito: sale de la cartera del ERP. Sin código (prospecto) no se sabe
+  // su deuda y no cuenta en ninguno de los dos; "próximo a vencer" todavía
+  // no tiene nada vencido, así que cuenta como al día.
+  const creditoDe = (t: any): 'vencido' | 'al-dia' | null => {
+    const codigo = String(t?.clienteId || "").trim();
+    if (!creditoPorCliente || !codigo || codigo === 'PROSPECTO') return null;
+    const nivel = nivelCredito(creditoPorCliente[codigo] ?? { overdue: 0, upcoming: 0 }).nivel;
+    return nivel === 'rojo' ? 'vencido' : 'al-dia';
+  };
+  const calzaFiltro = (t: any, f: SeguimientoKpiFiltro): boolean => {
+    switch (f) {
+      case 'credito-vencido': return creditoDe(t) === 'vencido';
+      case 'credito-al-dia': return creditoDe(t) === 'al-dia';
+      case 'tareas-pendientes': return pendientesDeCliente(t) > 0;
+      case 'tareas-al-dia': return pendientesDeCliente(t) === 0;
+      case 'mov-frenado': {
+        const d = diasSinMovimiento(t);
+        return d === null || d >= DIAS_SIN_MOVIMIENTO_ALERTA;
+      }
+      case 'mov-reciente': {
+        const d = diasSinMovimiento(t);
+        return d !== null && d < DIAS_SIN_MOVIMIENTO_ALERTA;
+      }
+      case 'chat-reciente': {
+        const d = diasSinChat(t);
+        return d !== null && d < DIAS_CHAT_RECIENTE;
+      }
+      case 'chat-sin': {
+        const d = diasSinChat(t);
+        return d === null || d >= DIAS_CHAT_RECIENTE;
+      }
+    }
+  };
+
   // Filter tasks based on view mode and user role
-  const filteredTasks = tasksQuery.data?.filter((task) => {
+  const filteredTasksBase = tasksQuery.data?.filter((task) => {
     // View mode filter
     if (viewMode === "my-tasks") {
       // Show tasks assigned to me or that I created
@@ -1519,6 +1556,105 @@ export default function TareasPage() {
     const bPrio = priorityOrder[b.priority ?? 'medium'] ?? 1;
     return aPrio - bPrio;
   }) || [];
+
+  // El vendedor ve su Seguimiento como lista simple: el botón del resumen que toque
+  // filtra esa lista acá. Los contadores se calculan sobre `filteredTasksBase` para
+  // que no cambien al filtrar. En la vista por colaborador el filtro se aplica card
+  // por card (ver peopleVisibles).
+  const kpiFiltroVendedor = activeTab === 'seguimiento' && isSalesperson ? seguimientoKpiFiltro : null;
+  const filteredTasks = kpiFiltroVendedor
+    ? filteredTasksBase.filter((t) => calzaFiltro(t, kpiFiltroVendedor))
+    : filteredTasksBase;
+
+  // Las cuatro tarjetas del resumen de Seguimiento (pedido del usuario, oct-2026):
+  // cada una dice cuántos clientes caen de cada lado y, al tocar un número, la
+  // lista de abajo muestra solo esos clientes. `clientes` es la cartera a contar:
+  // la del equipo en la vista por colaborador, la propia en la del vendedor.
+  const renderResumenSeguimiento = (clientes: any[]) => {
+    const contar = (f: SeguimientoKpiFiltro) => clientes.filter((t) => calzaFiltro(t, f)).length;
+    const BotonResumen = ({ icono, titulo, opciones }: {
+      icono: React.ReactNode;
+      titulo: string;
+      opciones: Array<{ filtro: SeguimientoKpiFiltro; valor: number; etiqueta: string; alerta?: boolean }>;
+    }) => {
+      const activo = opciones.some((o) => o.filtro === seguimientoKpiFiltro);
+      return (
+        <div className={`rounded-2xl border bg-white dark:bg-slate-800/40 p-3 sm:p-4 shadow-sm transition-all ${
+          activo ? 'border-[#fd6301] ring-2 ring-[#fd6301]/20' : 'border-slate-200/80 dark:border-slate-700/60'
+        }`}>
+          <div className="flex items-center gap-2 mb-2.5 text-slate-900 dark:text-slate-100">
+            <span className="w-5 h-5 flex items-center justify-center flex-shrink-0">{icono}</span>
+            <span className="text-sm font-semibold">{titulo}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {opciones.map((o) => {
+              const sel = seguimientoKpiFiltro === o.filtro;
+              return (
+                <button
+                  key={o.filtro}
+                  type="button"
+                  onClick={() => setSeguimientoKpiFiltro(sel ? null : o.filtro)}
+                  className={`rounded-xl px-2 py-1.5 text-left transition-colors ${
+                    sel
+                      ? 'bg-[#fd6301] text-white'
+                      : 'bg-slate-50 hover:bg-orange-50 dark:bg-slate-900/40 dark:hover:bg-orange-950/30'
+                  }`}
+                  data-testid={`kpi-${o.filtro}`}
+                  title={sel ? 'Quitar filtro' : 'Ver estos clientes'}
+                >
+                  <div className={`text-xl font-bold leading-none tabular-nums ${
+                    sel ? 'text-white' : o.alerta && o.valor > 0 ? 'text-[#fd6301]' : 'text-slate-900 dark:text-slate-100'
+                  }`}>
+                    {o.valor}
+                  </div>
+                  <p className={`text-[11px] mt-1 leading-tight ${sel ? 'text-white/90' : 'text-slate-500 dark:text-slate-400'}`}>
+                    {o.etiqueta}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    };
+    const dias = DIAS_SIN_MOVIMIENTO_ALERTA;
+    return (
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        <BotonResumen
+          icono={<CreditCard className="h-5 w-5" />}
+          titulo="Crédito"
+          opciones={[
+            { filtro: 'credito-vencido', valor: contar('credito-vencido'), etiqueta: 'vencidos', alerta: true },
+            { filtro: 'credito-al-dia', valor: contar('credito-al-dia'), etiqueta: 'al día' },
+          ]}
+        />
+        <BotonResumen
+          icono={<Clock className="h-5 w-5" />}
+          titulo="Tareas"
+          opciones={[
+            { filtro: 'tareas-al-dia', valor: contar('tareas-al-dia'), etiqueta: 'al día' },
+            { filtro: 'tareas-pendientes', valor: contar('tareas-pendientes'), etiqueta: 'con pendientes', alerta: true },
+          ]}
+        />
+        <BotonResumen
+          icono={<Activity className="h-5 w-5" />}
+          titulo="Último movimiento"
+          opciones={[
+            { filtro: 'mov-reciente', valor: contar('mov-reciente'), etiqueta: `últimos ${dias} días` },
+            { filtro: 'mov-frenado', valor: contar('mov-frenado'), etiqueta: `sin mov. ${dias}+ días`, alerta: true },
+          ]}
+        />
+        <BotonResumen
+          icono={<MessageCircle className="h-5 w-5" />}
+          titulo="Chat"
+          opciones={[
+            { filtro: 'chat-reciente', valor: contar('chat-reciente'), etiqueta: `con chat ${DIAS_CHAT_RECIENTE} días` },
+            { filtro: 'chat-sin', valor: contar('chat-sin'), etiqueta: `sin chat ${DIAS_CHAT_RECIENTE}+ días`, alerta: true },
+          ]}
+        />
+      </div>
+    );
+  };
 
   // Calendario: mostrar únicamente lo relacionado de cualquier forma con el
   // usuario logueado (tareas que creó o que le fueron asignadas), sin importar
@@ -2127,6 +2263,8 @@ export default function TareasPage() {
   );
 
   // Filtro de Seguimiento: va pegado al buscador, no en una franja propia.
+  // Ya no se muestra (pedido del usuario, oct-2026): los botones de Crédito, Tareas,
+  // Último movimiento y Chat filtran lo mismo. Queda armado por si vuelve.
   const seguimientoFiltroBox = (
     <div className={`flex items-center gap-3 bg-white dark:bg-slate-800/60 border rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:shadow transition-all ${
       seguimientoFiltro !== 'todos'
@@ -3035,10 +3173,31 @@ export default function TareasPage() {
           {activeTab === 'seguimiento' && isSalesperson && (
             <div className="flex items-center justify-between gap-3 flex-wrap">
               {seguimientoSearchBox}
-              {seguimientoFiltroBox}
               <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium px-3 py-1">
                 {filteredTasks.length} cliente{filteredTasks.length !== 1 ? 's' : ''}
               </Badge>
+            </div>
+          )}
+
+          {/* Vendedores: las mismas cuatro tarjetas del resumen, contadas sobre su
+              propia cartera (pedido del usuario, oct-2026). */}
+          {activeTab === 'seguimiento' && isSalesperson && filteredTasksBase.length > 0 && (
+            <div className="space-y-2.5">
+              {renderResumenSeguimiento(filteredTasksBase)}
+              {seguimientoKpiFiltro && (
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-orange-50 dark:bg-orange-950/30 border border-orange-200/70 px-3 py-2">
+                  <span className="text-xs font-semibold text-[#c74e01]" data-testid="text-kpi-filtro-count">
+                    {filteredTasks.length} cliente(s) con este filtro
+                  </span>
+                  <button
+                    onClick={() => setSeguimientoKpiFiltro(null)}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-[#fd6301]"
+                    data-testid="button-quitar-filtro-kpi"
+                  >
+                    <X className="h-3.5 w-3.5" /> Quitar filtro
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -3914,42 +4073,6 @@ export default function TareasPage() {
                   return d === null || d >= DIAS_SIN_MOVIMIENTO_ALERTA;
                 }).length;
 
-                // Botones del resumen: cada uno parte a los clientes en dos grupos y
-                // al tocar un número filtra la lista a ese grupo.
-                // Crédito: sale de la cartera del ERP. Sin código (prospecto) no se sabe
-                // su deuda y no cuenta en ninguno de los dos; "próximo a vencer" todavía
-                // no tiene nada vencido, así que cuenta como al día.
-                const creditoDe = (t: any): 'vencido' | 'al-dia' | null => {
-                  const codigo = String(t?.clienteId || "").trim();
-                  if (!creditoPorCliente || !codigo || codigo === 'PROSPECTO') return null;
-                  const nivel = nivelCredito(creditoPorCliente[codigo] ?? { overdue: 0, upcoming: 0 }).nivel;
-                  return nivel === 'rojo' ? 'vencido' : 'al-dia';
-                };
-                const calzaFiltro = (t: any, f: SeguimientoKpiFiltro): boolean => {
-                  switch (f) {
-                    case 'credito-vencido': return creditoDe(t) === 'vencido';
-                    case 'credito-al-dia': return creditoDe(t) === 'al-dia';
-                    case 'tareas-pendientes': return pendientesDeCliente(t) > 0;
-                    case 'tareas-al-dia': return pendientesDeCliente(t) === 0;
-                    case 'mov-frenado': {
-                      const d = diasSinMovimiento(t);
-                      return d === null || d >= DIAS_SIN_MOVIMIENTO_ALERTA;
-                    }
-                    case 'mov-reciente': {
-                      const d = diasSinMovimiento(t);
-                      return d !== null && d < DIAS_SIN_MOVIMIENTO_ALERTA;
-                    }
-                    case 'chat-reciente': {
-                      const d = diasSinChat(t);
-                      return d !== null && d < DIAS_CHAT_RECIENTE;
-                    }
-                    case 'chat-sin': {
-                      const d = diasSinChat(t);
-                      return d === null || d >= DIAS_CHAT_RECIENTE;
-                    }
-                  }
-                };
-                const contar = (f: SeguimientoKpiFiltro) => clientesDelEquipo.filter((t) => calzaFiltro(t, f)).length;
                 const peopleVisibles: Array<[string, PersonGroup, PersonGroup['tasks'] | undefined]> = seguimientoKpiFiltro
                   ? people
                       .map(([id, g]) => [id, g, g.tasks.filter((t) => calzaFiltro(t, seguimientoKpiFiltro))] as [string, PersonGroup, PersonGroup['tasks']])
@@ -3965,7 +4088,6 @@ export default function TareasPage() {
                     {/* Buscador de clientes en seguimiento */}
                     <div className="flex items-center gap-3 flex-wrap">
                       {seguimientoSearchBox}
-                      {seguimientoFiltroBox}
                       {searching && (
                         <span className="text-xs font-semibold text-slate-500 whitespace-nowrap" data-testid="text-seguimiento-search-count">
                           {teamTotal} resultado{teamTotal !== 1 ? 's' : ''}
@@ -4062,93 +4184,7 @@ export default function TareasPage() {
                     {/* Resumen del equipo — la foto del área de un vistazo. Va debajo del
                         buscador y de las acciones (corrección del usuario, sep-2026). Misma
                         posición en celular y en escritorio; la grilla baja a 2 columnas sola. */}
-                    {people.length > 0 && (() => {
-                      // Cuatro botones en vez de las tarjetas fijas (pedido del usuario,
-                      // oct-2026): cada uno dice cuántos clientes caen de cada lado y, al
-                      // tocar un número, la lista de abajo muestra solo esos clientes.
-                      const BotonResumen = ({ icono, titulo, opciones }: {
-                        icono: React.ReactNode;
-                        titulo: string;
-                        opciones: Array<{ filtro: SeguimientoKpiFiltro; valor: number; etiqueta: string; alerta?: boolean }>;
-                      }) => {
-                        const activo = opciones.some((o) => o.filtro === seguimientoKpiFiltro);
-                        return (
-                          <div className={`rounded-2xl border bg-white dark:bg-slate-800/40 p-3 sm:p-4 shadow-sm transition-all ${
-                            activo ? 'border-[#fd6301] ring-2 ring-[#fd6301]/20' : 'border-slate-200/80 dark:border-slate-700/60'
-                          }`}>
-                            <div className="flex items-center gap-2 mb-2.5 text-slate-900 dark:text-slate-100">
-                              <span className="w-5 h-5 flex items-center justify-center flex-shrink-0">{icono}</span>
-                              <span className="text-sm font-semibold">{titulo}</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-1.5">
-                              {opciones.map((o) => {
-                                const sel = seguimientoKpiFiltro === o.filtro;
-                                return (
-                                  <button
-                                    key={o.filtro}
-                                    type="button"
-                                    onClick={() => setSeguimientoKpiFiltro(sel ? null : o.filtro)}
-                                    className={`rounded-xl px-2 py-1.5 text-left transition-colors ${
-                                      sel
-                                        ? 'bg-[#fd6301] text-white'
-                                        : 'bg-slate-50 hover:bg-orange-50 dark:bg-slate-900/40 dark:hover:bg-orange-950/30'
-                                    }`}
-                                    data-testid={`kpi-${o.filtro}`}
-                                    title={sel ? 'Quitar filtro' : 'Ver estos clientes'}
-                                  >
-                                    <div className={`text-xl font-bold leading-none tabular-nums ${
-                                      sel ? 'text-white' : o.alerta && o.valor > 0 ? 'text-[#fd6301]' : 'text-slate-900 dark:text-slate-100'
-                                    }`}>
-                                      {o.valor}
-                                    </div>
-                                    <p className={`text-[11px] mt-1 leading-tight ${sel ? 'text-white/90' : 'text-slate-500 dark:text-slate-400'}`}>
-                                      {o.etiqueta}
-                                    </p>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      };
-                      const dias = DIAS_SIN_MOVIMIENTO_ALERTA;
-                      return (
-                        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
-                          <BotonResumen
-                            icono={<CreditCard className="h-5 w-5" />}
-                            titulo="Crédito"
-                            opciones={[
-                              { filtro: 'credito-vencido', valor: contar('credito-vencido'), etiqueta: 'vencidos', alerta: true },
-                              { filtro: 'credito-al-dia', valor: contar('credito-al-dia'), etiqueta: 'al día' },
-                            ]}
-                          />
-                          <BotonResumen
-                            icono={<Clock className="h-5 w-5" />}
-                            titulo="Tareas"
-                            opciones={[
-                              { filtro: 'tareas-al-dia', valor: contar('tareas-al-dia'), etiqueta: 'al día' },
-                              { filtro: 'tareas-pendientes', valor: contar('tareas-pendientes'), etiqueta: 'con pendientes', alerta: true },
-                            ]}
-                          />
-                          <BotonResumen
-                            icono={<Activity className="h-5 w-5" />}
-                            titulo="Último movimiento"
-                            opciones={[
-                              { filtro: 'mov-reciente', valor: contar('mov-reciente'), etiqueta: `últimos ${dias} días` },
-                              { filtro: 'mov-frenado', valor: contar('mov-frenado'), etiqueta: `sin mov. ${dias}+ días`, alerta: true },
-                            ]}
-                          />
-                          <BotonResumen
-                            icono={<MessageCircle className="h-5 w-5" />}
-                            titulo="Chat"
-                            opciones={[
-                              { filtro: 'chat-reciente', valor: contar('chat-reciente'), etiqueta: `con chat ${DIAS_CHAT_RECIENTE} días` },
-                              { filtro: 'chat-sin', valor: contar('chat-sin'), etiqueta: `sin chat ${DIAS_CHAT_RECIENTE}+ días`, alerta: true },
-                            ]}
-                          />
-                        </div>
-                      );
-                    })()}
+                    {people.length > 0 && renderResumenSeguimiento(clientesDelEquipo)}
 
                     {/* Marketing: sus solicitudes son su trabajo asignado */}
                     {isMarketing && <MarketingSolicitudesInbox />}
