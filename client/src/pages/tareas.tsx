@@ -2263,6 +2263,8 @@ export default function TareasPage() {
   );
 
   // Filtro de Seguimiento: va pegado al buscador, no en una franja propia.
+  // Ya no se muestra (pedido del usuario, oct-2026): los botones de Crédito, Tareas,
+  // Último movimiento y Chat filtran lo mismo. Queda armado por si vuelve.
   const seguimientoFiltroBox = (
     <div className={`flex items-center gap-3 bg-white dark:bg-slate-800/60 border rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:shadow transition-all ${
       seguimientoFiltro !== 'todos'
@@ -3171,7 +3173,6 @@ export default function TareasPage() {
           {activeTab === 'seguimiento' && isSalesperson && (
             <div className="flex items-center justify-between gap-3 flex-wrap">
               {seguimientoSearchBox}
-              {seguimientoFiltroBox}
               <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium px-3 py-1">
                 {filteredTasks.length} cliente{filteredTasks.length !== 1 ? 's' : ''}
               </Badge>
@@ -4087,7 +4088,6 @@ export default function TareasPage() {
                     {/* Buscador de clientes en seguimiento */}
                     <div className="flex items-center gap-3 flex-wrap">
                       {seguimientoSearchBox}
-                      {seguimientoFiltroBox}
                       {searching && (
                         <span className="text-xs font-semibold text-slate-500 whitespace-nowrap" data-testid="text-seguimiento-search-count">
                           {teamTotal} resultado{teamTotal !== 1 ? 's' : ''}
