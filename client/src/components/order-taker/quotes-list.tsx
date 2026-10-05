@@ -606,6 +606,10 @@ export default function QuotesList({ onEditQuote, onCountChange }: QuotesListPro
   const getQuotesByStatus = (status: Quote['status']) =>
     quotes?.filter(q => q.status === status).length || 0;
 
+  // Antes del `return` de error: un hook después de un return condicional
+  // cambia la cantidad de hooks entre renders y tumba la página entera.
+  const isMobile = useIsMobile();
+
   if (error) {
     return (
       <div className="p-6">
@@ -617,8 +621,6 @@ export default function QuotesList({ onEditQuote, onCountChange }: QuotesListPro
       </div>
     );
   }
-
-  const isMobile = useIsMobile();
 
   return (
     <div className="space-y-4">
