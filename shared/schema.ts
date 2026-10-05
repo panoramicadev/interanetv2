@@ -9235,6 +9235,18 @@ export const panelChangeSeen = pgTable("panel_change_seen", {
   userIdIdx: index("IDX_panel_change_seen_user_id").on(table.userId),
 }));
 
+// Visto POR FICHA: los cambios sobre una tarea o un seguimiento de cliente no
+// se dan por vistos al entrar a la pestaña sino al abrir esa ficha. Un marcador
+// por (usuario, ficha); un cambio posterior al marcador vuelve a destacarla.
+export const panelChangeEntitySeen = pgTable("panel_change_entity_seen", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(), // FK users.id
+  entityId: varchar("entity_id").notNull(), // id de la tarea/seguimiento (panel_change_log.entity_id)
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  userEntityIdx: unique("panel_change_entity_seen_unique").on(table.userId, table.entityId),
+}));
+
 export type PanelChangeLogEntry = typeof panelChangeLog.$inferSelect;
 export type InsertPanelChangeLogEntry = typeof panelChangeLog.$inferInsert;
 export type PanelChangeSeenMarker = typeof panelChangeSeen.$inferSelect;
