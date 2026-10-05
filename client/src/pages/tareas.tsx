@@ -3565,8 +3565,17 @@ export default function TareasPage() {
                 // pero acá el equipo son los vendedores: sus cards duplicaban toda la cartera.
                 // Un cliente asignado SOLO al supervisor queda en "Sin asignar", que es lo que
                 // realmente pasa: nadie del equipo lo está siguiendo.
+                // Las cuentas de administrador quedan marcadas en muchas tareas para
+                // enterarse, pero no son parte del equipo que sigue clientes: con una
+                // card propia aparecían como colaboradores con el seguimiento de otro
+                // vendedor (pedido del usuario, oct-2026).
+                const esAdmin = (id: string) =>
+                  availableUsers?.find((u) => u.id === id)?.role === 'admin'
+                  || availableSupervisors?.find((s) => s.id === id)?.role === 'admin';
                 filteredTasks.forEach((task) => {
-                  const vendedores = task.assignments.filter((a) => a.assigneeType !== 'supervisor');
+                  const vendedores = task.assignments.filter(
+                    (a) => a.assigneeType !== 'supervisor' && !esAdmin(a.assigneeId),
+                  );
                   if (vendedores.length === 0) {
                     // Industrial la lleva su encargado en persona, sin vendedores por
                     // debajo: un cliente asignado solo a él no está "sin asignar", es
@@ -6131,7 +6140,11 @@ function TaskDetailDialog({
       assignment.assigneeId;
   };
 
-  const canDeleteTask = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
+  const esJefatura = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area';
+  // Un seguimiento de cliente solo lo borra la jefatura (pedido del usuario, oct-2026):
+  // el vendedor que lo creó ya no puede. Coincide con DELETE /api/tasks/:id.
+  const canDeleteTask = esJefatura
+    || ((task as any).payload?.kind !== 'seguimiento_cliente' && task.createdByUserId === user.id);
   // El creador de la tarea también puede marcarla completada/reabrirla (coincide con el backend
   // canUpdate en PATCH /api/tasks/:id) — habilita al rol marketing sobre las tareas que crea.
   const canUpdateStatus = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
@@ -6510,16 +6523,18 @@ function TaskDetailDialog({
                   <AlertDialogTrigger asChild>
                     <Button variant="destructive" size="sm" className="text-xs">
                       <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                      {esProyecto ? 'Eliminar Proyecto' : 'Eliminar Tarea'}
+                      {esProyecto ? 'Eliminar Proyecto' : isSeguimientoCliente ? 'Eliminar seguimiento' : 'Eliminar Tarea'}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>{esProyecto ? '¿Eliminar este proyecto?' : '¿Eliminar esta tarea?'}</AlertDialogTitle>
+                      <AlertDialogTitle>{esProyecto ? '¿Eliminar este proyecto?' : isSeguimientoCliente ? '¿Eliminar este seguimiento?' : '¿Eliminar esta tarea?'}</AlertDialogTitle>
                       <AlertDialogDescription>
                         {esProyecto
                           ? 'Esta acción no se puede deshacer. Se eliminarán sus tareas, asignaciones y comentarios.'
-                          : 'Esta acción no se puede deshacer. Se eliminarán todas las asignaciones y comentarios asociados.'}
+                          : isSeguimientoCliente
+                            ? 'Esta acción no se puede deshacer. El cliente sale del seguimiento de todo el equipo.'
+                            : 'Esta acción no se puede deshacer. Se eliminarán todas las asignaciones y comentarios asociados.'}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
