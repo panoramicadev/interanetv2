@@ -34,6 +34,9 @@ export const DATOS_PAGO = {
 export const CONTACTO_COBRANZA = {
   correo: 'calcoholado@pinturaspanoramica.cl',
   copia: 'fparra@pinturaspanoramica.cl',
+  // Las consultas van a un solo correo: `correo` recibe los comprobantes para
+  // confirmar el pago, pero no atiende preguntas de los clientes (oct-2026).
+  consultas: 'fparra@pinturaspanoramica.cl',
 } as const;
 
 /**
@@ -258,9 +261,9 @@ export function buildCobranzaEmail(data: CobranzaData): { subject: string; html:
     ${getPaymentInfoBlock({ cobranza: true })}
 
     <p style="color: #555; font-size: 13px; line-height: 1.6; margin: 25px 0 5px 0;">
-      Si ya realizó el pago, por favor haga caso omiso de este mensaje. Ante cualquier consulta, o para coordinar el pago, escríbanos a
-      <a href="mailto:${CONTACTO_COBRANZA.correo}" style="color: #fd6301; text-decoration: none;">${CONTACTO_COBRANZA.correo}</a>, con copia a
-      <a href="mailto:${CONTACTO_COBRANZA.copia}" style="color: #fd6301; text-decoration: none;">${CONTACTO_COBRANZA.copia}</a>.
+      Si ya realizó el pago, por favor haga caso omiso de este mensaje.
+      <strong style="color: #1a1f2e;">Ante cualquier consulta, o para coordinar el pago, escríbanos a
+      <a href="mailto:${CONTACTO_COBRANZA.consultas}" style="color: #fd6301; text-decoration: none;">${CONTACTO_COBRANZA.consultas}</a>.</strong>
     </p>
   `);
 
