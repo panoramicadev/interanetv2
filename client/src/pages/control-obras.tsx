@@ -311,8 +311,13 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
   // servidor ignora igual cualquier vendedor de afuera). Los supervisores
   // también venden y pueden quedar a cargo de una obra, así que entran en la
   // lista; el supervisor se ve a sí mismo además de su equipo.
+  // La clave lleva "control-obras" también para el supervisor: el Panel de
+  // Trabajo cachea la misma URL sin el supervisor agregado, y con la clave
+  // compartida esta lista salía de ese caché y nunca lo incluía a él.
   const { data: vendedores = [] } = useQuery<Array<{ id: string; salespersonName: string; fullName?: string }>>({
-    queryKey: esSupervisor ? ["/api/supervisor", user?.id, "salespeople"] : ["/api/users/salespeople", "control-obras"],
+    queryKey: esSupervisor
+      ? ["/api/supervisor", user?.id, "salespeople", "control-obras"]
+      : ["/api/users/salespeople", "control-obras"],
     queryFn: async () => {
       const res = await apiRequest(
         esSupervisor ? `/api/supervisor/${user?.id}/salespeople` : "/api/users/salespeople",
