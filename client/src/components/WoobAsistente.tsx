@@ -26,6 +26,9 @@ export function WoobAsistente() {
 
   useEffect(() => {
     if (!esAdmin) return;
+    // En el celular no se carga (pedido del usuario, oct-2026): la esquina de abajo
+    // a la derecha es del botón del menú, y la burbuja quedaba encima.
+    if (window.matchMedia("(max-width: 1023px)").matches) return;
     // El script de Woob se protege solo con `window.__woobAsistente`, pero de
     // todos modos no lo insertamos dos veces: en un re-render ya está puesto.
     if (document.getElementById("woob-asistente")) return;

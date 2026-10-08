@@ -73,6 +73,7 @@ import {
   RotateCcw,
   Target,
   Wallet,
+  ShieldCheck,
   Sparkles,
   Mic,
   Pause,
@@ -6234,6 +6235,9 @@ function TaskDetailDialog({
 
   // Cobranza y Productos se resuelven por nombre de cliente (no necesitan clienteId).
   const hasClienteNombre = Boolean(String((task as any).clienteNombre || "").trim());
+  // Resumen de cobranza bajo el título en el celular: misma query que la pestaña
+  // Cobranza, así las cifras nunca difieren.
+  const { data: creditoResumen } = useCredito(hasClienteNombre ? String((task as any).clienteNombre) : null);
 
   // Quién puede editar el contenido de la tarea (descripción, enlaces, etc.)
   const canEditTask = user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || task.createdByUserId === user.id;
@@ -6354,6 +6358,15 @@ function TaskDetailDialog({
     },
   });
 
+  // id → nombre para firmar los mensajes del chat con el nombre y no con el correo.
+  const nombresChat = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const u of [...(availableSupervisors || []), ...(availableUsers || [])] as any[]) {
+      if (u?.id && u?.salespersonName) m.set(String(u.id), String(u.salespersonName));
+    }
+    return m;
+  }, [availableUsers, availableSupervisors]);
+
   const getAssigneeName = (assignment: TaskAssignment) => {
     return availableUsers?.find(s => s.id === assignment.assigneeId)?.salespersonName ||
       availableSupervisors?.find(s => s.id === assignment.assigneeId)?.salespersonName ||
@@ -6388,6 +6401,28 @@ function TaskDetailDialog({
   const actividadesTotal = actividades.length;
   const actividadesCompletadas = actividades.filter((a) => a.estado === 'completada').length;
 
+  // Pestañas del detalle declaradas como datos: el riel (tablet/escritorio) y el
+  // desplegable del celular salen de la misma lista y no se desincronizan.
+  // El chat solo es pestaña fuera de desktop (en lg vive en su columna).
+  const detailTabs: Array<{ value: string; label: string; Icon: any; soloMovil?: boolean }> = [
+    { value: "chat", label: "Chat", Icon: MessageSquare, soloMovil: true },
+    { value: "detalle", label: "Detalle", Icon: Edit },
+    ...(esEspacioTrabajo ? [{ value: "tareas", label: `Tareas${actividadesTotal > 0 ? ` ${actividadesCompletadas}/${actividadesTotal}` : ''}`, Icon: CheckSquare }] : []),
+    // Cobranza y Productos solo necesitan el nombre del cliente: los seguimientos
+    // que llegan sin clienteId también los muestran, que era justo lo que faltaba
+    // para no ir a vender a alguien que debe.
+    ...(hasClienteNombre ? [
+      { value: "cobranza", label: "Cobranza", Icon: DollarSign },
+      { value: "productos", label: "Productos", Icon: Package },
+    ] : []),
+    ...((task as any).clienteId ? [
+      { value: "rutas", label: "Rutas", Icon: MapPin },
+      { value: "marketing", label: "Marketing", Icon: Palette },
+    ] : []),
+  ];
+  const detailTabActiva = detailTabs.find((t) => t.value === activeDetailTab) || detailTabs[1];
+  const DetailTabIcon = detailTabActiva.Icon;
+
   return (
     // En desktop es una página dentro del layout (alto fijo para que el chat y
     // las pestañas tengan su propio scroll). Fuera de desktop es una HOJA a
@@ -6402,10 +6437,10 @@ function TaskDetailDialog({
       className="flex flex-col bg-white overflow-hidden fixed inset-0 z-50 h-[100dvh] pb-[env(safe-area-inset-bottom)] lg:static lg:z-auto lg:pb-0 lg:h-[calc(100vh-1rem)] lg:rounded-2xl lg:border lg:border-slate-200 lg:shadow-sm"
     >
         {/* Header */}
-        <div className="px-3 sm:px-6 py-3 sm:py-4 border-b bg-muted/30 flex-shrink-0">
+        <div className="px-3 sm:px-6 py-3 sm:py-4 sm:border-b bg-muted/30 flex-shrink-0">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-start justify-between gap-2 sm:gap-4">
-            <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">
-              <button onClick={onClose} className="mt-0.5 p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all flex-shrink-0" title="Volver al listado">
+            <div className="flex items-center sm:items-start gap-2 sm:gap-3 min-w-0 flex-1">
+              <button onClick={onClose} className="sm:mt-0.5 p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all flex-shrink-0" title="Volver al listado">
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div className={`rounded-xl p-2.5 shadow-sm flex-shrink-0 ${
@@ -6416,11 +6451,15 @@ function TaskDetailDialog({
                 <CheckSquare className="h-5 w-5 text-white" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-lg font-bold text-foreground truncate">
+                {/* En el celular el nombre del cliente es largo: se lee entero en dos
+                    líneas en vez de cortarse con "…". */}
+                <h2 className="text-base sm:text-lg font-bold text-foreground leading-snug line-clamp-2 sm:truncate break-words">
                   {task.title}
                 </h2>
-                <div className="text-sm text-muted-foreground mt-0.5 flex items-center gap-3 flex-wrap">
-                  <span className="hidden sm:inline">Creada {task.createdAt && format(new Date(task.createdAt), "dd MMM yyyy, HH:mm", { locale: es })}</span>
+                {/* En el celular se esconde (pedido del usuario, oct-2026): el chat
+                    gana alto y el nombre del cliente queda solo arriba. */}
+                <div className="text-sm text-muted-foreground mt-0.5 hidden sm:flex items-center gap-x-3 gap-y-1 flex-wrap">
+                  <span>Creada {task.createdAt && format(new Date(task.createdAt), "dd MMM yyyy, HH:mm", { locale: es })}</span>
                   {(task as any).segmento && (
                     <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border-0 text-xs">
                       {SEGMENTOS.find(s => s.value === (task as any).segmento)?.label || (task as any).segmento}
@@ -6435,7 +6474,7 @@ function TaskDetailDialog({
                   size="sm"
                   onClick={() => updateTaskStatusMutation.mutate({ taskId: task.id, status: isCompleted ? 'pendiente' : 'completada' })}
                   disabled={updateTaskStatusMutation.isPending}
-                  className={`text-xs font-semibold shadow-sm ${isCompleted ? 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
+                  className={`w-full sm:w-auto h-9 sm:h-8 rounded-2xl text-xs font-semibold shadow-sm ${isCompleted ? 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
                   data-testid="button-complete-task"
                 >
                   {updateTaskStatusMutation.isPending
@@ -6448,6 +6487,72 @@ function TaskDetailDialog({
             </div>
           </div>
           <HeaderMeta task={task} isSeguimiento={isSeguimientoCliente} esProyecto={esProyecto} />
+          {/* Celular: en el riel no entran seis pestañas y arrastrarlas a ciegas no
+              deja ver dónde estás; va el desplegable de sección del módulo, en
+              recuadro y pegado al título (pedido del usuario, oct-2026). */}
+          <div className="sm:hidden mt-3">
+            <Select value={activeDetailTab} onValueChange={setActiveDetailTab}>
+              <SelectTrigger
+                className="w-full h-auto gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700 rounded-2xl pl-2.5 pr-4 py-2 shadow-sm focus:ring-0 focus:ring-offset-0 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:opacity-60"
+                data-testid="select-detalle-tab-movil"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  {/* Ícono suelto, sin fondo (pedido del usuario, oct-2026). */}
+                  <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] shrink-0">
+                    <DetailTabIcon className="h-5 w-5" />
+                  </div>
+                  <div className="flex flex-col items-start leading-none min-w-0">
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Sección</span>
+                    <span className="font-normal text-sm text-slate-700 dark:text-slate-100 truncate">{detailTabActiva.label}</span>
+                  </div>
+                </div>
+              </SelectTrigger>
+              <SelectContent className="rounded-2xl">
+                {detailTabs.map(({ value, label, Icon }) => (
+                  <SelectItem key={value} value={value} className="rounded-lg py-2.5">
+                    <span className="flex items-center gap-2.5">
+                      <Icon className="h-4 w-4 text-[#fd6301]" />
+                      {label}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {/* Celular: resumen de cobranza a la vista antes de entrar a conversar
+              (pedido del usuario, oct-2026). Un toque abre la pestaña Cobranza. */}
+          {creditoResumen && (
+            <button
+              type="button"
+              onClick={() => setActiveDetailTab("cobranza")}
+              className="sm:hidden mt-2 w-full grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-800 rounded-2xl border border-slate-200/70 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm text-left"
+              data-testid="resumen-cobranza-movil"
+            >
+              {/* Tarjeta blanca con chip naranjo, como los KPI del resto de la intranet.
+                  La cifra va en negro; el rojo queda solo para lo que es alerta (algo
+                  vencido o la línea excedida) y el verde para "al día". */}
+              {[
+                { label: "Deuda", Icon: Wallet, value: fmtCLP(creditoResumen.credit.used), cls: "text-slate-900 dark:text-white" },
+                { label: "Vencido", Icon: AlertTriangle, value: fmtCLP(creditoResumen.credit.overdue),
+                  cls: creditoResumen.credit.overdue > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400" },
+                { label: "Disponible", Icon: ShieldCheck,
+                  value: creditoResumen.credit.limit == null ? "Sin línea" : fmtCLP(creditoResumen.credit.available ?? 0),
+                  cls: creditoResumen.credit.limit == null ? "text-slate-400" : creditoResumen.credit.exceeded ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-white" },
+              ].map(({ label, Icon, value, cls }) => (
+                <div key={label} className="min-w-0 px-2.5 py-2.5">
+                  <div className="flex items-center gap-1">
+                    <span className="bg-[#fd6301] rounded-md p-1 shadow-sm shadow-[#fd6301]/25 flex items-center justify-center shrink-0">
+                      <Icon className="h-3 w-3 text-white" />
+                    </span>
+                    <span className="text-[9.5px] uppercase font-bold tracking-wide text-slate-500 dark:text-slate-400 truncate">{label}</span>
+                  </div>
+                  {/* Cifras de nueve dígitos ($123.456.789) bajan un punto para entrar
+                      enteras en el tercio de pantalla, en vez de cortarse con "…". */}
+                  <p className={`mt-1.5 font-bold tabular-nums leading-tight whitespace-nowrap ${value.length > 12 ? "text-xs" : value.length > 11 ? "text-[13px]" : value.length > 10 ? "text-sm" : "text-[15px]"} ${cls}`}>{value}</p>
+                </div>
+              ))}
+            </button>
+          )}
         </div>
 
         {/* Layout: chat fijo (izq) + área principal con pestañas Detalle/info (der).
@@ -6462,7 +6567,7 @@ function TaskDetailDialog({
               </h4>
             </div>
             <div className="flex-1 overflow-y-auto min-h-0">
-              <DetailChatPanel taskId={task.id} iaPensando={iaPensando} />
+              <DetailChatPanel taskId={task.id} iaPensando={iaPensando} nombres={nombresChat} />
             </div>
             <DetailChatInput taskId={task.id} onIaPensando={setIaPensando} />
           </div>
@@ -6470,42 +6575,21 @@ function TaskDetailDialog({
           {/* Right Panel: pestañas (Detalle + info del cliente) */}
           <div className="flex-1 flex flex-col min-h-0 bg-slate-50/50">
             <Tabs value={activeDetailTab} onValueChange={setActiveDetailTab} className="flex-1 flex flex-col min-h-0">
-              <div className="px-2 sm:px-4 pt-2 sm:pt-3 pb-2 border-b border-slate-200 bg-white flex-shrink-0 overflow-x-auto">
+              {/* En el celular las pestañas son el desplegable "Sección" del encabezado. */}
+              <div className="hidden sm:block px-4 pt-3 pb-2 border-b border-slate-200 bg-white flex-shrink-0 overflow-x-auto">
                 <TabsList className="bg-slate-100/80 h-9 p-1 w-max">
-                  {/* El chat solo es pestaña en móvil; en desktop vive en la columna izquierda. */}
-                  <TabsTrigger value="chat" className="lg:hidden text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600">
-                    <MessageSquare className="h-3.5 w-3.5 mr-1" /> Chat
-                  </TabsTrigger>
-                  <TabsTrigger value="detalle" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600">
-                    <Edit className="h-3.5 w-3.5 mr-1" /> Detalle
-                  </TabsTrigger>
-                  {esEspacioTrabajo && (
-                    <TabsTrigger value="tareas" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600">
-                      <CheckSquare className="h-3.5 w-3.5 mr-1" /> Tareas{actividadesTotal > 0 ? ` ${actividadesCompletadas}/${actividadesTotal}` : ''}
+                  {detailTabs.map(({ value, label, Icon, soloMovil }) => (
+                    <TabsTrigger key={value} value={value} className={`${soloMovil ? 'lg:hidden ' : ''}text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600`}>
+                      <Icon className="h-3.5 w-3.5 mr-1" /> {label}
                     </TabsTrigger>
-                  )}
-                  {/* Cobranza y Productos solo necesitan el nombre del cliente: los
-                      seguimientos que llegan sin clienteId también los muestran, que
-                      era justo lo que faltaba para no ir a vender a alguien que debe. */}
-                  {hasClienteNombre && (
-                    <>
-                      <TabsTrigger value="cobranza" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600"><DollarSign className="h-3.5 w-3.5 mr-1" /> Cobranza</TabsTrigger>
-                      <TabsTrigger value="productos" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600"><Package className="h-3.5 w-3.5 mr-1" /> Productos</TabsTrigger>
-                    </>
-                  )}
-                  {(task as any).clienteId && (
-                    <>
-                      <TabsTrigger value="rutas" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600"><MapPin className="h-3.5 w-3.5 mr-1" /> Rutas</TabsTrigger>
-                      <TabsTrigger value="marketing" className="text-xs px-3 data-[state=active]:bg-white data-[state=active]:text-orange-600"><Palette className="h-3.5 w-3.5 mr-1" /> Marketing</TabsTrigger>
-                    </>
-                  )}
+                  ))}
                 </TabsList>
               </div>
               <div className="relative flex-1 min-h-0">
                 {/* Chat en móvil: usa todo el alto disponible, con su input abajo */}
                 <TabsContent value="chat" className="lg:hidden absolute inset-0 flex flex-col min-h-0 mt-0 bg-slate-50/40 data-[state=inactive]:hidden">
                   <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain">
-                    <DetailChatPanel taskId={task.id} iaPensando={iaPensando} />
+                    <DetailChatPanel taskId={task.id} iaPensando={iaPensando} nombres={nombresChat} />
                   </div>
                   <DetailChatInput taskId={task.id} onIaPensando={setIaPensando} />
                 </TabsContent>
@@ -6540,7 +6624,7 @@ function TaskDetailDialog({
                       value={descriptionDraft}
                       onChange={(e) => setDescriptionDraft(e.target.value)}
                       placeholder="Describe la tarea..."
-                      className="w-full min-h-[110px] text-sm resize-y border-orange-200 focus-visible:ring-orange-400/30 focus-visible:border-orange-400 rounded-xl bg-white"
+                      className="w-full min-h-[110px] text-base sm:text-sm resize-y border-orange-200 focus-visible:ring-orange-400/30 focus-visible:border-orange-400 rounded-xl bg-white"
                     />
                     <div className="flex items-center gap-2">
                       <Button
@@ -6645,7 +6729,7 @@ function TaskDetailDialog({
                       value={newLinkLabel}
                       onChange={(e) => setNewLinkLabel(e.target.value)}
                       placeholder="Nombre (opcional)"
-                      className="h-8 text-sm bg-white border-slate-200 focus-visible:ring-orange-400/30 focus-visible:border-orange-400"
+                      className="h-10 sm:h-8 text-base sm:text-sm bg-white border-slate-200 focus-visible:ring-orange-400/30 focus-visible:border-orange-400"
                     />
                     <div className="flex items-center gap-2">
                       <Input
@@ -6653,11 +6737,11 @@ function TaskDetailDialog({
                         onChange={(e) => setNewLinkUrl(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addDriveLink(); } }}
                         placeholder="Pega el enlace de Drive…"
-                        className="h-8 text-sm flex-1 bg-white border-slate-200 focus-visible:ring-orange-400/30 focus-visible:border-orange-400"
+                        className="h-10 sm:h-8 text-base sm:text-sm flex-1 bg-white border-slate-200 focus-visible:ring-orange-400/30 focus-visible:border-orange-400"
                       />
                       <Button
                         size="sm"
-                        className="h-8 w-8 p-0 bg-[#fd6301] hover:bg-[#e35400] text-white shadow-sm flex-shrink-0"
+                        className="h-10 w-10 sm:h-8 sm:w-8 p-0 rounded-xl bg-[#fd6301] hover:bg-[#e35400] text-white shadow-sm flex-shrink-0"
                         disabled={updateDriveLinksMutation.isPending || !newLinkUrl.trim()}
                         onClick={addDriveLink}
                         title="Agregar enlace"
@@ -6678,13 +6762,15 @@ function TaskDetailDialog({
               </h4>
               <div className="space-y-1.5">
                 {task.assignments.map((assignment) => {
-                  const assigneeName = getAssigneeName(assignment);
+                  const assigneeName = nombreCorto(getAssigneeName(assignment));
                   const myAssignment = (assignment.assigneeType === "supervisor" && assignment.assigneeId === user.id) ||
                     (assignment.assigneeType === "salesperson" && assignment.assigneeId === user.id);
                   const canComplete = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || myAssignment;
 
                   return (
-                    <div key={assignment.id} className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-all ${
+                    // Celular: nombre arriba y estado + acciones en una segunda línea;
+                    // en una sola fila el nombre quedaba reducido a "PATRICIO H…".
+                    <div key={assignment.id} className={`flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-1.5 rounded-xl sm:rounded-lg border px-3 sm:px-2.5 py-2 sm:py-1.5 transition-all ${
                       myAssignment ? 'border-orange-200 bg-orange-50/40' : 'border-slate-200 hover:border-slate-300'
                     }`}>
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 ${
@@ -6695,9 +6781,10 @@ function TaskDetailDialog({
                         {assigneeName.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-slate-800 truncate leading-tight">{assigneeName}</p>
-                        <p className="text-[10px] text-slate-500 capitalize leading-tight">{assignment.assigneeType}</p>
+                        <p className="text-sm sm:text-xs font-semibold text-slate-800 break-words sm:truncate leading-tight">{assigneeName}</p>
+                        <p className="text-[11px] sm:text-[10px] text-slate-500 capitalize leading-tight">{assignment.assigneeType}</p>
                       </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto justify-end pl-8 sm:pl-0">
                       {getStatusBadge(assignment.status ?? 'pendiente')}
                       {assignment.readAt && (
                         <span title="Leída" className="text-orange-500 flex-shrink-0"><Eye className="h-3.5 w-3.5" /></span>
@@ -6720,7 +6807,7 @@ function TaskDetailDialog({
                           }}
                           disabled={updateAssignmentMutation.isPending}
                           title={assignment.status === 'completada' ? 'Reabrir' : 'Completar'}
-                          className={`flex-shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+                          className={`flex-shrink-0 inline-flex items-center gap-1 rounded-lg sm:rounded-md px-3 sm:px-2 py-1.5 sm:py-1 text-xs sm:text-[11px] font-semibold transition-colors disabled:opacity-50 ${
                             assignment.status === 'completada'
                               ? 'text-green-700 bg-green-100 hover:bg-green-200'
                               : 'text-green-700 hover:bg-green-50 border border-green-200'
@@ -6730,6 +6817,7 @@ function TaskDetailDialog({
                           {assignment.status === 'completada' ? 'Reabrir' : 'Completar'}
                         </button>
                       )}
+                      </div>
                     </div>
                   );
                 })}
@@ -6741,7 +6829,7 @@ function TaskDetailDialog({
               <div className="pt-3 border-t border-slate-200">
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm" className="text-xs">
+                    <Button variant="destructive" size="sm" className="w-full sm:w-auto h-10 sm:h-8 rounded-2xl text-xs">
                       <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                       {esProyecto ? 'Eliminar Proyecto' : isSeguimientoCliente ? 'Eliminar seguimiento' : 'Eliminar Tarea'}
                     </Button>
@@ -6813,7 +6901,31 @@ function TaskDetailDialog({
 // lista, firmados por "Panorámica AI", y se pintan con la identidad del asistente
 // (azul + chispa, la misma de components/ai-chat) para distinguirlos de las
 // personas sin sacarlos de la conversación.
-function DetailChatPanel({ taskId, iaPensando = false }: { taskId: string; iaPensando?: boolean }) {
+// El chat muestra el NOMBRE de quien escribe, no su correo (pedido del usuario,
+// oct-2026). El backend guarda en authorName lo que tenga la sesión y en muchas
+// cuentas eso es el email, así que se resuelve por authorId contra los usuarios
+// del panel. Si no aparece, al menos no se muestra el dominio.
+// Nombre + primer apellido, sin el segundo apellido (pedido del usuario, oct-2026).
+// Formato chileno: con 4 palabras son dos nombres y dos apellidos ("Patricio Hernán
+// Ghisellini Kroll" → "Patricio Ghisellini"); con 3, un nombre y dos apellidos
+// ("Pablo Soto Vera" → "Pablo Soto"). Además se parejan los que vienen en MAYÚSCULAS.
+const nombreCorto = (nombre: string) => {
+  const limpio = nombre.trim().replace(/\s+/g, ' ');
+  const n = limpio === limpio.toUpperCase() ? limpio.toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase()) : limpio;
+  const p = n.split(' ');
+  if (p.length >= 4) return `${p[0]} ${p[p.length - 2]}`;
+  if (p.length === 3) return `${p[0]} ${p[1]}`;
+  return n;
+};
+
+const nombreAutorChat = (authorId: string, authorName: string, nombres?: Map<string, string>) => {
+  const n = nombres?.get(authorId);
+  if (n && !n.includes('@')) return nombreCorto(n);
+  if (authorName && !authorName.includes('@')) return nombreCorto(authorName);
+  return authorName?.includes('@') ? authorName.split('@')[0] : authorName;
+};
+
+function DetailChatPanel({ taskId, iaPensando = false, nombres }: { taskId: string; iaPensando?: boolean; nombres?: Map<string, string> }) {
   const { user } = useAuth();
   // Hilo único de la tarea (todas las asignaciones) estilo WhatsApp: no se filtra por miembro.
   const { data: comments = [], isLoading } = useQuery<TaskComment[]>({
@@ -6860,7 +6972,7 @@ function DetailChatPanel({ taskId, iaPensando = false }: { taskId: string; iaPen
             {!isMine && (
               <span className={`text-[11px] font-semibold ml-1 mb-0.5 flex items-center gap-1 ${esIA ? 'text-blue-600' : 'text-slate-500'}`}>
                 {esIA && <Sparkles className="h-3 w-3" />}
-                {comment.authorName}
+                {esIA ? comment.authorName : nombreAutorChat(comment.authorId, comment.authorName, nombres)}
               </span>
             )}
             <div className="flex items-end gap-1.5 max-w-[85%]">
@@ -7154,7 +7266,11 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
   return (
     // En móvil el detalle es una hoja a pantalla completa que tapa la barra del
     // menú: no hay nada que esquivar y el ancho entero es para escribir.
-    <div className="px-3 lg:px-4 py-3 border-t border-slate-200 bg-white flex-shrink-0">
+    // Celular: el campo va más grande y separado del borde inferior (pedido del
+    // usuario, oct-2026): pegado abajo quedaba donde el pulgar no llega cómodo.
+    // En el celular la barra va en negro, como el menú lateral (pedido del usuario,
+    // oct-2026): separa claramente dónde se escribe de la conversación.
+    <div className="px-3 lg:px-4 pt-3 pb-6 sm:pb-3 border-t border-[#0a0a0a] sm:border-slate-200 bg-[#0a0a0a] sm:bg-white flex-shrink-0">
       {grabando ? (
         /* Grabando: el campo se reemplaza por el contador; X descarta, el botón
            naranjo manda. */
@@ -7162,12 +7278,12 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
           <button
             type="button"
             onClick={() => terminarGrabacion(true)}
-            className="h-10 w-10 rounded-xl border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 inline-flex items-center justify-center transition-colors"
+            className="h-12 w-12 sm:h-10 sm:w-10 rounded-2xl sm:rounded-xl border border-white/15 bg-white/10 text-slate-300 sm:border-slate-200 sm:bg-transparent sm:text-slate-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 inline-flex items-center justify-center transition-colors"
             aria-label="Descartar grabación"
           >
             <X className="h-4 w-4" />
           </button>
-          <div className="flex-1 h-10 rounded-xl border border-red-200 bg-red-50 px-3 flex items-center gap-2 text-sm text-red-700">
+          <div className="flex-1 h-12 sm:h-10 rounded-2xl sm:rounded-xl border border-red-200 bg-red-50 px-3 flex items-center gap-2 text-sm text-red-700">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
             <span className="font-semibold tabular-nums">{formatDuracion(segundos * 1000)}</span>
             <span className="text-red-500/80 truncate">Grabando…</span>
@@ -7176,7 +7292,7 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
             type="button"
             size="sm"
             onClick={() => terminarGrabacion(false)}
-            className="h-10 w-10 p-0 rounded-xl bg-gradient-to-r from-orange-500 to-[#fd6301] hover:from-[#fd6301] hover:to-[#e35400] shadow-md"
+            className="h-12 w-12 sm:h-10 sm:w-10 p-0 rounded-2xl sm:rounded-xl bg-gradient-to-r from-orange-500 to-[#fd6301] hover:from-[#fd6301] hover:to-[#e35400] shadow-md"
             aria-label="Enviar audio"
             data-testid="button-enviar-audio"
           >
@@ -7195,10 +7311,10 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
           onClick={mencionarIA}
           title="Preguntarle al asistente en este chat"
           aria-label="Preguntarle al asistente"
-          className={`h-10 w-10 p-0 sm:w-auto sm:px-2.5 rounded-xl border-slate-200 gap-1 text-xs font-semibold transition-colors ${
+          className={`h-12 w-12 sm:h-10 sm:w-auto p-0 sm:px-2.5 rounded-2xl sm:rounded-xl gap-1 text-xs font-semibold transition-colors ${
             mencionaIA(text)
               ? 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
-              : 'text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50'
+              : 'bg-white/10 border-white/15 text-slate-300 sm:bg-white sm:border-slate-200 sm:text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50'
           }`}
           data-testid="button-mencionar-ia"
         >
@@ -7215,7 +7331,7 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
           onKeyDown={handleKeyDown}
           placeholder="Escribe un mensaje…"
           enterKeyHint="send"
-          className="flex-1 min-h-[40px] max-h-[120px] text-base md:text-sm resize-none border-slate-200 focus:border-orange-400 focus:ring-orange-400/20 rounded-xl"
+          className="flex-1 min-h-[48px] sm:min-h-[40px] max-h-[160px] sm:max-h-[120px] py-3 sm:py-2 text-base md:text-sm resize-none bg-white/10 border-white/15 text-white placeholder:text-slate-400 sm:bg-white sm:border-slate-200 sm:text-foreground sm:placeholder:text-muted-foreground focus:border-orange-400 focus:ring-orange-400/20 rounded-2xl sm:rounded-xl"
           rows={1}
           data-testid="chat-input-detail"
         />
@@ -7227,7 +7343,7 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
             size="sm"
             onClick={empezarGrabacion}
             disabled={subiendoAudio}
-            className="h-10 w-10 p-0 rounded-xl bg-gradient-to-r from-orange-500 to-[#fd6301] hover:from-[#fd6301] hover:to-[#e35400] shadow-md"
+            className="h-12 w-12 sm:h-10 sm:w-10 p-0 rounded-2xl sm:rounded-xl bg-gradient-to-r from-orange-500 to-[#fd6301] hover:from-[#fd6301] hover:to-[#e35400] shadow-md"
             aria-label="Grabar mensaje de voz"
             data-testid="button-grabar-audio"
           >
@@ -7237,7 +7353,7 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
           <Button
             type="submit"
             size="sm"
-            className="h-10 w-10 p-0 rounded-xl bg-gradient-to-r from-orange-500 to-[#fd6301] hover:from-[#fd6301] hover:to-[#e35400] shadow-md"
+            className="h-12 w-12 sm:h-10 sm:w-10 p-0 rounded-2xl sm:rounded-xl bg-gradient-to-r from-orange-500 to-[#fd6301] hover:from-[#fd6301] hover:to-[#e35400] shadow-md"
             disabled={addCommentMutation.isPending || !text.trim()}
             data-testid="button-send-chat"
           >
@@ -7902,7 +8018,7 @@ function ClienteInfoPanel({ clienteId, clienteNombre }: { clienteId: string; cli
             <Building2 className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-slate-800 leading-tight">{nombre}</p>
+            <p className="text-sm font-bold text-slate-800 leading-tight break-words">{nombre}</p>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
               {codigo && <span className="text-[11px] text-slate-500">Cód. {codigo}</span>}
               {rut && <span className="text-[11px] text-slate-500">· RUT {rut}</span>}
@@ -7916,32 +8032,45 @@ function ClienteInfoPanel({ clienteId, clienteNombre }: { clienteId: string; cli
         </div>
 
         {/* Crédito */}
+        {/* En el celular cada monto va en su fila (etiqueta a la izquierda, cifra a
+            la derecha): en tres columnas de 90px una deuda de nueve dígitos no cabe. */}
         {hasCredito && (
-          <div className="grid grid-cols-3 gap-2 pt-1">
-            <div className="rounded-lg bg-slate-50 border border-slate-200 p-2">
-              <p className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Límite crédito</p>
-              <p className="text-xs font-bold text-slate-800">{limite !== null ? fmtCLP(limite) : "Sin línea"}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 sm:gap-2 pt-1">
+            <div className="flex items-center justify-between gap-2 sm:block rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 sm:p-2">
+              <p className="text-[10px] sm:text-[9px] text-slate-400 uppercase font-bold tracking-wider">Límite crédito</p>
+              <p className="text-sm sm:text-xs font-bold text-slate-800 tabular-nums">{limite !== null ? fmtCLP(limite) : "Sin línea"}</p>
             </div>
-            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2">
-              <p className="text-[9px] text-emerald-500 uppercase font-bold tracking-wider">Disponible</p>
-              <p className="text-xs font-bold text-emerald-700">{disponible !== null ? fmtCLP(disponible) : "Sin línea"}</p>
+            <div className="flex items-center justify-between gap-2 sm:block rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 sm:p-2">
+              <p className="text-[10px] sm:text-[9px] text-emerald-500 uppercase font-bold tracking-wider">Disponible</p>
+              <p className="text-sm sm:text-xs font-bold text-emerald-700 tabular-nums">{disponible !== null ? fmtCLP(disponible) : "Sin línea"}</p>
             </div>
-            <div className="rounded-lg bg-red-50 border border-red-200 p-2">
-              <p className="text-[9px] text-red-500 uppercase font-bold tracking-wider">Deuda</p>
-              <p className="text-xs font-bold text-red-700">{deuda !== null ? fmtCLP(deuda) : "—"}</p>
+            <div className="flex items-center justify-between gap-2 sm:block rounded-lg bg-red-50 border border-red-200 px-3 py-2 sm:p-2">
+              <p className="text-[10px] sm:text-[9px] text-red-500 uppercase font-bold tracking-wider">Deuda</p>
+              <p className="text-sm sm:text-xs font-bold text-red-700 tabular-nums">{deuda !== null ? fmtCLP(deuda) : "—"}</p>
             </div>
           </div>
         )}
 
-        {/* Campos */}
+        {/* Campos. Teléfono, correos y dirección se tocan: en terreno el vendedor
+            llama o abre el mapa desde acá sin copiar el dato. */}
         {shown.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 pt-1">
-            {shown.map(([label, value]) => (
-              <div key={label} className="min-w-0">
-                <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wide">{label}</p>
-                <p className="text-xs text-slate-700 break-words">{value}</p>
-              </div>
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 sm:gap-y-2 pt-1">
+            {shown.map(([label, value]) => {
+              const href = label === "Teléfono" ? `tel:${String(value).replace(/[^\d+]/g, "")}`
+                : label.startsWith("Email") ? `mailto:${value}`
+                : label === "Dirección" ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([value, val(client?.comuna), val(client?.cmen)].filter(Boolean).join(", "))}`
+                : null;
+              return (
+                <div key={label} className="min-w-0">
+                  <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wide">{label}</p>
+                  {href ? (
+                    <a href={href} target={label === "Dirección" ? "_blank" : undefined} rel="noopener noreferrer" className="text-sm sm:text-xs text-[#fd6301] hover:underline break-words">{value}</a>
+                  ) : (
+                    <p className="text-sm sm:text-xs text-slate-700 break-words">{value}</p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -7994,15 +8123,27 @@ function ProductosPanel({ clienteNombre }: { clienteNombre: string }) {
   if (isLoading) return <p className="text-xs text-slate-400">Cargando productos…</p>;
   if (data.length === 0) return <p className="text-xs text-slate-400 italic">Sin compras registradas.</p>;
   return (
-    <div className="space-y-1">
-      {data.slice(0, 25).map((p, i) => (
-        <div key={i} className="flex items-center gap-2 text-xs bg-white rounded-lg px-2.5 py-1.5 border border-slate-100">
-          <Package className="h-3.5 w-3.5 text-slate-300 flex-shrink-0" />
-          <span className="font-medium text-slate-700 truncate flex-1">{p.productName}</span>
-          <span className="text-slate-400 flex-shrink-0">{p.transactionCount}×</span>
-          <span className="font-semibold text-emerald-700 flex-shrink-0">{fmtCLP(Number(p.totalPurchases))}</span>
-        </div>
-      ))}
+    // Celular: el nombre del producto arriba, entero, y abajo compras · última
+    // compra · total. En una sola fila el nombre se cortaba a 10 letras.
+    <div className="space-y-1.5 sm:space-y-1">
+      {data.slice(0, 25).map((p, i) => {
+        const ultima = p.lastPurchase ? new Date(p.lastPurchase) : null;
+        return (
+          <div key={i} className="flex items-start sm:items-center gap-2.5 sm:gap-2 text-xs bg-white rounded-xl sm:rounded-lg px-3 sm:px-2.5 py-2.5 sm:py-1.5 border border-slate-100">
+            <Package className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-slate-300 flex-shrink-0 mt-0.5 sm:mt-0" />
+            <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-2">
+              <span className="block sm:inline font-medium text-sm sm:text-xs text-slate-700 break-words sm:truncate sm:flex-1">{p.productName}</span>
+              <div className="flex items-center gap-2 mt-1 sm:mt-0 flex-shrink-0">
+                <span className="text-slate-400">{p.transactionCount}×</span>
+                {ultima && !isNaN(ultima.getTime()) && (
+                  <span className="text-slate-400 sm:hidden">· última {format(ultima, "dd MMM yyyy", { locale: es })}</span>
+                )}
+                <span className="ml-auto sm:ml-0 font-semibold text-sm sm:text-xs text-emerald-700 tabular-nums">{fmtCLP(Number(p.totalPurchases))}</span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -8118,7 +8259,7 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { cl
                 {isAdmin && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <button className="text-slate-300 hover:text-red-500 flex-shrink-0" title="Quitar de esta ruta">
+                      <button className="p-1.5 -m-1 sm:p-0 sm:m-0 text-slate-300 hover:text-red-500 flex-shrink-0" title="Quitar de esta ruta">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </AlertDialogTrigger>
@@ -8145,12 +8286,12 @@ function RutasClientePanel({ clienteId, clienteNombre, canManage, taskId }: { cl
         {canManage && allRutas.filter((r) => !yaEn.has(r.id)).length > 0 && (
           <div className="flex items-center gap-2 pt-1">
             <Select value={selRuta} onValueChange={setSelRuta}>
-              <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Asignar a una ruta…" /></SelectTrigger>
+              <SelectTrigger className="h-10 sm:h-8 text-sm sm:text-xs flex-1 min-w-0"><SelectValue placeholder="Asignar a una ruta…" /></SelectTrigger>
               <SelectContent>
                 {allRutas.filter((r) => !yaEn.has(r.id)).map((r) => (<SelectItem key={r.id} value={r.id} className="text-xs">{r.nombre}{r.fecha ? ` · ${format(new Date(r.fecha), "dd MMM", { locale: es })}` : ""}</SelectItem>))}
               </SelectContent>
             </Select>
-            <Button size="sm" className="h-8 bg-[#fd6301] hover:bg-[#e35400] text-xs" disabled={!selRuta || assign.isPending} onClick={() => assign.mutate()}>
+            <Button size="sm" className="h-10 sm:h-8 rounded-2xl bg-[#fd6301] hover:bg-[#e35400] text-xs" disabled={!selRuta || assign.isPending} onClick={() => assign.mutate()}>
               {assign.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Asignar"}
             </Button>
           </div>
@@ -8373,9 +8514,9 @@ function MarketingClientePanel({ clienteId, clienteNombre, canManage }: { client
             {tareasMarketing.map((t) => {
               const est = estadoTarea(t);
               return (
-                <div key={t.id} className="flex items-center gap-2 text-xs bg-white rounded-lg px-2.5 py-1.5 border border-slate-100">
+                <div key={t.id} className="flex flex-wrap sm:flex-nowrap items-center gap-2 text-xs bg-white rounded-lg px-2.5 py-2 sm:py-1.5 border border-slate-100">
                   <Palette className="h-3.5 w-3.5 text-orange-400 flex-shrink-0" />
-                  <span className={`font-medium flex-1 truncate ${est.done ? "text-slate-400 line-through" : "text-slate-700"}`}>{t.title}</span>
+                  <span className={`font-medium flex-1 min-w-0 break-words sm:truncate ${est.done ? "text-slate-400 line-through" : "text-slate-700"}`}>{t.title}</span>
                   {t.dueDate && (
                     <span className="text-[10px] text-slate-400 flex-shrink-0">{format(new Date(t.dueDate), "dd MMM", { locale: es })}</span>
                   )}
@@ -8403,13 +8544,13 @@ function MarketingClientePanel({ clienteId, clienteNombre, canManage }: { client
       ) : (
         <div className="space-y-1">
           {data.map((m) => (
-            <div key={m.itemId} className="flex items-center gap-2 text-xs bg-white rounded-lg px-2.5 py-1.5 border border-slate-100">
+            <div key={m.itemId} className="flex items-center gap-2 text-xs bg-white rounded-lg px-2.5 py-2 sm:py-1.5 border border-slate-100">
               <Palette className="h-3.5 w-3.5 text-pink-400 flex-shrink-0" />
-              <span className="font-medium text-slate-700 flex-1 truncate">{m.itemNombre}</span>
+              <span className="font-medium text-slate-700 flex-1 min-w-0 break-words sm:truncate">{m.itemNombre}</span>
               <span className="font-semibold text-slate-700 flex-shrink-0">{m.cantidadEnPoder} {m.unidad}</span>
               {canManage && (
                 <button
-                  className="text-[10px] font-medium text-slate-400 hover:text-orange-600 flex-shrink-0 disabled:opacity-50"
+                  className="px-2 py-1 -my-1 sm:p-0 sm:m-0 text-[11px] sm:text-[10px] font-medium text-slate-400 hover:text-orange-600 flex-shrink-0 disabled:opacity-50"
                   disabled={devolverMutation.isPending}
                   onClick={() => {
                     const raw = window.prompt(`¿Cuántas ${m.unidad} devuelve de "${m.itemNombre}"? (máx ${m.cantidadEnPoder})`, String(m.cantidadEnPoder));
@@ -9185,12 +9326,12 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre, esProye
         <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <Select value={tipo} onValueChange={setTipo}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-10 sm:h-8 text-sm sm:text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {ACTIVIDAD_TIPOS.map((t) => (<SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>))}
               </SelectContent>
             </Select>
-            <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-8 text-xs" title="Podés registrar una fecha pasada o futura" />
+            <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-10 sm:h-8 text-base sm:text-xs" title="Podés registrar una fecha pasada o futura" />
           </div>
           {tipo === "visita" && puedeLigarRuta && (
             creatingRuta ? (
@@ -9224,9 +9365,9 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre, esProye
               </div>
             )
           )}
-          <Textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} placeholder="Descripción (opcional)…" className="text-xs resize-none" />
+          <Textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} placeholder="Descripción (opcional)…" className="text-base sm:text-xs resize-none" />
           <div className="flex items-center gap-2">
-            <Button size="sm" className="h-8 bg-[#fd6301] hover:bg-[#e35400] text-xs flex-1" disabled={createMut.isPending} onClick={() => createMut.mutate()}>
+            <Button size="sm" className="h-10 sm:h-8 rounded-2xl bg-[#fd6301] hover:bg-[#e35400] text-xs flex-1" disabled={createMut.isPending} onClick={() => createMut.mutate()}>
               {createMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Check className="h-3.5 w-3.5 mr-1.5" /> Agregar</>}
             </Button>
             <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-500" onClick={() => setShowForm(false)}>Cancelar</Button>
@@ -9274,7 +9415,7 @@ function ActividadesPanel({ taskId, canManage, clienteId, clienteNombre, esProye
                   {a.descripcion && <p className={`text-xs mt-0.5 ${doneAct ? "text-slate-400 line-through" : "text-slate-600"}`}>{a.descripcion}</p>}
                 </div>
                 {canManage && (
-                  <button onClick={() => deleteMut.mutate(a.id)} className="p-1 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0">
+                  <button onClick={() => deleteMut.mutate(a.id)} className="p-2 -m-1 sm:p-1 sm:m-0 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 )}
@@ -9321,19 +9462,21 @@ function HeaderMeta({ task, isSeguimiento = false, esProyecto = false }: { task:
     updateDueDate.mutate(new Date(isSeguimiento ? `${dateValue}T12:00:00` : dateValue).toISOString());
   };
   return (
-    <div className="flex items-center gap-x-4 sm:gap-x-6 gap-y-2 mt-3 flex-wrap pl-0 sm:pl-[52px]">
+    // En el celular no se muestra (pedido del usuario, oct-2026): el cliente ya es
+    // el título de la cabecera y la fila le quitaba alto al chat.
+    <div className="hidden sm:flex sm:flex-row sm:items-center gap-x-4 sm:gap-x-6 gap-y-1.5 mt-2 sm:mt-3 sm:flex-wrap pl-0 sm:pl-[52px]">
       {task.clienteNombre && (
-        <div className="flex items-center gap-1.5 text-sm min-w-0">
-          <Building2 className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cliente</span>
-          <span className="font-semibold text-emerald-700 truncate">{task.clienteNombre}</span>
+        <div className="flex items-start sm:items-center gap-1.5 text-sm min-w-0">
+          <Building2 className="h-3.5 w-3.5 text-slate-400 flex-shrink-0 mt-0.5 sm:mt-0" />
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5 sm:mt-0">Cliente</span>
+          <span className="font-semibold text-emerald-700 break-words sm:truncate min-w-0">{task.clienteNombre}</span>
         </div>
       )}
-      <div className="flex items-center gap-1.5 text-sm">
+      <div className="flex items-center gap-1.5 text-sm flex-wrap">
         <CalendarIcon className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isSeguimiento ? "Fecha de Revisión" : esProyecto ? "Fecha objetivo" : "Fecha límite"}</span>
         {editing ? (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto">
             {isSeguimiento ? (
               <Input type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)} className="h-8 w-[150px] text-xs" />
             ) : (

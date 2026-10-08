@@ -271,7 +271,7 @@ export function CreditoPanel({
       <>
       {/* Resumen */}
       <Card className="border-0 shadow-sm">
-        <CardHeader className="pb-3">
+        <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <CircleDollarSign className="h-4 w-4 text-[#fd6301]" /> Panorama de crédito
             {credit.exceeded && (
@@ -281,7 +281,7 @@ export function CreditoPanel({
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 px-4 sm:px-6 pb-4 sm:pb-6">
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
             <KpiCredito
               label="Límite de crédito"
@@ -360,7 +360,7 @@ export function CreditoPanel({
 
       {/* Antigüedad de la deuda */}
       <Card className="border-0 shadow-sm">
-        <CardHeader className="pb-3">
+        <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Clock className="h-4 w-4 text-amber-500" /> Antigüedad de la deuda
             {credit.oldestOverdueDays != null && (
@@ -370,7 +370,7 @@ export function CreditoPanel({
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
           {totalTramos === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">Sin deuda pendiente.</p>
           ) : (
@@ -402,7 +402,7 @@ export function CreditoPanel({
 
       {/* Documentos pendientes */}
       <Card className="border-0 shadow-sm">
-        <CardHeader className="pb-3">
+        <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <FileText className="h-4 w-4 text-emerald-500" /> Documentos pendientes
             {docs.length > 0 && (
@@ -412,7 +412,7 @@ export function CreditoPanel({
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
           {docs.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">Sin facturas pendientes de pago.</p>
           ) : (
