@@ -14831,7 +14831,15 @@ export class DatabaseStorage implements IStorage {
         id: taskComments.id,
         assignmentId: taskComments.assignmentId,
         authorId: taskComments.authorId,
-        authorName: taskComments.authorName,
+        // Firma con el NOMBRE de la cuenta, no con lo que quedó guardado al
+        // escribir: en muchas cuentas la sesión no trae nombre y se guardaba el
+        // email. Se resuelve acá para que lo vean todos los roles por igual (el
+        // listado de usuarios del front solo lo carga la jefatura).
+        authorName: sql<string>`COALESCE(
+          NULLIF(TRIM(${salespeopleUsers.salespersonName}), ''),
+          NULLIF(TRIM(CONCAT_WS(' ', ${users.firstName}, ${users.lastName})), ''),
+          ${taskComments.authorName}
+        )`,
         content: taskComments.content,
         audioUrl: taskComments.audioUrl,
         audioDurationMs: taskComments.audioDurationMs,
@@ -14839,6 +14847,8 @@ export class DatabaseStorage implements IStorage {
       })
       .from(taskComments)
       .innerJoin(taskAssignments, eq(taskComments.assignmentId, taskAssignments.id))
+      .leftJoin(salespeopleUsers, eq(salespeopleUsers.id, taskComments.authorId))
+      .leftJoin(users, eq(users.id, taskComments.authorId))
       .where(eq(taskAssignments.taskId, taskId))
       .orderBy(asc(taskComments.createdAt));
     return rows;

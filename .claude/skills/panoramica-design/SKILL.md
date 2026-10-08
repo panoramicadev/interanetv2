@@ -524,9 +524,13 @@ pantalla. La página standalone (`/seguimiento-clientes`) conserva su toolbar.
 - **Móvil: dónde va el botón del menú.** En el **Dashboard principal** sigue arriba a la
   izquierda (`fixed top-[42px] left-4`), calzado con su barra superior del logo. En **todos
   los demás módulos** (Panorámica Market, Panel de Trabajo, Tomador de Pedidos, Inventario…)
-  no hay barra arriba y el círculo tapaba el ícono y el título de la página: ahí va en una
-  **barra blanca fija al pie** (`fixed bottom-0 inset-x-0 h-14`, borde superior
-  `border-slate-200`, `pb-[env(safe-area-inset-bottom)]`) y el módulo reserva ese alto con
+  no hay barra arriba y el círculo tapaba el ícono y el título de la página: ahí va
+  **flotando al pie, SIN franja blanca ni borde** (corrección del usuario, oct-2026: la
+  franja se comía el pie de la pantalla). Contenedor `fixed bottom-0 inset-x-0 h-14
+  pointer-events-none pb-[env(safe-area-inset-bottom)]` y el botón `pointer-events-auto`,
+  para que la mitad sin botón no tape toques al contenido. El botón va **abajo a la
+  derecha** (`justify-end pr-4`), en la esquina que era de la burbuja de Woob; esa burbuja
+  no se carga en celular (oct-2026). El módulo reserva ese alto con
   `pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0` — los dos números van juntos.
   Esa barra va en `z-40`, pero **baja a `z-30` mientras el menú móvil está abierto**: en
   `z-40` quedaba por encima de la capa oscura (`z-35`), sin oscurecer y comiéndose los

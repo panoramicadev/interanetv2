@@ -604,15 +604,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </button>
       ) : (
         <div
-          className={`fixed bottom-0 inset-x-0 ${isMobileOpen ? "z-30" : "z-40"} lg:hidden bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-[0_-4px_16px_rgba(15,23,42,0.06)] pb-[env(safe-area-inset-bottom)]`}
+          // Sin franja blanca ni línea de borde: solo el botón flotando (corrección del
+          // usuario, oct-2026). La franja se comía el pie de la pantalla en todos los
+          // módulos. pointer-events-none en el contenedor para que la mitad sin botón
+          // no tape toques al contenido de atrás; el botón los recupera.
+          className={`fixed bottom-0 inset-x-0 ${isMobileOpen ? "z-30" : "z-40"} lg:hidden pointer-events-none pb-[env(safe-area-inset-bottom)]`}
           data-testid="mobile-menu-bar"
         >
-          {/* El botón no va pegado al borde: queda centrado dentro de la mitad izquierda,
-              o sea a mitad de camino entre el borde y el centro de la pantalla
-              (corrección del usuario, ago-2026). Ahí cae más natural bajo el pulgar. */}
-          <div className="h-14 w-1/2 flex items-center justify-center">
+          {/* Abajo a la derecha, en la esquina que ocupaba la burbuja de Woob (que ya no
+              se carga en el celular) — corrección del usuario, oct-2026. Antes iba al
+              centro de la mitad izquierda. */}
+          <div className="h-14 w-full flex items-center justify-end pr-4">
             <button
-              className="w-10 h-10 bg-[#0a0a0a] rounded-full flex items-center justify-center shadow-md active:scale-95 transition-transform"
+              className="pointer-events-auto w-10 h-10 bg-[#0a0a0a] rounded-full flex items-center justify-center shadow-md active:scale-95 transition-transform"
               onClick={() => setIsMobileOpen(!isMobileOpen)}
               aria-label="Abrir menú"
               data-testid="mobile-menu-toggle-floating"

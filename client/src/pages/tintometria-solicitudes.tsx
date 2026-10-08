@@ -76,7 +76,7 @@ const TIPO_TEXTO: Record<string, string> = { formula: "Fórmula", precio: "Preci
 const ESTADO: Record<string, { texto: string; clase: string }> = {
   enviada: { texto: "ENVIADA", clase: "bg-amber-100 text-amber-800 border-amber-200" },
   en_desarrollo: { texto: "EN DESARROLLO", clase: "bg-sky-100 text-sky-800 border-sky-200" },
-  respondida: { texto: "RESPONDIDA", clase: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  respondida: { texto: "APROBADA", clase: "bg-emerald-100 text-emerald-700 border-emerald-200" },
   rechazada: { texto: "RECHAZADA", clase: "bg-red-100 text-red-700 border-red-200" },
 };
 const ABIERTAS = ["enviada", "en_desarrollo"];
@@ -84,7 +84,7 @@ const ABIERTAS = ["enviada", "en_desarrollo"];
 const EVENTO: Record<string, string> = {
   creada: "envió la solicitud",
   en_desarrollo: "la tomó: está en desarrollo",
-  respondida: "respondió la solicitud",
+  respondida: "aprobó la solicitud",
   rechazada: "rechazó la solicitud",
 };
 
@@ -199,7 +199,7 @@ export default function TintometriaSolicitudesPage() {
           />
         </TabsContent>
         <TabsContent value="cerradas" className="mt-4">
-          <Lista filas={cerradas} cargando={isLoading} vacio="Todavía no hay solicitudes respondidas." onAbrir={setAbierta} />
+          <Lista filas={cerradas} cargando={isLoading} vacio="Todavía no hay solicitudes cerradas." onAbrir={setAbierta} />
         </TabsContent>
       </Tabs>
 
@@ -693,6 +693,9 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
     queryKey: [`/api/tintometria/solicitudes/${id}`],
     enabled: !!id,
   });
+  // Laboratorio carga la fórmula / el precio solo después de apretar "Aprobar".
+  const [aprobando, setAprobando] = useState(false);
+  useEffect(() => setAprobando(false), [id]);
 
   // Abrirla la marca como vista para este lado y apaga el número del menú.
   useEffect(() => {
@@ -794,9 +797,20 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
                   </Button>
                 )}
                 <RechazarBoton onRechazar={(motivo) => cambiarEstado.mutate({ estado: "rechazada", motivo })} />
+                {s.estado === "en_desarrollo" && !aprobando && (
+                  <Button
+                    className="rounded-2xl h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={() => setAprobando(true)}
+                    data-testid="button-lab-aprobar"
+                  >
+                    <Check className="h-4 w-4 mr-1.5" /> Aprobar
+                  </Button>
+                )}
               </div>
             )}
-            {s.puedeResponder && abierta && <FormularioRespuesta s={s} onRespondida={refrescar} />}
+            {s.puedeResponder && s.estado === "en_desarrollo" && aprobando && (
+              <FormularioRespuesta s={s} onRespondida={refrescar} onCancelar={() => setAprobando(false)} />
+            )}
 
             <Hilo s={s} miId={(user as any)?.id} onEnviado={refrescar} />
           </>
@@ -833,7 +847,7 @@ function Respuesta({ s }: { s: Detalle }) {
   return (
     <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-3 space-y-2 dark:border-emerald-500/30 dark:bg-emerald-500/10">
       <div className="flex items-center gap-2 text-sm font-bold text-emerald-800 dark:text-emerald-300">
-        <Check className="h-4 w-4" /> Respuesta de laboratorio
+        <Check className="h-4 w-4" /> Laboratorio la aprobó
         <span className="font-normal text-emerald-700/80">
           {s.respondidaPorNombre ? `· ${s.respondidaPorNombre} ` : ""}· {fmtFecha(s.respondidaAt, true)}
         </span>
@@ -925,7 +939,7 @@ function galonesDelFormato(formato: string | null | undefined): string {
   return "";
 }
 
-function FormularioRespuesta({ s, onRespondida }: { s: Detalle; onRespondida: () => void }) {
+function FormularioRespuesta({ s, onRespondida, onCancelar }: { s: Detalle; onRespondida: () => void; onCancelar: () => void }) {
   const { toast } = useToast();
   const pideFormula = s.tipo === "formula" || s.tipo === "formula_precio";
   const pidePrecio = s.tipo === "precio" || s.tipo === "formula_precio";
@@ -953,7 +967,7 @@ function FormularioRespuesta({ s, onRespondida }: { s: Detalle; onRespondida: ()
       ).json(),
     onSuccess: () => {
       onRespondida();
-      toast({ title: "Respuesta enviada", description: "El vendedor la recibió por correo y en el panel." });
+      toast({ title: "Solicitud aprobada", description: "El vendedor recibió la respuesta por correo y en el panel." });
     },
     onError: (error: any) => toast({ title: "No se pudo responder", description: error?.message, variant: "destructive" }),
   });
@@ -968,7 +982,7 @@ function FormularioRespuesta({ s, onRespondida }: { s: Detalle; onRespondida: ()
   return (
     <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 p-3 space-y-3">
       <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
-        <FlaskConical className="h-4 w-4 text-[#fd6301]" /> Responder
+        <FlaskConical className="h-4 w-4 text-[#fd6301]" /> Aprobar: carga la respuesta
       </div>
       {pideFormula && (
         <>
@@ -1062,7 +1076,10 @@ function FormularioRespuesta({ s, onRespondida }: { s: Detalle; onRespondida: ()
           placeholder="Ej.: el color húmedo se ve más claro; agitar cada balde más de 5 minutos"
         />
       </div>
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" className="rounded-2xl h-9" onClick={onCancelar} disabled={responder.isPending}>
+          Cancelar
+        </Button>
         <Button
           onClick={() => responder.mutate()}
           disabled={incompleta || dosisMala || responder.isPending}
@@ -1070,7 +1087,7 @@ function FormularioRespuesta({ s, onRespondida }: { s: Detalle; onRespondida: ()
           data-testid="button-lab-responder"
         >
           {responder.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-          Enviar respuesta
+          Aprobar y enviar
         </Button>
       </div>
     </div>
