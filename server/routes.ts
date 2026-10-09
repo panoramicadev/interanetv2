@@ -14608,6 +14608,59 @@ export function registerRoutes(app: Express): Server {
 
       const task = await storage.createTask(taskData, assignmentsWithDefaults);
 
+      // Lo que se agenda en el Calendario con un cliente asociado queda escrito en la
+      // bitácora de su Seguimiento (pedido del usuario, oct-2026): un mensaje firmado
+      // por quien lo agendó en cada seguimiento abierto sobre ese cliente. Si falla,
+      // la tarea igual queda creada.
+      if ((payload as any)?.kind === 'agenda' && clienteId && clienteId !== 'PROSPECTO') {
+        try {
+          const seguimientos = await storage.getSeguimientosDeCliente(clienteId);
+          if (seguimientos.length > 0) {
+            const TIPOS_AGENDA: Record<string, string> = {
+              tarea: 'una tarea', reunion: 'una reunión', evento: 'un evento', visita: 'una visita a cliente',
+            };
+            const queCosa = TIPOS_AGENDA[(payload as any)?.tipo] ?? 'una tarea';
+            // La fecha se muestra tal como la escribió quien agendó ("2026-10-08T09:00"),
+            // sin pasarla por la zona horaria del servidor.
+            let cuando = '';
+            if (dueDate) {
+              const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(String(dueDate));
+              const fecha = m
+                ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]))
+                : new Date(dueDate);
+              const dias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+              const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+              const conHora = fecha.getHours() !== 0 || fecha.getMinutes() !== 0;
+              const hora = `${String(fecha.getHours()).padStart(2, '0')}:${String(fecha.getMinutes()).padStart(2, '0')}`;
+              const horaFin = (payload as any)?.horaFin ? `–${(payload as any).horaFin}` : '';
+              cuando = ` para el ${dias[fecha.getDay()]} ${fecha.getDate()} ${meses[fecha.getMonth()]}${conHora ? `, ${hora}${horaFin}` : ''}`;
+            }
+            const lugar = (payload as any)?.lugar ? ` en ${(payload as any).lugar}` : '';
+            const contenido = `📅 Agendó ${queCosa}${cuando}${lugar}: «${title}»`;
+            const authorName = user.name || user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Usuario';
+            for (const seg of seguimientos) {
+              if (!seg.assignments?.length) continue;
+              // Mismo anclaje que el chat: la asignación propia si la hay, si no la primera.
+              const anclaje = seg.assignments.find((a) => a.assigneeId === user.id) || seg.assignments[0];
+              await storage.addTaskComment({
+                assignmentId: anclaje.id,
+                authorId: user.id,
+                authorName,
+                content: contenido,
+              });
+              await logPanelChange(user, {
+                section: 'seguimiento',
+                action: 'commented',
+                entityType: 'task',
+                entityId: seg.id,
+                title: `Agendado en "${seg.title}": ${title}`.slice(0, 160),
+                segmento: normalizePanelSegmento(seg.segmento),
+              });
+            }
+          }
+        } catch (err) { console.error("Error registrando la agenda en la bitácora del seguimiento:", err); }
+      }
+
       // Si un seguimiento de cliente nace con fecha de revisión, esa fecha queda
       // registrada también como "tarea del cliente" (actividad tipo 'revision').
       if ((payload as any)?.kind === 'seguimiento_cliente' && taskData.dueDate) {

@@ -27,9 +27,11 @@ const SECTION_META: Record<PanelSection, { label: string; icon: typeof Bell }> =
 interface Props {
   changes: PanelChangesController;
   onNavigate: (tabValue: string) => void;
+  /** Hacia dónde se abre la lista: "start" cuando la campana va a la izquierda. */
+  align?: "start" | "end";
 }
 
-export function PanelChangesBell({ changes, onNavigate }: Props) {
+export function PanelChangesBell({ changes, onNavigate, align = "end" }: Props) {
   const [open, setOpen] = useState(false);
   const { total, visibleItems, markAllSeen } = changes;
 
@@ -56,7 +58,7 @@ export function PanelChangesBell({ changes, onNavigate }: Props) {
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[340px] p-0 rounded-2xl overflow-hidden border-slate-200/80 dark:border-slate-800 shadow-lg">
+      <PopoverContent align={align} className="w-[340px] p-0 rounded-2xl overflow-hidden border-slate-200/80 dark:border-slate-800 shadow-lg">
         <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-orange-50 via-white to-white dark:from-orange-950/30 dark:via-slate-900 dark:to-slate-900 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
             <Bell className="h-4 w-4 text-[#fd6301]" />
