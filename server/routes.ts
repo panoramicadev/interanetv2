@@ -10,6 +10,7 @@ import {
   buscarClientes as buscarClientesDeVenta,
   obtenerDocumento as obtenerDocumentoDeVenta,
   lineasDeDocumentos as lineasDeDocumentosDeVenta,
+  observacionesDeDocumentos as observacionesDeVenta,
 } from "./obras-ventas";
 import { autoAsociarVentasDeCotizacion, sugerirDocumentosParaObra } from "./obras-ventas-auto";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, isIndustrialSegment, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
@@ -25023,9 +25024,18 @@ export function registerRoutes(app: Express): Server {
       );
       const porClave = new Map(yaAsociados.map((v: any) => [`${v.origen}|${v.idmaeedo}`, v]));
 
+      // La observación del ERP dice a qué obra va cada documento. Si el ERP no
+      // responde llega vacía y la lista se ve igual que antes.
+      const observaciones = await observacionesDeVenta(documentos.map((d) => d.idmaeedo));
+
       res.json(documentos.map((d) => {
         const ya = porClave.get(`${d.origen}|${d.idmaeedo}`);
-        return { ...d, obraId: ya?.obraId ?? null, obraNombre: ya?.obraNombre ?? null };
+        return {
+          ...d,
+          observacion: observaciones.get(d.idmaeedo) ?? null,
+          obraId: ya?.obraId ?? null,
+          obraNombre: ya?.obraNombre ?? null,
+        };
       }));
     } catch (error: any) {
       console.error('❌ Error al buscar documentos de venta:', error);

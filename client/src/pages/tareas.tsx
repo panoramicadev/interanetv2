@@ -369,7 +369,7 @@ export default function TareasPage() {
   // y con los chips de contexto del encabezado. El borde inferior transparente está
   // también en la inactiva para que al cambiar de pestaña no salte el alto.
   const tabTriggerClass =
-    "group inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 text-xs sm:text-sm font-medium transition-all duration-200 text-[#0a0a0a] dark:text-slate-200 hover:text-[#fd6301] dark:hover:text-white border-b-2 border-transparent bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-[#0a0a0a] data-[state=active]:border-[#0a0a0a] -mb-px dark:data-[state=active]:bg-transparent dark:data-[state=active]:text-white dark:data-[state=active]:border-slate-100 rounded-none whitespace-nowrap shrink-0";
+    "group inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 text-xs sm:text-sm font-normal transition-all duration-200 text-[#0a0a0a] dark:text-slate-200 hover:text-[#fd6301] dark:hover:text-white border-b-2 border-transparent bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-[#0a0a0a] data-[state=active]:border-[#0a0a0a] -mb-px dark:data-[state=active]:bg-transparent dark:data-[state=active]:text-white dark:data-[state=active]:border-slate-100 rounded-none whitespace-nowrap shrink-0";
   const tabIconClass = "h-4 w-4 shrink-0 hidden sm:block";
 
   // La pestaña activa se centra dentro del riel al montar y al cambiar de pestaña. Se
@@ -2306,12 +2306,8 @@ export default function TareasPage() {
               </span>
               Panel de Trabajo
             </h1>
-            {/* La bajada del módulo no se muestra en celular (corrección del usuario,
-                ago-2026): ocupaba dos líneas de la primera pantalla para explicar algo
-                que el propio panel ya muestra. */}
-            <p className="hidden sm:block text-sm text-muted-foreground">
-              Gestiona tareas del equipo, estimaciones de ventas y seguimiento de clientes
-            </p>
+            {/* Sin bajada bajo el título (corrección del usuario, ago-2026 en celular
+                y oct-2026 en computador): explicaba algo que el propio panel ya muestra. */}
           </div>
           {(canCreateTasks || canRequestMarketing) && (
             <>

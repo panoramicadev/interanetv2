@@ -810,30 +810,10 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
     );
   }
 
-  // Las tres piezas de la barra de la cartera. Se arman una sola vez y se ubican
+  // Las piezas de la barra de la cartera. Se arman una sola vez y se ubican
   // arriba (computador) o debajo de las tarjetas de resumen (celular).
-  const pestanasCartera = (
-    <div className="flex items-center gap-0.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 p-1 flex-shrink-0">
-      {([
-        { key: "constructoras", label: "Constructoras" },
-        { key: "obras", label: "Todas las obras" },
-      ] as const).map((v) => (
-        <button
-          key={v.key}
-          onClick={() => setVistaCartera(v.key)}
-          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
-            vistaCartera === v.key
-              ? "bg-white dark:bg-slate-900 text-orange-600 shadow-sm"
-              : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-          }`}
-          data-testid={`button-vista-${v.key}`}
-        >
-          {v.label}
-        </button>
-      ))}
-    </div>
-  );
-
+  // Sin título ni pestañas Constructoras / Todas las obras (pedido del usuario,
+  // oct-2026): la portada abre siempre en el listado por constructora.
   const buscadorCartera = (
     <div className="relative flex-1 sm:min-w-[240px]">
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
@@ -847,21 +827,11 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
     </div>
   );
 
+  // "Agregar constructora" ya no va acá (pedido del usuario, oct-2026): una
+  // constructora nueva se elige al añadir su obra, y con la cartera vacía queda
+  // el botón del aviso de más abajo.
   const botonesCartera = (
     <>
-      <Button
-        variant="outline"
-        onClick={() => {
-          setBusqueda("");
-          setAltaTrasElegir(false);
-          setDialogAgregarCliente(true);
-        }}
-        className="rounded-2xl border-slate-200/70 dark:border-slate-700/60 flex-shrink-0"
-        data-testid="button-agregar-constructora"
-      >
-        <Building2 className="h-4 w-4 mr-2" />
-        Agregar constructora
-      </Button>
       <Button
         onClick={abrirNueva}
         className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all flex-shrink-0"
@@ -878,31 +848,14 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
       {/* ===================== PORTADA: CARTERA ===================== */}
       {!cliente && (
         <>
-          <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:justify-between">
-            <div className="min-w-0">
-              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
-                {vistaCartera === "obras" ? "Todas las obras" : "Cartera de constructoras"}
-              </h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                {cartera.length === 0
-                  ? vendedorFiltro !== "all"
-                    ? "No hay obras para el vendedor seleccionado"
-                    : "Agrega la primera constructora para empezar a controlar sus obras"
-                  : `${cartera.length} ${cartera.length === 1 ? "constructora" : "constructoras"} · ${totalesCartera.conteoEstados.reduce((a, e) => a + e.cantidad, 0)} obras en control`}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:justify-end">
+            <div className="flex flex-wrap items-center gap-2 lg:flex-1 lg:justify-end">
               {/* El filtro por vendedor se fue al encabezado del Panel, debajo del
                   selector de Sección (pedido del usuario, sep-2026): es contexto de toda
                   la pestaña, igual que el del CRM y el de Estimación, y acá abajo quedaba
                   perdido entre el título y las tarjetas. Llega por prop. */}
               {cartera.length > 0 && !esCelular && (
-                <>
-                  {/* Las mismas obras en dos listados: agrupadas por constructora
-                      o todas juntas cuando lo que se busca es una obra puntual. */}
-                  {pestanasCartera}
-                  {buscadorCartera}
-                </>
+                buscadorCartera
               )}
               {/* Agregar constructora suma una a la cartera; Añadir obra le
                   carga una obra a la que ya está. En celular estos dos bajan con
@@ -955,47 +908,30 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
 
           {cartera.length > 0 && (
             <>
+              {/* En celular el buscador y "Añadir obra" van arriba del resumen,
+                  igual que en computador (pedido del usuario, oct-2026; antes
+                  quedaban debajo de las tarjetas). */}
+              {esCelular && (
+                <div className="space-y-2">
+                  <div className="flex">{buscadorCartera}</div>
+                  <div className="flex items-center gap-2">{botonesCartera}</div>
+                </div>
+              )}
+
               {/* Resumen de toda la cartera */}
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
                 <MiniStat icon={<Building2 className="h-3.5 w-3.5" />} tono="sky" label="Constructoras" valor={fmt(cartera.length)} />
                 <MiniStat icon={<Home className="h-3.5 w-3.5" />} tono="slate" label="Viviendas en control" valor={fmt(totalesCartera.viviendas)} />
                 <MiniStat icon={<Paintbrush className="h-3.5 w-3.5" />} tono="emerald" label="Avance global" valor={fmtPct(totalesCartera.avance)} />
+                {/* Cuántas obras hay en la cartera. Reemplaza a "Próximo pedido
+                    total" (pedido del usuario, oct-2026). */}
                 <MiniStat
-                  icon={<ShoppingCart className="h-3.5 w-3.5" />}
+                  icon={<HardHat className="h-3.5 w-3.5" />}
                   tono="amber"
-                  label="Próximo pedido total"
-                  valor={fmtDec(totalesCartera.sugerido)}
-                  sufijo="unidades"
-                  onClick={() => setDialogPedido(true)}
-                  testId="button-abrir-proximo-pedido"
-                  pie={
-                    <div className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-orange-600">
-                      {criticos > 0 && (
-                        <span className="inline-flex items-center gap-1 text-[#fd6301]">
-                          <AlertTriangle className="h-3 w-3" />
-                          {fmt(criticos)} {criticos === 1 ? "crítico" : "críticos"}
-                        </span>
-                      )}
-                      <span className={criticos > 0 ? "text-slate-300 dark:text-slate-600" : ""}>
-                        {criticos > 0 ? "·" : ""}
-                      </span>
-                      <span>Ver qué falta</span>
-                    </div>
-                  }
+                  label="Obras"
+                  valor={fmt(totalesCartera.conteoEstados.reduce((a, e) => a + e.cantidad, 0))}
                 />
               </div>
-
-              {/* En celular la barra de la cartera va acá, debajo del resumen: las
-                  pestañas en su fila, el buscador a lo largo justo abajo, y los dos
-                  botones al final (pedido del usuario, ago-2026). Arriba solo quedan
-                  el título y el vendedor, que es lo que ubica la pantalla. */}
-              {esCelular && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">{pestanasCartera}</div>
-                  <div className="flex">{buscadorCartera}</div>
-                  <div className="flex items-center gap-2">{botonesCartera}</div>
-                </div>
-              )}
 
               {/* ---------- Listado de constructoras ---------- */}
               {vistaCartera === "constructoras" && (
@@ -1010,7 +946,6 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                       <span className="w-[150px] text-center">Avance</span>
                       <span className="w-20 text-right">Saldo obra</span>
                       <span className="w-24 text-right">Próx. pedido</span>
-                      <span className="w-[180px]">Alertas</span>
                       <span className="w-4" />
                     </div>
                     {carteraFiltrada.map((c) => (
@@ -1129,7 +1064,7 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
 
               {/* Constructora abierta — el mismo control sirve para saltar a otra */}
               <div className="flex items-center gap-3 bg-white dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-3 py-2.5 shadow-sm hover:border-orange-200 hover:shadow transition-all min-w-0 flex-1 max-w-md">
-                <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
+                <div className="flex items-center justify-center w-9 h-9 text-orange-600 dark:text-orange-400 flex-shrink-0">
                   <Building2 className="h-4 w-4" />
                 </div>
                 <div className="flex flex-col leading-none flex-1 min-w-0">
@@ -1170,31 +1105,8 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                 </button>
               </div>
 
-              {/* Temporada — solo tiene sentido cuando el cliente ya tiene obras */}
-              {temporadas.length > 0 && (
-                <div className="flex items-center gap-3 bg-white dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:border-orange-200 hover:shadow transition-all">
-                  <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 flex-shrink-0">
-                    <HardHat className="h-4 w-4" />
-                  </div>
-                  <div className="flex flex-col leading-none">
-                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Temporada</span>
-                    <Select value={temporadaFiltro} onValueChange={setTemporadaFiltro}>
-                      <SelectTrigger
-                        className="h-5 border-0 shadow-none p-0 gap-2 w-auto bg-transparent font-semibold text-sm text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60"
-                        data-testid="select-obras-temporada"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todas">Todas</SelectItem>
-                        {temporadas.map((t) => (
-                          <SelectItem key={t} value={t}>{t}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
+              {/* Sin selector de Temporada (pedido del usuario, oct-2026): la
+                  constructora se ve siempre con todas sus temporadas. */}
             </div>
 
             <div className="flex items-center gap-2">
@@ -1243,15 +1155,18 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                   tabla de obras quede a la vista al entrar. */}
               <div className="rounded-2xl overflow-hidden shadow-md shadow-orange-500/25">
                 <div className="bg-gradient-to-r from-[#fd6301] to-[#e35400] text-white px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-3">
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                  {/* El nombre se lee completo: con ancho mínimo propio, si no cabe
+                      junto a los números estos bajan a la fila de abajo en vez de
+                      dejar "CONTR…" (pedido del usuario, oct-2026). */}
+                  <div className="flex items-center gap-3 min-w-[260px] flex-1">
                     <span className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
                       <HardHat className="h-4 w-4" />
                     </span>
                     <div className="min-w-0">
-                      <h3 className="text-sm sm:text-base font-bold uppercase tracking-wide truncate">
+                      <h3 className="text-sm sm:text-base font-bold uppercase tracking-wide leading-snug break-words">
                         Control {cliente.nokoen}
                       </h3>
-                      <p className="text-[11px] text-white/75 truncate">
+                      <p className="text-[11px] text-white/75">
                         {temporadaFiltro !== "todas" ? `Temporada ${temporadaFiltro} · ` : ""}
                         Avance, compra, entrega y saldo
                       </p>
@@ -2190,10 +2105,6 @@ const TONOS: Record<string, string> = {
 /** Una constructora en el listado de la portada, con su avance y lo que hay que pedir. */
 function FilaConstructora({ constructora, onAbrir }: { constructora: Constructora; onAbrir: () => void }) {
   const { totales, filas } = constructora;
-  // En el listado solo interesan los estados que piden acción.
-  const alertas = totales.conteoEstados.filter(
-    (e) => e.cantidad > 0 && (e.key === "critico" || e.key === "pedir" || e.key === "revisar"),
-  );
 
   return (
     <button
@@ -2201,10 +2112,8 @@ function FilaConstructora({ constructora, onAbrir }: { constructora: Constructor
       className="w-full text-left flex flex-col lg:flex-row lg:items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-700/40 last:border-0 hover:bg-orange-50/40 dark:hover:bg-orange-950/10 transition-colors group"
       data-testid={`row-constructora-${constructora.id}`}
     >
+      {/* Sin ícono a la izquierda (pedido del usuario, oct-2026): el nombre abre la fila. */}
       <div className="flex items-center gap-3 flex-1 min-w-0">
-        <span className="w-9 h-9 rounded-xl bg-[#fd6301] text-white dark:text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-[#fd6301]/25">
-          <Building2 className="h-4 w-4" />
-        </span>
         <div className="min-w-0">
           <div className="font-bold text-sm text-slate-800 dark:text-slate-100 leading-tight truncate group-hover:text-orange-600 transition-colors">
             {constructora.nombre}
@@ -2218,7 +2127,7 @@ function FilaConstructora({ constructora, onAbrir }: { constructora: Constructor
         </div>
       </div>
 
-      <div className="flex items-center gap-3 flex-shrink-0 pl-12 lg:pl-0">
+      <div className="flex items-center gap-3 flex-shrink-0">
         <div className="w-[150px] flex items-center gap-2">
           <div className="h-1.5 flex-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
             <div
@@ -2245,19 +2154,8 @@ function FilaConstructora({ constructora, onAbrir }: { constructora: Constructor
           </div>
         </div>
 
-        <div className="w-[180px] flex flex-wrap gap-1">
-          {alertas.length === 0 ? (
-            <span className="text-[11px] text-slate-300 dark:text-slate-600">Sin alertas</span>
-          ) : (
-            alertas.map((e) => (
-              <span key={e.key} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${e.badge}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${e.dot}`} />
-                {e.cantidad} {e.label}
-              </span>
-            ))
-          )}
-        </div>
-
+        {/* Sin columna de alertas en el listado (pedido del usuario, oct-2026):
+            el estado de cada obra se ve al abrir la constructora. */}
         <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-orange-500 transition-colors flex-shrink-0" />
       </div>
     </button>

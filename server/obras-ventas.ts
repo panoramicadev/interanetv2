@@ -23,6 +23,7 @@
  * equivalencias entre formatos.
  */
 import { sql, type SQL } from "drizzle-orm";
+import mssql from "mssql";
 import { db } from "./db";
 import { normalizeSql } from "./utils/sql-search";
 import { rutContainsCondition, looksLikeRut } from "./utils/rut-sql";
@@ -42,6 +43,96 @@ function contieneTexto(columna: SQL, termino: string): SQL {
   return sql`${aplanar(columna)} LIKE ${aplanar(sql`${patron}`)}`;
 }
 
+/**
+ * La observación del documento (OBDO) es donde el ERP anota a qué obra va:
+ * "C - CONDOMINIO QUEULE - LUGAR DE ENTREGA: ...". Ningún ETL la trae a los
+ * espejos, así que se lee de Random al momento de buscar. Solo lectura.
+ *
+ * Pool propio y no `mssql.connect()`: ese devuelve el pool GLOBAL que usan los
+ * ETL, y cerrarlo o romperlo desde acá cortaría una sincronización en curso.
+ */
+let poolErp: Promise<mssql.ConnectionPool> | null = null;
+
+function erp(): Promise<mssql.ConnectionPool> {
+  if (!process.env.SQL_SERVER_HOST || !process.env.SQL_SERVER_USER) {
+    return Promise.reject(new Error("Sin conexión al ERP configurada"));
+  }
+  if (!poolErp) {
+    const pool = new mssql.ConnectionPool({
+      server: process.env.SQL_SERVER_HOST,
+      port: parseInt(process.env.SQL_SERVER_PORT || "1433"),
+      user: process.env.SQL_SERVER_USER,
+      password: process.env.SQL_SERVER_PASSWORD || "",
+      database: process.env.SQL_SERVER_DATABASE || "",
+      options: { encrypt: true, trustServerCertificate: true, enableArithAbort: true },
+      connectionTimeout: 15000,
+      requestTimeout: 20000,
+      pool: { max: 3, min: 0, idleTimeoutMillis: 60000 },
+    });
+    // Si la conexión se cae, la próxima búsqueda arma una nueva.
+    pool.on("error", () => { poolErp = null; });
+    poolErp = pool.connect().catch((e) => { poolErp = null; throw e; });
+  }
+  return poolErp;
+}
+
+/** Texto de observación limpio: el ERP lo rellena con espacios y saltos de línea. */
+const limpiarObservacion = (v: unknown): string | null => {
+  const s = String(v ?? "").replace(/\s+/g, " ").trim();
+  return s || null;
+};
+
+/**
+ * Los documentos cuya observación nombra la obra buscada.
+ *
+ * Cada palabra tiene que aparecer, en cualquier orden y sin importar tildes ni
+ * mayúsculas: en el ERP la misma obra está como "C - CONDOMINIO QUEULE" y como
+ * "OBRA QUEULE /JAVIERA CARRERA...", según quién la escribió.
+ */
+async function documentosPorObservacion(texto: string): Promise<Map<string, string>> {
+  const palabras = texto.split(/\s+/).filter((p) => p.length >= 2).slice(0, 6);
+  if (palabras.length === 0) return new Map();
+
+  const req = (await erp()).request();
+  const condiciones = palabras.map((p, i) => {
+    req.input(`p${i}`, mssql.VarChar(300), `%${p.replace(/[[%_]/g, "[$&]")}%`);
+    return `ob.OBDO COLLATE Latin1_General_CI_AI LIKE @p${i} COLLATE Latin1_General_CI_AI`;
+  });
+  const r = await req.query(`
+    SELECT TOP 3000 ob.IDMAEEDO, ob.OBDO
+    FROM dbo.MAEEDOOB ob
+    JOIN dbo.MAEEDO ed ON ed.IDMAEEDO = ob.IDMAEEDO
+    WHERE ${condiciones.join(" AND ")}
+    ORDER BY ed.FEEMDO DESC
+  `);
+  return new Map(r.recordset.map((f: any) => [String(f.IDMAEEDO), limpiarObservacion(f.OBDO) ?? ""]));
+}
+
+/**
+ * La observación de cada documento, para mostrarla en la lista. Si el ERP no
+ * responde se devuelve vacío: la lista se ve igual, solo que sin la obra.
+ */
+export async function observacionesDeDocumentos(idmaeedos: string[]): Promise<Map<string, string>> {
+  const ids = Array.from(new Set(idmaeedos.map((i) => String(i).replace(/[^0-9]/g, "")).filter(Boolean)));
+  const resultado = new Map<string, string>();
+  if (ids.length === 0) return resultado;
+  try {
+    const pool = await erp();
+    for (let i = 0; i < ids.length; i += 1000) {
+      const r = await pool.request().query(
+        `SELECT IDMAEEDO, OBDO FROM dbo.MAEEDOOB WHERE IDMAEEDO IN (${ids.slice(i, i + 1000).join(",")})`,
+      );
+      for (const f of r.recordset) {
+        const obs = limpiarObservacion(f.OBDO);
+        if (obs) resultado.set(String(f.IDMAEEDO), obs);
+      }
+    }
+  } catch (error: any) {
+    console.warn("⚠️ [Obras] No se pudieron leer las observaciones del ERP:", error?.message);
+  }
+  return resultado;
+}
+
 /** Los tres espejos, y de cuál sale cada número de la pantalla. */
 export type OrigenVenta = "facturado" | "nvv" | "gdv";
 
@@ -57,6 +148,8 @@ export interface DocumentoVenta {
   fechaEmision: string | null;
   monto: number;
   lineas: number;
+  /** La observación del ERP (OBDO): ahí se anota a qué obra va el documento. */
+  observacion?: string | null;
   /** A qué obra ya está asociado (para no asociarlo dos veces sin darse cuenta). */
   obraId?: string | null;
   obraNombre?: string | null;
@@ -171,6 +264,10 @@ export interface ClienteConDocumentos {
   nombre: string;
   documentos: number;
   ultimaCompra: string | null;
+  /** Si apareció por la obra: cómo está escrita en la observación del documento más reciente. */
+  obra?: string | null;
+  /** Cuántos de sus documentos nombran esa obra. */
+  documentosObra?: number;
 }
 
 /**
@@ -200,6 +297,14 @@ export async function buscarClientes(q: string, limit = 25): Promise<ClienteConD
       FROM ${sql.raw(FUENTES[origen].tabla)}
       WHERE ${sql.raw(FILTRO_TIPO[origen])} AND (${sql.join(alternativas, sql` OR `)})
     `;
+  });
+
+  // En paralelo: los clientes cuyo nombre o RUT calza, y los que tienen
+  // documentos cuya observación nombra la obra escrita. Si el ERP no responde,
+  // la búsqueda por nombre sigue funcionando igual que antes.
+  const porObra = documentosPorObservacion(texto).catch((error: any) => {
+    console.warn("⚠️ [Obras] Búsqueda por observación sin respuesta del ERP:", error?.message);
+    return new Map<string, string>();
   });
 
   const filas: any = await db.execute(sql`
@@ -260,10 +365,69 @@ export async function buscarClientes(q: string, limit = 25): Promise<ClienteConD
     }
   }
 
+  // Los que aparecen por la obra. Se juntan con la misma regla de RUT; si el
+  // cliente no calzaba por nombre, entra con los documentos de la obra.
+  const obras = await clientesPorObra(await porObra);
+  for (const o of obras) {
+    const norma = limpiar(o.rut);
+    const previo = norma.length >= 7 ? grupos.find((g) => mismoRut(g._norma, norma)) : grupos.find((g) => g.rut === o.rut);
+    if (!previo) {
+      grupos.push({ _norma: norma, rut: o.rut, nombre: o.nombre, documentos: o.documentos, ultimaCompra: o.ultimaCompra, obra: o.obra, documentosObra: o.documentos });
+      continue;
+    }
+    previo.documentosObra = (previo.documentosObra ?? 0) + o.documentos;
+    if (!previo.obra) previo.obra = o.obra;
+  }
+
+  // Primero los que calzan por la obra: si la persona escribió el nombre de una
+  // obra, eso es lo que anda buscando.
   return grupos
-    .sort((a, b) => (b.ultimaCompra ?? "").localeCompare(a.ultimaCompra ?? ""))
+    .sort((a, b) =>
+      Number(!!b.documentosObra) - Number(!!a.documentosObra) ||
+      (b.ultimaCompra ?? "").localeCompare(a.ultimaCompra ?? ""))
     .slice(0, limit)
     .map(({ _norma, ...cliente }) => cliente);
+}
+
+/**
+ * De los documentos del ERP que nombran la obra, los que están en los espejos
+ * de venta, agrupados por cliente. Lo que no es venta (cotizaciones, guías de
+ * traslado interno) no está en los espejos y queda afuera solo.
+ */
+async function clientesPorObra(observaciones: Map<string, string>): Promise<
+  Array<{ rut: string; nombre: string; documentos: number; ultimaCompra: string | null; obra: string | null }>
+> {
+  const ids = Array.from(observaciones.keys());
+  if (ids.length === 0) return [];
+
+  const lista = sql.join(ids.map((i) => sql`${i}`), sql`, `);
+  const consultas = ORIGENES.map((origen) => sql`
+    SELECT endo AS rut, nokoen AS nombre, feemdo, CAST(idmaeedo AS TEXT) AS idmaeedo,
+           ${origen}::text || ':' || CAST(idmaeedo AS TEXT) AS doc
+    FROM ${sql.raw(FUENTES[origen].tabla)}
+    WHERE ${sql.raw(FILTRO_TIPO[origen])} AND idmaeedo IN (${lista})
+  `);
+
+  const filas: any = await db.execute(sql`
+    SELECT
+      rut,
+      MAX(nombre)                                     AS nombre,
+      COUNT(DISTINCT doc)                             AS documentos,
+      MAX(feemdo)                                     AS ultima_compra,
+      (ARRAY_AGG(idmaeedo ORDER BY feemdo DESC))[1]   AS ultimo_doc
+    FROM (${sql.join(consultas, sql` UNION ALL `)}) AS t
+    WHERE rut IS NOT NULL
+    GROUP BY rut
+    ORDER BY ultima_compra DESC NULLS LAST
+  `);
+
+  return (filas.rows ?? filas).map((f: any) => ({
+    rut: String(f.rut),
+    nombre: f.nombre ?? String(f.rut),
+    documentos: Number(f.documentos ?? 0),
+    ultimaCompra: f.ultima_compra ? String(f.ultima_compra).slice(0, 10) : null,
+    obra: observaciones.get(String(f.ultimo_doc)) ?? null,
+  }));
 }
 
 /** Trae un documento puntual, para guardarle la foto al asociarlo. */

@@ -20,7 +20,7 @@
  * aparecen como "por asignar" y se resuelven con un clic. El buscador queda
  * para lo que el sistema no puede ver, como las compras del contratista.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -103,6 +103,9 @@ interface ClienteConDocumentos {
   nombre: string;
   documentos: number;
   ultimaCompra: string | null;
+  /** Si apareció por la obra: cómo la nombra la observación del ERP. */
+  obra?: string | null;
+  documentosObra?: number;
 }
 
 interface Candidato {
@@ -115,9 +118,15 @@ interface Candidato {
   fechaEmision: string | null;
   monto: number;
   lineas: number;
+  /** La observación del ERP: ahí se anota a qué obra va el documento. */
+  observacion?: string | null;
   obraId: string | null;
   obraNombre: string | null;
 }
+
+/** Minúsculas y sin tildes, para comparar como escribe la gente. */
+const normalizar = (v: string) =>
+  v.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 const pesos = (valor: number | string | null | undefined) =>
   `$${Math.round(Number(valor ?? 0)).toLocaleString("es-CL")}`;
@@ -533,7 +542,13 @@ function DialogBuscarDocumentos({
   const [meses, setMeses] = useState(12);
   const [filtroDoc, setFiltroDoc] = useState("");
 
-  const termino = busqueda.trim();
+  // Se espera a que la persona deje de escribir: cada búsqueda también
+  // consulta las observaciones en el ERP y no vale la pena hacerlo por letra.
+  const [termino, setTermino] = useState(sugerencia.trim());
+  useEffect(() => {
+    const t = setTimeout(() => setTermino(busqueda.trim()), 350);
+    return () => clearTimeout(t);
+  }, [busqueda]);
 
   const desde = useMemo(() => {
     if (meses === 0) return "";
@@ -564,17 +579,31 @@ function DialogBuscarDocumentos({
 
   // El filtro por número se aplica sobre lo ya traído: es para encontrar una
   // factura puntual dentro del período, no para ir de nuevo al servidor.
+  // Cada palabra tiene que aparecer en el número, el tipo o la observación,
+  // en cualquier orden: "queule condominio" encuentra "C - CONDOMINIO QUEULE".
   const candidatos = useMemo(() => {
-    const t = filtroDoc.trim().toLowerCase();
-    if (!t) return candidatosCrudos;
-    return candidatosCrudos.filter(
-      (c) => (c.nudo ?? "").toLowerCase().includes(t) || (c.tido ?? "").toLowerCase().includes(t),
-    );
+    const palabras = normalizar(filtroDoc).split(/\s+/).filter(Boolean);
+    if (palabras.length === 0) return candidatosCrudos;
+    return candidatosCrudos.filter((c) => {
+      const texto = normalizar(`${c.nudo ?? ""} ${c.tido ?? ""} ${c.observacion ?? ""}`);
+      return palabras.every((p) => texto.includes(p));
+    });
   }, [candidatosCrudos, filtroDoc]);
+
+  const elegirCliente = (c: ClienteConDocumentos) => {
+    setCliente(c);
+    // Si se llegó por la obra, la lista abre filtrada en esa obra y sin tope de
+    // fecha: una obra larga tiene compras de hace más de un año.
+    if (c.documentosObra) {
+      setFiltroDoc(termino);
+      setMeses(0);
+    }
+  };
 
   const volverAClientes = () => {
     setCliente(null);
     setElegidos(new Set());
+    setFiltroDoc("");
   };
 
   const asociar = useMutation({
@@ -617,7 +646,7 @@ function DialogBuscarDocumentos({
         <DialogDescription className="text-sm text-muted-foreground">
           {cliente
             ? `Todos los documentos de ${cliente.nombre}. Marca los que son de esta obra.`
-            : "Busca el cliente por nombre o RUT. Si el material lo compró el contratista, búscalo a él y no a la constructora."}
+            : "Busca por cliente, RUT o nombre de la obra (lo que dice la observación del documento). Si el material lo compró el contratista, búscalo a él y no a la constructora."}
         </DialogDescription>
 
         {cliente ? (
@@ -644,7 +673,7 @@ function DialogBuscarDocumentos({
               autoFocus
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Nombre o RUT del cliente…"
+              placeholder="Cliente, RUT o nombre de la obra…"
               className="pl-9 rounded-2xl"
               data-testid="input-obra-buscar-venta"
             />
@@ -667,25 +696,34 @@ function DialogBuscarDocumentos({
             )}
             {termino.length >= 2 && clientes.length === 0 && !buscandoClientes && (
               <div className="py-8 text-center text-sm text-slate-400">
-                Ningún cliente con ventas para esa búsqueda
+                Ningún cliente ni obra con ventas para esa búsqueda
               </div>
             )}
             {clientes.map((c) => (
               <button
                 key={c.rut}
                 type="button"
-                onClick={() => setCliente(c)}
+                onClick={() => elegirCliente(c)}
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-xs hover:bg-orange-50/60 dark:hover:bg-orange-950/20 transition-colors"
                 data-testid={`option-obra-venta-cliente-${c.rut}`}
               >
-                <span className="truncate flex-1 min-w-0 font-semibold text-slate-700 dark:text-slate-200">
-                  {c.nombre}
+                <span className="flex-1 min-w-0">
+                  <span className="block truncate font-semibold text-slate-700 dark:text-slate-200">{c.nombre}</span>
+                  {c.obra && (
+                    <span className="block line-clamp-2 text-[11px] text-orange-600 dark:text-orange-400" title={c.obra}>
+                      Obra: {c.obra}
+                    </span>
+                  )}
                 </span>
-                <span className="text-slate-400 tabular-nums flex-shrink-0">{c.rut}</span>
-                <span className="text-slate-400 flex-shrink-0 w-24 text-right">
-                  {c.documentos} doc{c.documentos === 1 ? "" : "s"}
+                {/* En celular el RUT y la fecha se esconden: si no, el nombre y la
+                    obra quedan sin espacio y la fila no dice de quién es. */}
+                <span className="hidden md:inline text-slate-400 tabular-nums flex-shrink-0">{c.rut}</span>
+                <span className="text-slate-400 flex-shrink-0 w-20 md:w-24 text-right">
+                  {c.documentosObra
+                    ? `${c.documentosObra} de la obra`
+                    : `${c.documentos} doc${c.documentos === 1 ? "" : "s"}`}
                 </span>
-                <span className="text-slate-400 tabular-nums flex-shrink-0 w-24 text-right">
+                <span className="hidden md:inline text-slate-400 tabular-nums flex-shrink-0 w-24 text-right">
                   {fecha(c.ultimaCompra)}
                 </span>
               </button>
@@ -721,7 +759,7 @@ function DialogBuscarDocumentos({
           <Input
             value={filtroDoc}
             onChange={(e) => setFiltroDoc(e.target.value)}
-            placeholder="Filtrar por N° o tipo…"
+            placeholder="Filtrar por N°, tipo u obra…"
             className="h-8 rounded-xl text-xs flex-1 min-w-[140px]"
             data-testid="input-obra-filtrar-docs"
           />
@@ -736,7 +774,7 @@ function DialogBuscarDocumentos({
           {!isFetching && candidatos.length === 0 && (
             <div className="py-8 text-center text-sm text-slate-400">
               {candidatosCrudos.length > 0
-                ? "Ningún documento con ese número en el período"
+                ? "Ningún documento con ese filtro en el período"
                 : "Este cliente no tiene documentos en el período. Prueba con “Todo”."}
             </div>
           )}
@@ -774,8 +812,13 @@ function DialogBuscarDocumentos({
                   {c.nudo ?? "—"}
                 </span>
                 <span className="text-slate-400 tabular-nums w-24 flex-shrink-0">{fecha(c.fechaEmision)}</span>
-                <span className="truncate flex-1 min-w-0 text-slate-500 dark:text-slate-400">
-                  {c.clienteNombre ?? "—"}
+                <span className="flex-1 min-w-0">
+                  <span className="block truncate text-slate-500 dark:text-slate-400">{c.clienteNombre ?? "—"}</span>
+                  {c.observacion && (
+                    <span className="block truncate text-[11px] text-slate-400" title={c.observacion}>
+                      {c.observacion}
+                    </span>
+                  )}
                 </span>
                 <span className="tabular-nums font-semibold text-slate-700 dark:text-slate-200 flex-shrink-0">
                   {pesos(c.monto)}
