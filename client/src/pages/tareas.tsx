@@ -97,6 +97,7 @@ import SeguimientoClientes, { type SeguimientoClientesHandle } from "@/pages/seg
 import { usePermissions } from "@/hooks/usePermissions";
 import { PanelChangesContext, PANEL_TAB_TO_SECTION, usePanelChangesController, usePanelHighlights } from "@/hooks/use-panel-changes";
 import { PanelChangesBell } from "@/components/panel/PanelChangesBell";
+import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import { z } from "zod";
 
 // SECURITY: Frontend schema that excludes createdByUserId to prevent user impersonation
@@ -358,6 +359,13 @@ export default function TareasPage() {
   // Marketing ya no es pestaña acá: el área completa vive en el módulo Marketing.
   // Visitas Técnicas tampoco: volvió a ser un módulo del sidebar (/visitas-tecnicas).
   const showExtraSegmentTabs = user?.role !== 'tecnico_obra' && !isMarketing;
+  // La pestaña Tareas se fundió con el Calendario (pedido del usuario, oct-2026): las
+  // tareas, reuniones, eventos y visitas a cliente viven en una sola agenda. Quedan
+  // afuera Industrial, donde la pestaña es "Proyectos" (otra unidad de trabajo), y
+  // Marketing, que tiene ahí su triage de solicitudes.
+  const tareasEnCalendario = !isMarketing && !(esUsuarioIndustrial(user) && showExtraSegmentTabs);
+  // Pestaña donde aterriza lo que antes caía en "Tareas".
+  const tabTareas = tareasEnCalendario ? 'calendario' : 'tareas';
   // Solicitud de Crédito salió del Panel de Trabajo: se pide desde su módulo
   // propio en el sidebar (/solicitud-credito).
   // Clases compartidas de las pestañas del panel: flex para centrar ícono + texto
@@ -532,7 +540,9 @@ export default function TareasPage() {
   const panelChanges = usePanelChangesController({
     enabled: isAuthenticated && !!user,
     segmentoFilter,
-    activeTab,
+    // Los cambios de la sección "tareas" se dan por vistos al entrar al Calendario,
+    // que es donde ahora se ven.
+    activeTab: tareasEnCalendario && activeTab === 'calendario' ? 'tareas' : activeTab,
   });
 
   // Si la URL pide la pestaña CRM pero el usuario no tiene el permiso
@@ -541,9 +551,13 @@ export default function TareasPage() {
   // la pestaña en un refresh directo de /tareas?tab=crm.
   useEffect(() => {
     if (user && permissionsReady && !showCrmTab && activeTab === "crm") {
-      setActiveTab("tareas");
+      setActiveTab(tabTareas);
     }
-  }, [user, permissionsReady, showCrmTab, activeTab]);
+    // Enlaces guardados a ?tab=tareas: la pestaña ya no existe, se abre el Calendario.
+    if (tareasEnCalendario && activeTab === "tareas") {
+      setActiveTab("calendario");
+    }
+  }, [user, permissionsReady, showCrmTab, activeTab, tareasEnCalendario]);
 
   // Estado para vista de detalle de tarea
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -980,6 +994,20 @@ export default function TareasPage() {
     }
   }, [obrasVendedor]);
 
+  // Vendedor del Calendario: mismo criterio que los de las otras pestañas.
+  const [calendarioVendedor, setCalendarioVendedor] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem("panel-calendario-vendedor") || "all";
+    } catch {
+      return "all";
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("panel-calendario-vendedor", calendarioVendedor);
+    } catch { /* sin almacenamiento: el filtro solo dura la visita */ }
+  }, [calendarioVendedor]);
+
   // Vendedores que se ofrecen en el filtro "Vendedor" del panel (pedido del usuario,
   // sep-2026): solo los que tienen algo cargado este año —tareas, seguimiento, CRM,
   // estimación semanal, obras o proyectos— en el área que se está mirando. Antes el CRM
@@ -1076,7 +1104,7 @@ export default function TareasPage() {
     // encabezado los dos chips quedaban idénticos uno arriba del otro (corrección del
     // usuario, ago-2026). Lo que se sigue acá además son clientes, no locales.
     { value: "seguimiento", label: "Seguimiento", Icon: UserCheck },
-    { value: "tareas", label: modoProyectos ? "Proyectos" : "Tareas", Icon: modoProyectos ? FolderOpen : CheckSquare },
+    ...(tareasEnCalendario ? [] : [{ value: "tareas", label: modoProyectos ? "Proyectos" : "Tareas", Icon: modoProyectos ? FolderOpen : CheckSquare }]),
     ...(showEstimacionTab ? [{ value: "estimacion", label: "Estimación de ventas", Icon: TrendingUp }] : []),
     ...(showObrasTab ? [{ value: "obras", label: "Obras", Icon: HardHat }] : []),
     ...(showCrmTab ? [{ value: "crm", label: "CRM", Icon: Users }] : []),
@@ -1086,7 +1114,7 @@ export default function TareasPage() {
   const tabActiva = tabsVisibles.find((t) => t.value === activeTab) ?? tabsVisibles[0];
 
   const visibleTabCount =
-    3 + (showRutasTab ? 1 : 0) + (showEstimacionTab ? 1 : 0) + (showObrasTab ? 1 : 0) + (showCrmTab ? 1 : 0);
+    (tareasEnCalendario ? 2 : 3) + (showRutasTab ? 1 : 0) + (showEstimacionTab ? 1 : 0) + (showObrasTab ? 1 : 0) + (showCrmTab ? 1 : 0);
   // Centrar la pestaña activa dentro del riel (ver el comentario de tabsListRef).
   useEffect(() => {
     const riel = tabsListRef.current;
@@ -1112,13 +1140,13 @@ export default function TareasPage() {
   // para no quedar en una pestaña sin trigger.
   useEffect(() => {
     if (!showEstimacionTab && activeTab === "estimacion") {
-      setActiveTab("tareas");
+      setActiveTab(tabTareas);
     }
     if (!showRutasTab && activeTab === "rutas-comerciales") {
-      setActiveTab("tareas");
+      setActiveTab(tabTareas);
     }
     if (!showObrasTab && activeTab === "obras") {
-      setActiveTab("tareas");
+      setActiveTab(tabTareas);
     }
     // La sub-vista de obras del Seguimiento existe solo donde existe la pestaña
     // Obras: cambiando de área vuelve a los clientes en seguimiento.
@@ -1223,6 +1251,19 @@ export default function TareasPage() {
   // Selector "Nueva Tarea": seguimiento de cliente / solicitud de marketing / otras tareas
   const [showChooser, setShowChooser] = useState(false);
   const [taskFlow, setTaskFlow] = useState<'otras' | 'seguimiento' | 'marketing'>('otras');
+  // Formulario "Agendar" del Calendario: el flujo 'otras' de siempre, con un tipo
+  // (tarea, reunión, evento o visita a cliente) y sus datos propios.
+  const modoAgenda = taskFlow === 'otras' && tareasEnCalendario;
+  const [agendaTipo, setAgendaTipo] = useState<AgendaTipo>('tarea');
+  const [agendaLugar, setAgendaLugar] = useState('');
+  const [agendaHoraFin, setAgendaHoraFin] = useState('');
+  const [agendaParticipantes, setAgendaParticipantes] = useState<string[]>([]);
+  const limpiarAgenda = (tipo: AgendaTipo = 'tarea') => {
+    setAgendaTipo(tipo);
+    setAgendaLugar('');
+    setAgendaHoraFin('');
+    setAgendaParticipantes([]);
+  };
   const [showMarketingDialog, setShowMarketingDialog] = useState(false);
   const seguimientoMode = taskFlow === 'seguimiento';
 
@@ -1246,10 +1287,18 @@ export default function TareasPage() {
       setSearchClienteTask("");
       // Aterrizar en la pestaña donde el ítem recién creado será visible.
       const esSeguimiento = (vars as any)?.payload?.kind === 'seguimiento_cliente';
-      setActiveTab(esSeguimiento ? "seguimiento" : "tareas");
+      setActiveTab(esSeguimiento ? "seguimiento" : tabTareas);
+      // En el calendario se salta al mes de lo que se acaba de agendar.
+      if (!esSeguimiento && tareasEnCalendario && (vars as any)?.dueDate) {
+        setCalendarMonth(new Date((vars as any).dueDate));
+      }
+      const tipo = AGENDA_TIPOS.find((t) => t.value === (vars as any)?.payload?.tipo);
+      const agendado = (vars as any)?.payload?.kind === 'agenda' && tipo && tipo.value !== 'tarea';
       toast({
-        title: esSeguimiento ? "Seguimiento creado" : "Tarea creada",
-        description: esSeguimiento ? "El seguimiento se ha creado exitosamente." : "La tarea se ha creado exitosamente.",
+        title: esSeguimiento ? "Seguimiento creado" : agendado ? `Agendado: ${tipo!.label}` : "Tarea creada",
+        description: esSeguimiento
+          ? "El seguimiento se ha creado exitosamente."
+          : tareasEnCalendario ? "Ya aparece en el calendario." : "La tarea se ha creado exitosamente.",
       });
     },
     onError: (error: any) => {
@@ -1657,20 +1706,31 @@ export default function TareasPage() {
     );
   };
 
-  // Calendario: mostrar únicamente lo relacionado de cualquier forma con el
-  // usuario logueado (tareas que creó o que le fueron asignadas), sin importar
-  // el rol ni los filtros de las otras pestañas. Se deriva de todos los datos
-  // (no de filteredTasks) para que el calendario sea siempre "lo mío".
+  // Calendario = agenda del equipo (oct-2026, reemplaza la pestaña Tareas). Muestra
+  // todo lo que el servidor ya le entrega a cada rol: el vendedor lo suyo, el
+  // supervisor lo suyo y lo de sus vendedores, el administrador todo. Encima se
+  // aplican el Área y el Vendedor del encabezado.
+  const esMiaTarea = (task: { createdByUserId: string; assignments: TaskAssignment[] }) =>
+    task.createdByUserId === user.id || task.assignments.some((a) => a.assigneeId === user.id);
   const calendarTasks = (tasksQuery.data || []).filter((task) => {
-    const isCreatedByMe = task.createdByUserId === user.id;
-    const isAssignedToMe = task.assignments.some(
-      (a) =>
-        (a.assigneeType === "supervisor" ||
-          a.assigneeType === "salesperson" ||
-          (a as any).assigneeType === "user") &&
-        a.assigneeId === user.id,
-    );
-    return isCreatedByMe || isAssignedToMe;
+    const kind = (task as any).payload?.kind;
+    // Los proyectos de Industrial viven en su pestaña.
+    if (kind === 'proyecto') return false;
+    // Los seguimientos de clientes tienen su pestaña; en el calendario solo
+    // aparecen las revisiones propias con fecha (como antes), no las de todo el
+    // equipo, que lo llenarían.
+    if (kind === 'seguimiento_cliente' && !(task.dueDate && esMiaTarea(task))) return false;
+    if (!tareasEnCalendario) return esMiaTarea(task);
+    if (!isSalesperson && segmentoFilter !== 'all') {
+      const area = areaEfectivaDeTarea(task);
+      if (area && area !== segmentoFilter) return false;
+    }
+    if (calendarioVendedor !== 'all') {
+      const suya = task.createdByUserId === calendarioVendedor ||
+        task.assignments.some((a) => a.assigneeId === calendarioVendedor);
+      if (!suya) return false;
+    }
+    return true;
   });
 
   // Selected task for detail view
@@ -1802,16 +1862,56 @@ export default function TareasPage() {
     // En modo seguimiento marcamos la tarea con payload.kind para la vista por-cliente.
     // En Industrial lo que se crea desde esta pestaña es un proyecto, que también
     // es un espacio de trabajo con tareas adentro (ver esTareaProyecto).
+    // Reuniones, eventos y visitas son citas: sin fecha no tienen dónde ir en el
+    // calendario. La tarea sí puede quedar sin fecha (va a la lista "Sin fecha").
+    if (modoAgenda && agendaTipo !== 'tarea' && !data.dueDate) {
+      form.setError('dueDate', { message: 'Indica fecha y hora' });
+      return;
+    }
     const payload = seguimientoMode
       ? { kind: 'seguimiento_cliente' }
       : modoProyectos
         ? { kind: 'proyecto' }
-        : undefined;
+        : modoAgenda
+          ? {
+              kind: 'agenda',
+              tipo: agendaTipo,
+              ...(agendaTipo !== 'tarea' && agendaLugar.trim() ? { lugar: agendaLugar.trim() } : {}),
+              ...(agendaTipo !== 'tarea' && agendaHoraFin ? { horaFin: agendaHoraFin } : {}),
+            }
+          : undefined;
     // En "Nuevo seguimiento" el asignado ES el colaborador al que se le entrega el
     // cliente, así que ahí manda lo que se eligió en pantalla. En el resto de las
-    // tareas y proyectos la asignación es automática (ver `asignacionesPorDefecto`).
-    const assignments = seguimientoMode ? data.assignments : asignacionesPorDefecto();
+    // tareas y proyectos la asignación es automática (ver `asignacionesPorDefecto`);
+    // en la agenda se le suman los participantes elegidos.
+    let assignments = seguimientoMode ? data.assignments : asignacionesPorDefecto();
+    if (modoAgenda && agendaParticipantes.length > 0) {
+      const ya = new Set(assignments.map((a) => a.assigneeId));
+      const extra = agendaParticipantes.filter((id) => !ya.has(id)).map((id) => {
+        const esSupervisor = availableSupervisors?.some((p) => p.id === id);
+        return { assigneeType: esSupervisor ? 'supervisor' : 'salesperson', assigneeId: id } as const;
+      });
+      assignments = [...assignments, ...extra];
+    }
     createTaskMutation.mutate({ ...data, assignments, ...(payload ? { payload } : {}) } as any);
+  };
+
+  // Abre "Agendar" desde el Calendario. Si viene un día (clic en la grilla), la
+  // fecha queda puesta a las 09:00 para que solo haya que ajustar la hora.
+  const abrirAgenda = (dia?: Date) => {
+    setTaskFlow('otras');
+    setSelectedClienteTask(null);
+    setSearchClienteTask("");
+    limpiarAgenda(dia ? 'reunion' : 'tarea');
+    form.reset({
+      title: "", description: "", priority: "medium",
+      segmento: isMarketing ? 'marketing' : segmentoFilter !== 'all' ? segmentoFilter : null,
+      groupId: null,
+      dueDate: dia ? `${format(dia, 'yyyy-MM-dd')}T09:00` : "",
+      clienteId: null, clienteNombre: null,
+      assignments: asignacionesPorDefecto(),
+    });
+    setShowCreateDialog(true);
   };
 
   // Abre el flujo "Nuevo Seguimiento" (responsable → cliente). Si se pasa un miembro,
@@ -1867,6 +1967,7 @@ export default function TareasPage() {
     if (crmVendedor !== 'todos' && !opcionesVendedor.some((v) => v.id === crmVendedor)) setCrmVendedor('todos');
     if (estimacionVendedor !== 'all' && !opcionesVendedor.some((v) => v.id === estimacionVendedor)) setEstimacionVendedor('all');
     if (obrasVendedor !== 'all' && obrasVendedor !== 'sin-asignar' && !opcionesVendedor.some((v) => v.id === obrasVendedor)) setObrasVendedor('all');
+    if (calendarioVendedor !== 'all' && !opcionesVendedor.some((v) => v.id === calendarioVendedor)) setCalendarioVendedor('all');
   }, [vendedoresDelPanel]);
 
   // El detalle de tarea se muestra como PÁGINA dentro del área de contenido
@@ -1927,6 +2028,10 @@ export default function TareasPage() {
     if (activeTab === 'rutas-comerciales' && puedeCrearRutas) {
       return { label: 'Nueva ruta', onClick: () => rutasRef.current?.nuevaRuta() };
     }
+    // Calendario: una sola acción para tareas, reuniones, eventos y visitas.
+    if (activeTab === 'calendario' && tareasEnCalendario) {
+      return { label: 'Agendar', onClick: () => abrirAgenda() };
+    }
     return {
       label: modoProyectos ? 'Añadir proyecto' : 'Añadir tarea',
       onClick: () => {
@@ -1975,7 +2080,7 @@ export default function TareasPage() {
   // Vive SIEMPRE en el header (junto a "Nueva Tarea"), en todas las pestañas, para
   // que el administrador pueda cambiar de área desde cualquier vista.
   const areaSelector = (
-    <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-sm">
+    <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-sm sm:w-52">
       {/* Ícono naranjo suelto, sin recuadro de color detrás (corrección del usuario,
           ago-2026). El Área es el contexto del módulo, no una acción: primero se le
           quitó el relleno sólido —competía con el botón principal— y después también
@@ -1983,10 +2088,10 @@ export default function TareasPage() {
       <div className="flex items-center justify-center w-8 h-8 rounded-lg text-[#fd6301] flex-shrink-0">
         <Building2 className="h-4 w-4" />
       </div>
-      <div className="flex flex-col leading-none">
+      <div className="flex flex-col leading-none min-w-0 flex-1">
         <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Área</span>
         <Select value={segmentoFilter} onValueChange={setSegmentoFilter}>
-          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-normal text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-area">
+          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto sm:w-full bg-transparent font-normal text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid="select-area">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -2000,7 +2105,9 @@ export default function TareasPage() {
   );
 
   // Selector de Vendedor: mismo pill que el de Área, una fila más abajo (pedido del
-  // usuario, ago-2026). Lo usan la pestaña CRM y la de Estimación de ventas —las dos
+  // usuario, ago-2026). En escritorio los dos tienen el mismo ancho fijo (`sm:w-52`)
+  // para que no cambien de tamaño según el texto elegido (pedido del usuario, oct-2026).
+  // Lo usan la pestaña CRM y la de Estimación de ventas —las dos
   // filtran por cartera— y solo aparece para quien ve más de una: un vendedor mira la
   // suya y el selector no tendría nada que elegir.
   const pillVendedor = (opts: {
@@ -2013,16 +2120,16 @@ export default function TareasPage() {
     extras?: Array<{ id: string; nombre: string }>;
     testId: string;
   }) => (
-    <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-sm">
+    <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-sm sm:w-52">
       <div className="flex items-center justify-center w-8 h-8 rounded-lg text-[#fd6301] flex-shrink-0">
         {/* `User`, no `UserCheck`: ese último es el ícono de la pestaña Seguimiento y
             dos controles con el mismo ícono se leen como el mismo control. */}
         <User className="h-4 w-4" />
       </div>
-      <div className="flex flex-col leading-none">
+      <div className="flex flex-col leading-none min-w-0 flex-1">
         <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Vendedor</span>
         <Select value={opts.value} onValueChange={opts.onChange}>
-          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto bg-transparent font-normal text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid={opts.testId}>
+          <SelectTrigger className="h-5 border-0 shadow-none p-0 gap-1.5 w-auto sm:w-full bg-transparent font-normal text-[13px] text-slate-700 dark:text-slate-200 focus:ring-0 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" data-testid={opts.testId}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -2067,6 +2174,16 @@ export default function TareasPage() {
         // vendedor desde el formulario de la obra.
         extras: [{ id: 'sin-asignar', nombre: 'Sin asignar' }],
         testId: `select-obras-vendedor${sufijo}`,
+      });
+    }
+    if (activeTab === 'calendario' && tareasEnCalendario && puedeFiltrarPorVendedor) {
+      return pillVendedor({
+        value: calendarioVendedor,
+        onChange: setCalendarioVendedor,
+        opciones: opcionesVendedor,
+        valorTodos: 'all',
+        etiquetaTodos: 'Todos',
+        testId: `select-calendario-vendedor${sufijo}`,
       });
     }
     if (activeTab === 'estimacion' && puedeFiltrarPorVendedor) {
@@ -2301,9 +2418,9 @@ export default function TareasPage() {
         <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="space-y-0.5">
             <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-[#fd6301] text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-orange-500/25">
-                <CheckSquare className="w-5 h-5" />
-              </span>
+              {/* La campana de cambios ocupa el lugar del ícono del título (pedido del
+                  usuario, oct-2026): antes iba junto al selector de Área. */}
+              <PanelChangesBell changes={panelChanges} onNavigate={(t) => setActiveTab(t === 'tareas' ? tabTareas : t)} align="start" />
               Panel de Trabajo
             </h1>
             {/* Sin bajada bajo el título (corrección del usuario, ago-2026 en celular
@@ -2320,17 +2437,13 @@ export default function TareasPage() {
                   en el árbol y la otra copia traería su propio estado. */}
               {/* Área y Vendedor apilados: los dos son contexto del CRM y se leen de
                   arriba hacia abajo (área → vendedor), no uno al lado del otro
-                  (corrección del usuario, ago-2026). La campana sigue en la fila del
-                  Área. */}
+                  (corrección del usuario, ago-2026). */}
               <div className="flex flex-col gap-2">
                 {/* `sm:justify-end`: cuando abajo va la fila del botón + Vendedor, esta
                     fila es más angosta y el Área quedaba flotando al medio, sin calzar
                     con el borde derecho del Vendedor (corrección del usuario, sep-2026).
                     En celular no aplica: ahí el Área va pegada a la izquierda. */}
                 <div className="flex items-center gap-2 sm:justify-end">
-                  <div className="absolute -top-1 right-0 sm:static">
-                    <PanelChangesBell changes={panelChanges} onNavigate={setActiveTab} />
-                  </div>
                   {!isSalesperson && visibleSegmentos.length > 1 && areaSelector}
                 </div>
                 {/* Cuando hay pill de Vendedor, el botón de acción se sienta a su
@@ -2376,9 +2489,11 @@ export default function TareasPage() {
                       <Plus className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <DialogTitle className="text-lg font-bold text-foreground">{modoProyectos && !seguimientoMode ? 'Nuevo Proyecto' : 'Nueva Tarea'}</DialogTitle>
+                      <DialogTitle className="text-lg font-bold text-foreground">{modoAgenda ? 'Agendar' : modoProyectos && !seguimientoMode ? 'Nuevo Proyecto' : 'Nueva Tarea'}</DialogTitle>
                       <DialogDescription className="text-sm text-muted-foreground">
-                        {modoProyectos && !seguimientoMode
+                        {modoAgenda
+                          ? 'Una tarea, reunión, evento o visita a cliente en tu calendario'
+                          : modoProyectos && !seguimientoMode
                           ? 'Ponle nombre al proyecto y asígnalo; sus tareas se agregan adentro'
                           : 'Completa los detalles y asigna a miembros del equipo'}
                       </DialogDescription>
@@ -2390,13 +2505,38 @@ export default function TareasPage() {
                   <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col min-h-0 flex-1">
                     <div className="flex flex-col gap-5 overflow-y-auto flex-1 px-6 py-5">
 
+                      {/* Qué se agenda: define la ficha y el color en el calendario. */}
+                      {modoAgenda && (
+                        <div className="order-0 grid grid-cols-2 sm:grid-cols-4 gap-2" role="radiogroup" aria-label="Tipo">
+                          {AGENDA_TIPOS.map((t) => {
+                            const activo = agendaTipo === t.value;
+                            return (
+                              <button
+                                key={t.value}
+                                type="button"
+                                role="radio"
+                                aria-checked={activo}
+                                onClick={() => setAgendaTipo(t.value)}
+                                className={`flex flex-col items-center gap-1.5 rounded-2xl border px-2 py-3 text-xs font-semibold transition-all ${activo
+                                  ? 'border-[#fd6301] bg-orange-50 text-[#fd6301] dark:bg-orange-500/10'
+                                  : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300'}`}
+                                data-testid={`agenda-tipo-${t.value}`}
+                              >
+                                <t.Icon className="h-4 w-4" />
+                                {t.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
                       {/* Section: Información */}
                       <div className={`space-y-3 ${seguimientoMode ? 'order-3' : 'order-1'}`}>
                         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                          <span className="w-6 h-6 rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 flex items-center justify-center">
+                          <span className="w-6 h-6 text-[#fd6301] flex items-center justify-center">
                             <Pencil className="w-3.5 h-3.5" />
                           </span>
-                          {modoProyectos && !seguimientoMode ? 'Información del proyecto' : 'Información de la tarea'}
+                          {modoAgenda ? 'Información' : modoProyectos && !seguimientoMode ? 'Información del proyecto' : 'Información de la tarea'}
                         </div>
                         <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 p-4 space-y-4">
                           <FormField
@@ -2406,7 +2546,7 @@ export default function TareasPage() {
                               <FormItem>
                                 <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{modoProyectos && !seguimientoMode ? 'Nombre del proyecto *' : 'Título *'}</FormLabel>
                                 <FormControl>
-                                  <Input placeholder={modoProyectos && !seguimientoMode ? "Ej: Planta Aconcagua — recubrimiento estructural" : "Ej: Visita cliente zona sur"} className="bg-white border-slate-200 focus:border-orange-400 focus:ring-orange-400/20" {...field} data-testid="input-task-title" />
+                                  <Input placeholder={modoAgenda ? AGENDA_TIPOS.find((t) => t.value === agendaTipo)!.placeholder : modoProyectos && !seguimientoMode ? "Ej: Planta Aconcagua — recubrimiento estructural" : "Ej: Visita cliente zona sur"} className="bg-white border-slate-200 focus:border-orange-400 focus:ring-orange-400/20" {...field} data-testid="input-task-title" />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -2437,13 +2577,13 @@ export default function TareasPage() {
                       {/* Section: Clasificación */}
                       <div className={`space-y-3 ${seguimientoMode ? 'order-4' : 'order-2'}`}>
                         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                          <span className="w-6 h-6 rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 flex items-center justify-center">
+                          <span className="w-6 h-6 text-[#fd6301] flex items-center justify-center">
                             <CalendarIcon className="w-3.5 h-3.5" />
                           </span>
-                          {seguimientoMode ? "Clasificación y revisión" : "Clasificación y plazo"}
+                          {seguimientoMode ? "Clasificación y revisión" : modoAgenda ? (agendaTipo === 'tarea' ? "Área y plazo" : "Área, fecha y lugar") : "Clasificación y plazo"}
                         </div>
                         <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 p-4">
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div className={`grid grid-cols-1 gap-4 ${modoAgenda ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
                             <FormField
                               control={form.control}
                               name="segmento"
@@ -2468,7 +2608,8 @@ export default function TareasPage() {
                                 </FormItem>
                               )}
                             />
-                            <FormField
+                            {/* Los grupos ordenaban la lista de la pestaña Tareas; en la agenda no se usan. */}
+                            {!modoAgenda && <FormField
                               control={form.control}
                               name="groupId"
                               render={({ field }) => (
@@ -2495,13 +2636,13 @@ export default function TareasPage() {
                                   <FormMessage />
                                 </FormItem>
                               )}
-                            />
+                            />}
                             <FormField
                               control={form.control}
                               name="dueDate"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{seguimientoMode ? "Fecha de Revisión (opcional)" : modoProyectos ? "Fecha Objetivo (opcional)" : "Fecha Límite"}</FormLabel>
+                                  <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{seguimientoMode ? "Fecha de Revisión (opcional)" : modoAgenda ? (agendaTipo === 'tarea' ? "Fecha límite (opcional)" : "Fecha y hora *") : modoProyectos ? "Fecha Objetivo (opcional)" : "Fecha Límite"}</FormLabel>
                                   <FormControl>
                                     <DateTimePicker value={field.value || ""} onChange={field.onChange} />
                                   </FormControl>
@@ -2510,13 +2651,39 @@ export default function TareasPage() {
                               )}
                             />
                           </div>
+                          {modoAgenda && agendaTipo !== 'tarea' && (
+                            <div className="grid grid-cols-1 sm:grid-cols-[9rem_1fr] gap-4 mt-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="agenda-hora-fin" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Hasta (opcional)</Label>
+                                <Input
+                                  id="agenda-hora-fin"
+                                  type="time"
+                                  value={agendaHoraFin}
+                                  onChange={(e) => setAgendaHoraFin(e.target.value)}
+                                  className="bg-white border-slate-200"
+                                  data-testid="input-agenda-hora-fin"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="agenda-lugar" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Lugar (opcional)</Label>
+                                <Input
+                                  id="agenda-lugar"
+                                  value={agendaLugar}
+                                  onChange={(e) => setAgendaLugar(e.target.value)}
+                                  placeholder={agendaTipo === 'visita' ? 'Dirección del cliente u obra' : 'Oficina, dirección o enlace de videollamada'}
+                                  className="bg-white border-slate-200"
+                                  data-testid="input-agenda-lugar"
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       {/* Section: Cliente */}
                       <div className={`space-y-3 ${seguimientoMode ? 'order-2' : 'order-3'}`}>
                         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                          <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400 flex items-center justify-center">
+                          <span className="w-6 h-6 text-[#fd6301] flex items-center justify-center">
                             <Building2 className="w-3.5 h-3.5" />
                           </span>
                           Asociaciones
@@ -2611,11 +2778,75 @@ export default function TareasPage() {
                         </div>
                       </div>
 
+                      {/* Participantes de la agenda: quedan asignados y la ven en su
+                          calendario. El vendedor no agenda a terceros (lo suyo queda a
+                          su nombre, igual que sus tareas). */}
+                      {modoAgenda && !isSalesperson && (
+                        <div className="space-y-3 order-4">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            <span className="w-6 h-6 text-[#fd6301] flex items-center justify-center">
+                              <Users className="w-3.5 h-3.5" />
+                            </span>
+                            {agendaTipo === 'tarea' ? 'Para quién (opcional)' : 'Participantes (opcional)'}
+                          </div>
+                          <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 p-4 space-y-3">
+                            {(() => {
+                              const personas = [
+                                ...(availableSupervisors ?? []),
+                                ...(availableUsers ?? []),
+                              ].filter((p, i, arr) =>
+                                p.id !== user.id && arr.findIndex((q) => q.id === p.id) === i &&
+                                // Solo el equipo comercial y, de administración, Paolo
+                                // Chaparro (pedido del usuario, oct-2026): la lista traía
+                                // también clientes, laboratorio, bodega, etc.
+                                (p.role === 'salesperson' || p.role === 'supervisor' ||
+                                  (p.role === 'admin' && normalizeSearchText(p.salespersonName) === 'paolo chaparro')));
+                              const nombre = (id: string) => personas.find((p) => p.id === id)?.salespersonName ?? 'Sin nombre';
+                              const libres = personas
+                                .filter((p) => !agendaParticipantes.includes(p.id))
+                                .sort((a, b) => a.salespersonName.localeCompare(b.salespersonName, 'es'));
+                              return (
+                                <>
+                                  {agendaParticipantes.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {agendaParticipantes.map((id) => (
+                                        <span key={id} className="inline-flex items-center gap-1 rounded-full bg-orange-50 border border-orange-200 text-orange-800 dark:bg-orange-500/10 dark:border-orange-900 dark:text-orange-200 pl-2.5 pr-1 py-0.5 text-xs font-medium">
+                                          {nombre(id)}
+                                          <button
+                                            type="button"
+                                            onClick={() => setAgendaParticipantes((prev) => prev.filter((x) => x !== id))}
+                                            className="rounded-full p-0.5 hover:bg-orange-100 dark:hover:bg-orange-500/20"
+                                            aria-label={`Quitar a ${nombre(id)}`}
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </button>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <Select value="" onValueChange={(id) => setAgendaParticipantes((prev) => [...prev, id])}>
+                                    <SelectTrigger className="bg-white border-slate-200" data-testid="select-agenda-participante">
+                                      <SelectValue placeholder="Agregar persona..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {libres.map((p) => (
+                                        <SelectItem key={p.id} value={p.id}>{p.salespersonName}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <p className="text-[11px] text-slate-400">Tú, tu supervisor y administración quedan incluidos siempre.</p>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Section: Equipo — el vendedor no asigna trabajo a terceros:
                           lo que crea queda a su nombre, así que no ve el selector. */}
                       <div className={`space-y-3 ${seguimientoMode ? 'order-1' : 'order-4'} ${!seguimientoMode ? 'hidden' : ''}`}>
                         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                          <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 flex items-center justify-center">
+                          <span className="w-6 h-6 text-[#fd6301] flex items-center justify-center">
                             <Users className="w-3.5 h-3.5" />
                           </span>
                           Equipo asignado *
@@ -2758,7 +2989,7 @@ export default function TareasPage() {
                         {createTaskMutation.isPending ? (
                           <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creando...</>
                         ) : (
-                          <><Plus className="h-4 w-4 mr-2" /> Crear Tarea</>
+                          <><Plus className="h-4 w-4 mr-2" /> {modoAgenda ? 'Guardar' : 'Crear Tarea'}</>
                         )}
                       </Button>
                     </div>
@@ -2795,6 +3026,7 @@ export default function TareasPage() {
                       onClick={() => {
                         setShowChooser(false);
                         setTaskFlow(opt.flow);
+                        limpiarAgenda('tarea');
                         setSelectedClienteTask(null);
                         setSearchClienteTask("");
                         form.reset({ title: "", description: "", priority: "medium", segmento: segmentoFilter !== 'all' ? segmentoFilter : null, groupId: null, dueDate: "", clienteId: null, clienteNombre: null, assignments: asignacionesPorDefecto() });
@@ -2891,11 +3123,13 @@ export default function TareasPage() {
               Seguimiento
               {tabChangeBadge("seguimiento")}
             </TabsTrigger>
-            <TabsTrigger value="tareas" data-testid="tab-tareas" className={tabTriggerClass} onClick={() => handleTabTriggerClick("tareas")}>
-              {modoProyectos ? <FolderOpen className={tabIconClass} /> : <CheckSquare className={tabIconClass} />}
-              {modoProyectos ? 'Proyectos' : 'Tareas'}
-              {tabChangeBadge("tareas")}
-            </TabsTrigger>
+            {!tareasEnCalendario && (
+              <TabsTrigger value="tareas" data-testid="tab-tareas" className={tabTriggerClass} onClick={() => handleTabTriggerClick("tareas")}>
+                {modoProyectos ? <FolderOpen className={tabIconClass} /> : <CheckSquare className={tabIconClass} />}
+                {modoProyectos ? 'Proyectos' : 'Tareas'}
+                {tabChangeBadge("tareas")}
+              </TabsTrigger>
+            )}
             {/* Estimación de ventas solo aplica a Ferreterías (ver showEstimacionTab). */}
             {showEstimacionTab && (
               <TabsTrigger value="estimacion" data-testid="tab-estimacion" className={tabTriggerClass} onClick={() => handleTabTriggerClick("estimacion")}>
@@ -2929,44 +3163,18 @@ export default function TareasPage() {
             )}
             {/* Solicitud de Crédito ya NO es pestaña del panel: vive solo en su
                 ítem del sidebar (/solicitud-credito). */}
-            <TabsTrigger value="calendario" data-testid="tab-calendario" className={tabTriggerClass}>
+            {/* Sin pestaña Tareas, el Calendario hereda su contador de cambios. */}
+            <TabsTrigger value="calendario" data-testid="tab-calendario" className={tabTriggerClass} onClick={() => { if (tareasEnCalendario && activeTab === 'calendario') panelChanges.enterSection('tareas'); }}>
               <CalendarIcon className={tabIconClass} />
               Calendario
+              {tareasEnCalendario && tabChangeBadge("tareas")}
             </TabsTrigger>
           </TabsList>
         </div>
 
-        {/* Seguimiento en Construcción: clientes u obras. La obra es la unidad
-            que se sigue en el área (avanza, se queda sin material y hay que ir a
-            verla), así que tiene su propia vista con ficha y bitácora. */}
-        {activeTab === 'seguimiento' && showObrasTab && (
-          <div className="flex items-center gap-0.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 p-1 w-max">
-            {([
-              { key: "clientes", label: "Clientes", icon: Users },
-              { key: "obras", label: "Obras", icon: HardHat },
-            ] as const).map((v) => (
-              <button
-                key={v.key}
-                onClick={() => setSeguimientoVista(v.key)}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
-                  seguimientoVista === v.key
-                    ? "bg-white dark:bg-slate-900 text-orange-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-                }`}
-                data-testid={`button-seguimiento-vista-${v.key}`}
-              >
-                <v.icon className="h-3.5 w-3.5" />
-                {v.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Obras del Seguimiento: resumen de la cartera y, al abrir una, su
-            ficha completa con la bitácora. */}
-        {activeTab === 'seguimiento' && showObrasTab && seguimientoVista === 'obras' && (
-          <SeguimientoObrasContent onIrAObras={() => setActiveTab('obras')} />
-        )}
+        {/* Seguimiento en Construcción va solo por clientes (pedido del usuario,
+            oct-2026): el selector Clientes / Obras se sacó, las obras se siguen en
+            su propia pestaña. */}
 
         {(activeTab === 'tareas' || (activeTab === 'seguimiento' && seguimientoVista === 'clientes')) && (
         <div className="space-y-6">
@@ -4620,6 +4828,8 @@ export default function TareasPage() {
         <TabsContent value="calendario" className="space-y-6">
           <CalendarViewTab
             tasks={calendarTasks}
+            onCreateOnDay={tareasEnCalendario && canCreateTasks ? abrirAgenda : undefined}
+            mostrarSinFecha={tareasEnCalendario}
             calendarMonth={calendarMonth}
             setCalendarMonth={setCalendarMonth}
             onOpenDetail={(taskId) => setSelectedTaskId(taskId)}
@@ -7531,9 +7741,48 @@ function CommentsThread({
   );
 }
 
+// Agenda del Calendario (oct-2026): lo que se agenda son tareas comunes guardadas con
+// `payload.kind = 'agenda'` y un `tipo`. Así no cambia cómo se guardan ni quién las
+// ve: siguen el mismo reparto por rol que cualquier tarea.
+type AgendaTipo = 'tarea' | 'reunion' | 'evento' | 'visita';
+const AGENDA_TIPOS: Array<{
+  value: AgendaTipo;
+  label: string;
+  Icon: typeof CheckSquare;
+  /** Ficha del ítem en la grilla del mes. */
+  chip: string;
+  /** Punto de la leyenda y de las listas. */
+  dot: string;
+  placeholder: string;
+}> = [
+  // Solo naranjo y negro (pedido del usuario, oct-2026): los cuatro tipos se
+  // distinguen por relleno —suave, sólido o contorno— y por ícono, no por color.
+  { value: 'tarea', label: 'Tarea', Icon: CheckSquare, chip: 'bg-orange-50 border-orange-200 text-[#c44d00] dark:bg-orange-500/10 dark:border-orange-900 dark:text-orange-200', dot: 'bg-orange-200 ring-1 ring-[#fd6301]', placeholder: 'Ej: Enviar cotización a ferretería' },
+  { value: 'reunion', label: 'Reunión', Icon: Users, chip: 'bg-[#0a0a0a] border-[#0a0a0a] text-white dark:bg-slate-100 dark:border-slate-100 dark:text-[#0a0a0a]', dot: 'bg-[#0a0a0a] dark:bg-slate-100', placeholder: 'Ej: Reunión semanal de ventas' },
+  { value: 'evento', label: 'Evento', Icon: Sparkles, chip: 'bg-[#fd6301] border-[#fd6301] text-white', dot: 'bg-[#fd6301]', placeholder: 'Ej: Feria de la construcción' },
+  { value: 'visita', label: 'Visita a cliente', Icon: MapPin, chip: 'bg-white border-[#0a0a0a] text-[#0a0a0a] dark:bg-slate-900 dark:border-slate-300 dark:text-slate-100', dot: 'bg-white ring-1 ring-[#0a0a0a] dark:bg-slate-900 dark:ring-slate-300', placeholder: 'Ej: Visita a obra Los Copihues' },
+];
+const agendaTipoDe = (task: { payload?: unknown } | null | undefined): AgendaTipo => {
+  const p = (task?.payload ?? null) as { kind?: string; tipo?: string } | null;
+  if (p?.kind === 'agenda' && AGENDA_TIPOS.some((t) => t.value === p.tipo)) return p.tipo as AgendaTipo;
+  return 'tarea';
+};
+const agendaMetaDe = (task: { payload?: unknown } | null | undefined) =>
+  AGENDA_TIPOS.find((t) => t.value === agendaTipoDe(task))!;
+// Una tarea guardada a medianoche es "de ese día", sin hora: no se muestra 00:00.
+const horaDeAgenda = (task: { dueDate?: Date | string | null; payload?: unknown }) => {
+  if (!task.dueDate) return null;
+  const d = new Date(task.dueDate);
+  if (d.getHours() === 0 && d.getMinutes() === 0) return null;
+  const fin = ((task.payload ?? null) as { horaFin?: string } | null)?.horaFin;
+  return fin ? `${format(d, 'HH:mm')}–${fin}` : format(d, 'HH:mm');
+};
+
 // Componente de Vista Calendario
 function CalendarViewTab({
   tasks,
+  onCreateOnDay,
+  mostrarSinFecha = false,
   calendarMonth,
   setCalendarMonth,
   onOpenDetail,
@@ -7543,6 +7792,10 @@ function CalendarViewTab({
   supervisors,
 }: {
   tasks: Array<Task & { assignments: TaskAssignment[] }>;
+  /** Clic en un día vacío de la grilla: agenda algo ese día. */
+  onCreateOnDay?: (day: Date) => void;
+  /** Lista de tareas pendientes sin fecha, bajo la grilla. */
+  mostrarSinFecha?: boolean;
   calendarMonth: Date;
   setCalendarMonth: (date: Date) => void;
   onOpenDetail: (taskId: string) => void;
@@ -7577,6 +7830,7 @@ function CalendarViewTab({
     return days;
   };
 
+  // Ordenadas por hora: lo que no tiene hora (tareas "de ese día") va primero.
   const getTasksForDay = (day: Date) => {
     return tasks.filter(task => {
       if (!task.dueDate) return false;
@@ -7586,7 +7840,28 @@ function CalendarViewTab({
         taskDate.getMonth() === day.getMonth() &&
         taskDate.getFullYear() === day.getFullYear()
       );
-    });
+    }).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
+  };
+
+  const estaHecha = (task: Task & { assignments: TaskAssignment[] }) =>
+    task.status === 'completada' || task.status === 'cancelada' ||
+    task.assignments.some((a) => a.status === 'completed');
+  const sinFecha = tasks
+    .filter((t) => !t.dueDate && !estaHecha(t))
+    .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+
+  // Ficha de un ítem en la grilla y en las listas: color e ícono según el tipo,
+  // con la hora adelante si tiene.
+  const fichaAgenda = (task: Task & { assignments: TaskAssignment[] }, grande = false) => {
+    const meta = agendaMetaDe(task);
+    const hora = horaDeAgenda(task);
+    return (
+      <div className={`flex items-center gap-1 min-w-0 ${estaHecha(task) ? 'line-through opacity-60' : ''}`}>
+        <meta.Icon className={`${grande ? 'h-3.5 w-3.5' : 'h-3 w-3'} flex-shrink-0`} />
+        {hora && <span className="flex-shrink-0 tabular-nums font-semibold">{hora.split('–')[0]}</span>}
+        <span className="truncate">{task.title}</span>
+      </div>
+    );
   };
 
   const getPriorityColor = (priority: string | null) => {
@@ -7626,57 +7901,80 @@ function CalendarViewTab({
 
   return (
     <div className="space-y-4">
-      {/* Header del Calendario */}
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="py-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-orange-600" />
-              Vista Calendario
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCalendarMonth(subMonths(calendarMonth, 1))}
-                className="h-8 w-8 p-0"
-                data-testid="button-prev-month"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="font-medium text-sm min-w-[140px] text-center">
-                {format(calendarMonth, 'MMMM yyyy', { locale: es })}
+      {/* Encabezado: el mes, la leyenda de colores (subió desde el pie, pedido del
+          usuario oct-2026) y la navegación, en una sola franja. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 space-y-2">
+          <h2 className="text-2xl font-bold tracking-tight text-[#0a0a0a] dark:text-white capitalize">
+            {format(calendarMonth, 'MMMM', { locale: es })}
+            <span className="ml-2 font-medium text-slate-400">{format(calendarMonth, 'yyyy')}</span>
+          </h2>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs" data-testid="calendar-legend">
+            {(mostrarSinFecha ? AGENDA_TIPOS : AGENDA_TIPOS.slice(0, 1)).map((t) => (
+              <span key={t.value} className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                <span className={`w-2.5 h-2.5 rounded-full ${t.dot}`} />
+                {t.label}
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))}
-                className="h-8 w-8 p-0"
-                data-testid="button-next-month"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCalendarMonth(new Date())}
-                className="h-8 px-3 ml-2"
-                data-testid="button-today"
-              >
-                Hoy
-              </Button>
-            </div>
+            ))}
+            {onCreateOnDay && (
+              <span className="hidden sm:inline text-slate-400">· Toca un día para agendar</span>
+            )}
           </div>
-        </CardHeader>
-      </Card>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Button
+            variant="outline"
+            onClick={() => setCalendarMonth(subMonths(calendarMonth, 1))}
+            className="h-10 w-10 p-0 rounded-2xl border-slate-200 hover:border-[#fd6301] hover:text-[#fd6301]"
+            aria-label="Mes anterior"
+            data-testid="button-prev-month"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))}
+            className="h-10 w-10 p-0 rounded-2xl border-slate-200 hover:border-[#fd6301] hover:text-[#fd6301]"
+            aria-label="Mes siguiente"
+            data-testid="button-next-month"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          {/* Mismo selector de período que el Dashboard principal (pedido del usuario,
+              oct-2026), sin días: el calendario se mira por mes. */}
+          <YearMonthSelector
+            hideDays
+            value={{
+              years: [calendarMonth.getFullYear()],
+              period: 'month',
+              months: [calendarMonth.getMonth() + 1],
+              display: format(calendarMonth, 'MMMM yyyy', { locale: es }),
+            }}
+            onChange={(sel) => {
+              const anio = sel?.years?.[0];
+              if (!anio) return;
+              // Un año entero o varios meses no caben en una grilla: se abre el primero.
+              const mes = sel?.months?.length ? Math.min(...sel.months) : 1;
+              setCalendarMonth(new Date(anio, mes - 1, 1));
+            }}
+          />
+          <Button
+            onClick={() => setCalendarMonth(new Date())}
+            className="h-10 px-4 rounded-2xl bg-[#0a0a0a] hover:bg-[#262626] text-white text-sm font-semibold dark:bg-slate-100 dark:text-[#0a0a0a] dark:hover:bg-white"
+            data-testid="button-today"
+          >
+            Hoy
+          </Button>
+        </div>
+      </div>
 
       {/* Grid del Calendario */}
-      <Card className="border-0 shadow-sm overflow-hidden">
+      <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
         <CardContent className="p-0">
           {/* Días de la semana */}
-          <div className="grid grid-cols-7 bg-gray-50 border-b">
+          <div className="grid grid-cols-7 bg-[#0a0a0a] dark:bg-slate-950">
             {weekDays.map((day) => (
-              <div key={day} className="py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              <div key={day} className="py-2.5 text-center text-[11px] font-semibold text-white/80 uppercase tracking-wider">
                 {day}
               </div>
             ))}
@@ -7692,12 +7990,20 @@ function CalendarViewTab({
               return (
                 <div
                   key={index}
-                  className={`min-h-[100px] sm:min-h-[120px] border-b border-r p-1 sm:p-2 ${!isInCurrentMonth ? 'bg-gray-50' : 'bg-white'
-                    } ${isTodayDate ? 'bg-blue-50' : ''}`}
+                  // Clic en el espacio libre del día = agendar ese día. Los ítems
+                  // detienen el clic para abrir su propia ficha.
+                  onClick={onCreateOnDay ? () => onCreateOnDay(day) : undefined}
+                  title={onCreateOnDay ? 'Agendar en este día' : undefined}
+                  className={`group min-h-[100px] sm:min-h-[124px] border-b border-r border-slate-100 dark:border-slate-800 p-1 sm:p-2 transition-colors ${!isInCurrentMonth ? 'bg-slate-50/70 dark:bg-slate-900/60' : 'bg-white dark:bg-slate-900'
+                    } ${isTodayDate ? 'bg-orange-50/70 dark:bg-orange-500/10' : ''} ${onCreateOnDay ? 'cursor-pointer hover:bg-orange-50/50 dark:hover:bg-orange-500/10' : ''}`}
+                  data-testid={`calendar-day-${format(day, 'yyyy-MM-dd')}`}
                 >
                   {/* Número del día */}
-                  <div className={`text-right mb-1 ${!isInCurrentMonth ? 'text-gray-400' : ''}`}>
-                    <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 text-xs sm:text-sm font-medium rounded-full ${isTodayDate ? 'bg-[#fd6301] text-white' : ''
+                  <div className={`flex items-center justify-end gap-1 mb-1 ${!isInCurrentMonth ? 'text-gray-400' : ''}`}>
+                    {onCreateOnDay && (
+                      <Plus className="h-3.5 w-3.5 text-[#fd6301] opacity-0 group-hover:opacity-100 transition-opacity" aria-hidden />
+                    )}
+                    <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 text-xs sm:text-sm font-semibold rounded-full ${isTodayDate ? 'bg-[#fd6301] text-white shadow-md shadow-[#fd6301]/30' : isInCurrentMonth ? 'text-[#0a0a0a] dark:text-slate-100' : ''
                       }`}>
                       {format(day, 'd')}
                     </span>
@@ -7708,20 +8014,17 @@ function CalendarViewTab({
                     {dayTasks.slice(0, 3).map((task) => (
                       <button
                         key={task.id}
-                        onClick={() => setPopupTask(task)}
-                        className={`w-full text-left px-1.5 py-0.5 sm:px-2 sm:py-1 rounded text-[10px] sm:text-xs font-medium truncate border transition-all hover:shadow-md ${getStatusColor(task.status)}`}
-                        title={task.title}
+                        onClick={(e) => { e.stopPropagation(); setPopupTask(task); }}
+                        className={`w-full text-left px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md text-[10px] sm:text-xs font-medium truncate border transition-all hover:shadow-md ${agendaMetaDe(task).chip}`}
+                        title={`${agendaMetaDe(task).label}: ${task.title}`}
                         data-testid={`calendar-task-${task.id}`}
                       >
-                        <div className="flex items-center gap-1">
-                          <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getPriorityColor(task.priority)}`} />
-                          <span className="truncate">{task.title}</span>
-                        </div>
+                        {fichaAgenda(task)}
                       </button>
                     ))}
                     {dayTasks.length > 3 && (
                       <button
-                        onClick={() => setPopupDay(day)}
+                        onClick={(e) => { e.stopPropagation(); setPopupDay(day); }}
                         className="w-full text-left text-[10px] sm:text-xs text-gray-500 hover:text-orange-600 font-medium px-1.5 transition-colors"
                         data-testid={`calendar-more-${format(day, 'yyyy-MM-dd')}`}
                       >
@@ -7736,31 +8039,37 @@ function CalendarViewTab({
         </CardContent>
       </Card>
 
-      {/* Leyenda */}
-      <Card className="border-0 shadow-sm">
-        <CardContent className="py-3">
-          <div className="flex flex-wrap items-center gap-4 text-xs">
-            <span className="font-medium text-gray-700">Prioridad:</span>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
-              <span className="text-gray-600">Alta</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-              <span className="text-gray-600">Media</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
-              <span className="text-gray-600">Baja</span>
-            </div>
-            <span className="mx-2 text-gray-300">|</span>
-            <span className="font-medium text-gray-700">Estado:</span>
-            <Badge variant="outline" className="bg-green-100 border-green-300 text-green-800 text-[10px]">Completada</Badge>
-            <Badge variant="outline" className="bg-yellow-100 border-yellow-300 text-yellow-800 text-[10px]">En Progreso</Badge>
-            <Badge variant="outline" className="bg-white border-gray-200 text-gray-800 text-[10px]">Pendiente</Badge>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Tareas pendientes sin fecha: no tienen día en la grilla, pero no se pierden. */}
+      {mostrarSinFecha && sinFecha.length > 0 && (
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+          <CardHeader className="py-4">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-[#0a0a0a] dark:text-white">
+              <Clock className="h-4 w-4 text-[#fd6301]" />
+              Sin fecha
+              <span className="text-xs font-medium text-slate-400">{sinFecha.length}</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-1.5" data-testid="calendar-sin-fecha">
+            {sinFecha.map((task) => (
+              <button
+                key={task.id}
+                onClick={() => setPopupTask(task)}
+                className={`w-full text-left px-3 py-2 rounded-xl text-sm font-medium border transition-all hover:shadow-md ${agendaMetaDe(task).chip}`}
+                data-testid={`calendar-sin-fecha-${task.id}`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  {fichaAgenda(task, true)}
+                  {task.assignments.length > 0 && (
+                    <span className="ml-auto flex-shrink-0 text-[11px] font-normal opacity-70 truncate max-w-[40%]">
+                      {assigneeName(task.assignments.find((a) => a.assigneeId !== task.createdByUserId) ?? task.assignments[0])}
+                    </span>
+                  )}
+                </div>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Popup de vista rápida de la tarea */}
       <Dialog open={!!popupTask} onOpenChange={(open) => { if (!open) setPopupTask(null); }}>
@@ -7778,6 +8087,10 @@ function CalendarViewTab({
                       {popupTask.title}
                     </DialogTitle>
                     <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                      <Badge variant="outline" className={agendaMetaDe(popupTask).chip}>
+                        {(() => { const M = agendaMetaDe(popupTask); return <M.Icon className="h-3 w-3 mr-1" />; })()}
+                        {agendaMetaDe(popupTask).label}
+                      </Badge>
                       {getStatusBadge(popupTask.status ?? 'pendiente')}
                       {getPriorityBadge(popupTask.priority ?? 'medium')}
                       {(popupTask as any).segmento && (
@@ -7807,7 +8120,16 @@ function CalendarViewTab({
                       </span>
                       <span className="text-slate-700 dark:text-slate-200 capitalize">
                         {format(new Date(popupTask.dueDate), "EEEE d 'de' MMMM yyyy", { locale: es })}
+                        {horaDeAgenda(popupTask) && <span className="normal-case"> · {horaDeAgenda(popupTask)}</span>}
                       </span>
+                    </div>
+                  )}
+                  {(popupTask as any).payload?.lugar && (
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 flex-shrink-0">
+                        <MapPin className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="text-slate-700 dark:text-slate-200 truncate">{(popupTask as any).payload.lugar}</span>
                     </div>
                   )}
                   {(popupTask as any).clienteNombre && (
@@ -7882,7 +8204,7 @@ function CalendarViewTab({
                       {format(popupDay, "EEEE d 'de' MMMM", { locale: es })}
                     </DialogTitle>
                     <p className="text-sm text-muted-foreground">
-                      {getTasksForDay(popupDay).length} tarea{getTasksForDay(popupDay).length !== 1 ? 's' : ''}
+                      {getTasksForDay(popupDay).length} {mostrarSinFecha ? 'en la agenda' : `tarea${getTasksForDay(popupDay).length !== 1 ? 's' : ''}`}
                     </p>
                   </div>
                 </div>
@@ -7892,13 +8214,10 @@ function CalendarViewTab({
                   <button
                     key={task.id}
                     onClick={() => { setPopupDay(null); setPopupTask(task); }}
-                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium border transition-all hover:shadow-md ${getStatusColor(task.status)}`}
+                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium border transition-all hover:shadow-md ${agendaMetaDe(task).chip}`}
                     data-testid={`calendar-day-task-${task.id}`}
                   >
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getPriorityColor(task.priority)}`} />
-                      <span className="truncate">{task.title}</span>
-                    </div>
+                    {fichaAgenda(task, true)}
                   </button>
                 ))}
               </div>

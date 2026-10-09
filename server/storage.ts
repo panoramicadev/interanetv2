@@ -1455,6 +1455,7 @@ export interface IStorage {
   updateAssignmentStatus(assignmentId: string, status: string, notes?: string, evidenceImages?: string[]): Promise<TaskAssignment>;
   markAssignmentRead(assignmentId: string): Promise<TaskAssignment>;
   getTasksForUser(userId: string, userSegments: string[]): Promise<Array<Task & { assignments: TaskAssignment[] }>>;
+  getSeguimientosDeCliente(clienteId: string): Promise<Array<Task & { assignments: TaskAssignment[] }>>;
 
   // Task comments - sistema de comentarios en hilo
   getTaskComments(assignmentId: string): Promise<TaskComment[]>;
@@ -14745,6 +14746,26 @@ export class DatabaseStorage implements IStorage {
           }
         : null;
     }
+  }
+
+  // Seguimientos (payload.kind = 'seguimiento_cliente') abiertos sobre un cliente del
+  // ERP, con sus asignaciones. Lo usa el alta de la agenda para dejar constancia en
+  // la bitácora del cliente.
+  async getSeguimientosDeCliente(clienteId: string): Promise<Array<Task & { assignments: TaskAssignment[] }>> {
+    const lista = await db
+      .select()
+      .from(tasks)
+      .where(and(
+        eq(tasks.clienteId, clienteId),
+        sql`${tasks.payload}->>'kind' = 'seguimiento_cliente'`,
+      ));
+    if (lista.length === 0) return [];
+    const asignaciones = await db
+      .select()
+      .from(taskAssignments)
+      .where(inArray(taskAssignments.taskId, lista.map((t) => t.id)))
+      .orderBy(taskAssignments.createdAt);
+    return lista.map((t) => ({ ...t, assignments: asignaciones.filter((a) => a.taskId === t.id) }));
   }
 
   async getTask(id: string): Promise<Task & { assignments: TaskAssignment[] } | undefined> {
