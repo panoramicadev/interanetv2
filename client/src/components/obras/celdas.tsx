@@ -253,10 +253,16 @@ export function InputCantidad({
   onGuardar,
   testId,
   movimiento,
+  max,
+  placeholder = "0",
 }: {
   valor: string | number | null;
   onGuardar: (valor: string) => void;
   testId: string;
+  /** Tope del valor (no se pueden pintar más viviendas de las que tiene la obra). */
+  max?: number;
+  /** Lo que se lee con la celda vacía: el valor heredado, cuando lo hay. */
+  placeholder?: string;
   movimiento?: {
     tipo: TipoMovimiento;
     sugerido: number;
@@ -278,7 +284,7 @@ export function InputCantidad({
     // Ninguna de estas columnas admite negativos: no existe "pedir −5". Un signo
     // tipeado de más se descarta acá y no viaja a la base, donde después
     // ensuciaba el saldo y el próximo pedido de toda la obra.
-    const nuevo = Math.max(0, toNum(texto));
+    const nuevo = Math.min(Math.max(0, toNum(texto)), max ?? Infinity);
     if (nuevo === toNum(valor)) {
       setTexto(numeroEditable(valor));
       return;
@@ -303,7 +309,7 @@ export function InputCantidad({
           }
         }}
         inputMode="decimal"
-        placeholder="0"
+        placeholder={placeholder}
         className="w-14 h-7 rounded-lg border border-transparent bg-transparent text-center text-sm tabular-nums text-slate-600 dark:text-slate-300 placeholder:text-slate-300 dark:placeholder:text-slate-600 hover:border-slate-200 dark:hover:border-slate-700 focus:border-orange-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-400/20 transition-colors"
         data-testid={testId}
       />

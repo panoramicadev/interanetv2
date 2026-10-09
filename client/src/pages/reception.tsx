@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import { useEffect, useState } from "react";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +46,8 @@ interface Quote {
   erpEntered?: boolean;
   erpEnteredAt?: string | null;
   erpNotes?: string | null;
+  erpNvvNumber?: string | null;
+  obraNombre?: string | null;
 }
 
 interface QuoteItem {
@@ -285,17 +288,28 @@ export default function Reception() {
     return <Badge variant="secondary" className={config.className}>{config.label}</Badge>;
   };
 
+  // La nota de venta con que el pedido quedó en Random. Si la cotización era
+  // para una obra, con esto el documento se cuelga solo de esa obra.
+  const [nvvNumber, setNvvNumber] = useState('');
+  useEffect(() => setNvvNumber(''), [selectedQuoteId]);
+
   // Mutation to update quote status
   const erpStatusMutation = useMutation({
-    mutationFn: async ({ id, entered, notes }: { id: string; entered: boolean; notes?: string }) => {
+    mutationFn: async ({ id, entered, notes, nvvNumber }: { id: string; entered: boolean; notes?: string; nvvNumber?: string }) => {
       return await apiRequest(`/api/quotes/${id}/erp-status`, {
         method: 'PATCH',
-        data: { entered, notes },
+        data: { entered, notes, nvvNumber },
       });
     },
     onSuccess: (_data, vars) => {
+      setNvvNumber('');
       queryClient.setQueryData(["/api/quotes", selectedQuoteId, "with-items"], (old: any) =>
-        old ? { ...old, erpEntered: vars.entered, erpEnteredAt: vars.entered ? new Date().toISOString() : null } : old
+        old ? {
+          ...old,
+          erpEntered: vars.entered,
+          erpEnteredAt: vars.entered ? new Date().toISOString() : null,
+          erpNvvNumber: vars.entered ? vars.nvvNumber?.trim() || null : null,
+        } : old
       );
       queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/quotes", selectedQuoteId, "with-items"] });
@@ -1051,6 +1065,7 @@ export default function Reception() {
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs">
+                        {selectedQuote.obraNombre && <div className="col-span-2"><span className="text-slate-500">Obra:</span> <strong>{selectedQuote.obraNombre}</strong></div>}
                         {selectedQuote.ocNumber && <div><span className="text-slate-500">N° OC:</span> <strong>{selectedQuote.ocNumber}</strong></div>}
                         {selectedQuote.segment && <div><span className="text-slate-500">Segmento:</span> <strong>{selectedQuote.segment}</strong></div>}
                         {selectedQuote.paymentMethod && <div className="col-span-2"><span className="text-slate-500">Método de pago:</span> <strong>{selectedQuote.paymentMethod}</strong></div>}
@@ -1063,7 +1078,7 @@ export default function Reception() {
                       </div>
 
                       {/* Toggle ingreso a ERP */}
-                      <div className="pt-3 border-t border-slate-200 mt-3 flex items-center justify-between">
+                      <div className="pt-3 border-t border-slate-200 mt-3 flex flex-wrap items-center justify-between gap-2">
                         <div className="text-sm">
                           <span className="font-medium text-slate-900">Ingresado al ERP:</span>{' '}
                           {selectedQuote.erpEntered ? (
@@ -1078,12 +1093,30 @@ export default function Reception() {
                           ) : (
                             <span className="text-amber-700 font-semibold">Pendiente</span>
                           )}
+                          {selectedQuote.erpEntered && selectedQuote.erpNvvNumber && (
+                            <span className="ml-2 text-xs text-slate-500">
+                              Nota de venta <strong className="text-slate-700">{selectedQuote.erpNvvNumber}</strong>
+                            </span>
+                          )}
                         </div>
+                        {!selectedQuote.erpEntered && (
+                          <Input
+                            value={nvvNumber}
+                            onChange={(e) => setNvvNumber(e.target.value)}
+                            inputMode="numeric"
+                            placeholder="N° de nota de venta"
+                            title={selectedQuote.obraNombre
+                              ? `Con este número la nota de venta queda vinculada a la obra ${selectedQuote.obraNombre}`
+                              : 'El número con que quedó en Random'}
+                            className="h-9 w-44 ml-auto text-sm"
+                            data-testid="input-erp-nvv-number"
+                          />
+                        )}
                         <Button
                           size="sm"
                           variant={selectedQuote.erpEntered ? 'outline' : 'default'}
                           className={selectedQuote.erpEntered ? '' : 'bg-emerald-600 hover:bg-emerald-700'}
-                          onClick={() => erpStatusMutation.mutate({ id: selectedQuote.id, entered: !selectedQuote.erpEntered })}
+                          onClick={() => erpStatusMutation.mutate({ id: selectedQuote.id, entered: !selectedQuote.erpEntered, nvvNumber })}
                           disabled={erpStatusMutation.isPending}
                         >
                           {selectedQuote.erpEntered ? 'Marcar como no ingresado' : 'Marcar ingresado al ERP'}

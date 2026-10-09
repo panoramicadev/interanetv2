@@ -91,7 +91,7 @@ const FUENTES: Record<OrigenVenta, { tabla: string; nombreProducto: string }> = 
  * cualquier otro, entra solo. Con una lista cerrada el documento simplemente no
  * aparecía en el buscador y no había forma de darse cuenta de por qué.
  */
-const FILTRO_TIPO: Record<OrigenVenta, string> = {
+export const FILTRO_TIPO: Record<OrigenVenta, string> = {
   facturado: "(tido IS NULL OR tido NOT IN ('NVV', 'GDV'))",
   nvv: "TRUE",
   gdv: "TRUE",

@@ -12,7 +12,7 @@ export function normalizeRut(rut: string | null | undefined): string {
 }
 
 /** Calcula el dígito verificador (0-9 o K) para un cuerpo numérico. */
-function computeDv(body: string): string {
+export function computeDv(body: string): string {
   let sum = 0;
   let mul = 2;
   for (let i = body.length - 1; i >= 0; i--) {

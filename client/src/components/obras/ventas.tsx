@@ -13,6 +13,12 @@
  * El documento puede venir a nombre de otro cliente: en muchas obras el material
  * lo compra el contratista, no la constructora. Por eso el buscador no se acota
  * al RUT de la obra.
+ *
+ * Los documentos se vinculan SOLOS cuando no hay duda de qué obra son (ver
+ * server/obras-ventas-auto.ts): el vendedor no ve las facturas, así que no
+ * puede ir a buscarlas una por una. Los que podrían ser de más de una obra
+ * aparecen como "por asignar" y se resuelven con un clic. El buscador queda
+ * para lo que el sistema no puede ver, como las compras del contratista.
  */
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -24,7 +30,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { etiquetaCortaUnidad } from "@/components/obras/unidades";
 import { fmtDec } from "@/components/obras/formato";
 import type { ObraProducto } from "@shared/schema";
-import { AlertTriangle, FileText, Link2, Loader2, Plus, Search, Truck, X } from "lucide-react";
+import { AlertTriangle, Check, FileText, Link2, Loader2, Plus, Search, Sparkles, Truck, X } from "lucide-react";
 
 type Origen = "facturado" | "nvv" | "gdv";
 
@@ -46,7 +52,36 @@ interface DocumentoAsociado {
   fechaEmision: string | null;
   montoDocumento: string | null;
   asociadoPorNombre: string | null;
+  /** Con qué regla se vinculó solo; null si lo asoció una persona. */
+  regla: string | null;
 }
+
+/** Por qué el sistema decidió que el documento era de esta obra. */
+const MOTIVO_REGLA: Record<string, string> = {
+  nvv_recepcion: "Recepción anotó esta nota de venta al ingresar la cotización de la obra",
+  oc_cotizacion: "Trae la misma orden de compra que la cotización de la obra",
+  obra_unica: "Es la única obra activa de la constructora y trae productos proyectados en ella",
+  sku_exclusivo: "Sus productos solo están proyectados en esta obra",
+};
+
+interface DocumentoSugerido {
+  origen: Origen;
+  tido: string | null;
+  idmaeedo: string;
+  nudo: string | null;
+  clienteNombre: string | null;
+  fechaEmision: string | null;
+  monto: number;
+  /** Trae algún producto de los proyectados en la obra. */
+  coincide: boolean;
+}
+
+/** "A, B y 4 más": una constructora grande tiene demasiadas obras para nombrarlas todas. */
+const nombrarObras = (obras: string[]) =>
+  obras.length <= 2 ? obras.join(" o ") : `${obras.slice(0, 2).join(", ")} y ${obras.length - 2} más`;
+
+/** Cuántas sugerencias se ven sin desplegar: son para resolver, no para leer. */
+const SUGERIDOS_VISIBLES = 5;
 
 interface ProductoComprado {
   origen: Origen;
@@ -60,6 +95,7 @@ interface RespuestaVentas {
   documentos: DocumentoAsociado[];
   productos: ProductoComprado[];
   totales: Record<Origen, { monto: number; documentos: number }>;
+  sugeridos?: { documentos: DocumentoSugerido[]; total: number; otrasObras: string[] };
 }
 
 interface ClienteConDocumentos {
@@ -105,6 +141,7 @@ export function ComprasObra({
 }) {
   const { toast } = useToast();
   const [dialogBuscar, setDialogBuscar] = useState(false);
+  const [verTodosSugeridos, setVerTodosSugeridos] = useState(false);
 
   const { data, isLoading } = useQuery<RespuestaVentas>({
     queryKey: ["/api/obras", obraId, "ventas"],
@@ -126,6 +163,52 @@ export function ComprasObra({
       toast({ title: "No se pudo sacar el documento", description: error?.message, variant: "destructive" });
     },
   });
+
+  // Resolver una sugerencia: es de esta obra (se asocia) o no (no se vuelve a
+  // ofrecer acá). La fila sale de la lista en el acto.
+  const resolverSugerido = useMutation({
+    mutationFn: async ({ doc, esDeLaObra }: { doc: DocumentoSugerido; esDeLaObra: boolean }) => {
+      const documento = { origen: doc.origen, idmaeedo: doc.idmaeedo };
+      if (esDeLaObra) {
+        await apiRequest(`/api/obras/${obraId}/ventas`, { method: "POST", data: { documentos: [documento] } });
+      } else {
+        await apiRequest(`/api/obras/${obraId}/ventas/descartar`, { method: "POST", data: documento });
+      }
+    },
+    onMutate: async ({ doc }) => {
+      const claveQuery = ["/api/obras", obraId, "ventas"];
+      await queryClient.cancelQueries({ queryKey: claveQuery });
+      const anterior = queryClient.getQueryData<RespuestaVentas>(claveQuery);
+      queryClient.setQueryData<RespuestaVentas>(claveQuery, (actual) =>
+        actual?.sugeridos
+          ? {
+              ...actual,
+              sugeridos: {
+                ...actual.sugeridos,
+                total: Math.max(0, actual.sugeridos.total - 1),
+                documentos: actual.sugeridos.documentos.filter((d) => d.idmaeedo !== doc.idmaeedo),
+              },
+            }
+          : actual,
+      );
+      return { claveQuery, anterior };
+    },
+    onSuccess: (_data, { esDeLaObra }) => {
+      toast({ title: esDeLaObra ? "Documento asociado a la obra" : "Listo, no se vuelve a sugerir en esta obra" });
+    },
+    onError: (error: any, _vars, context) => {
+      if (context) queryClient.setQueryData(context.claveQuery, context.anterior);
+      toast({ title: "No se pudo guardar", description: error?.message, variant: "destructive" });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/obras", obraId, "ventas"] });
+    },
+  });
+
+  const sugeridos = data?.sugeridos?.documentos ?? [];
+  const totalSugeridos = data?.sugeridos?.total ?? 0;
+  const otrasObras = data?.sugeridos?.otrasObras ?? [];
+  const sugeridosVisibles = verTodosSugeridos ? sugeridos : sugeridos.slice(0, SUGERIDOS_VISIBLES);
 
   /**
    * Una fila por producto: lo proyectado al empezar contra lo comprado en cada
@@ -205,8 +288,9 @@ export function ComprasObra({
             Todavía no hay facturas ni notas de venta asociadas a esta obra.
           </p>
           <p className="text-[11px] text-slate-400 mt-1 max-w-md mx-auto">
-            Busca los documentos por número de factura, nombre o RUT. Ojo: si el material lo compró el
-            contratista, el documento va a estar a su nombre y no al de la constructora.
+            Las facturas de la constructora que traen productos de esta obra se vinculan solas después de
+            cada sincronización. Si el material lo compró el contratista, el documento está a su nombre:
+            ese se busca con «Asociar documento».
           </p>
         </div>
       ) : (
@@ -309,6 +393,16 @@ export function ComprasObra({
                   <span className="truncate flex-1 min-w-0 text-slate-500 dark:text-slate-400">
                     {d.clienteNombre ?? "—"}
                   </span>
+                  {d.regla && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-md bg-orange-50 dark:bg-orange-950/30 px-1.5 py-0.5 text-[10px] font-bold text-[#fd6301] flex-shrink-0"
+                      title={MOTIVO_REGLA[d.regla] ?? "Vinculado solo"}
+                      data-testid={`badge-obra-venta-auto-${d.id}`}
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      Automático
+                    </span>
+                  )}
                   <span className="tabular-nums font-semibold text-slate-700 dark:text-slate-200 flex-shrink-0">
                     {pesos(d.montoDocumento)}
                   </span>
@@ -328,6 +422,78 @@ export function ComprasObra({
             </ul>
           </div>
         </>
+      )}
+
+      {/* Lo que podría ser de esta obra pero el sistema no puede asegurar: la
+          constructora tiene más de una obra con los mismos productos, o el
+          documento no trae ninguno de los proyectados. Se decide acá. */}
+      {!isLoading && sugeridos.length > 0 && (
+        <div className="border-t border-slate-200/70 dark:border-slate-700/60 bg-amber-50/40 dark:bg-amber-950/10">
+          <div className="px-4 pt-3 pb-1">
+            <div className="text-[10px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-400">
+              Documentos por asignar · {totalSugeridos}
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              {otrasObras.length > 0
+                ? `Facturas de la constructora que podrían ser de esta obra o de ${nombrarObras(otrasObras)}.`
+                : "Facturas de la constructora desde que empezó la obra que no se pudieron asignar solas."}
+            </p>
+          </div>
+          <ul className="divide-y divide-amber-100/70 dark:divide-slate-700/40">
+            {sugeridosVisibles.map((d) => (
+              <li key={`${d.origen}-${d.idmaeedo}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-xs">
+                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 w-12 flex-shrink-0">
+                  {d.tido ?? d.origen}
+                </span>
+                <span className="font-bold tabular-nums text-slate-700 dark:text-slate-200 w-20 flex-shrink-0">
+                  {d.nudo ?? "—"}
+                </span>
+                <span className="text-slate-400 tabular-nums w-24 flex-shrink-0">{fecha(d.fechaEmision)}</span>
+                <span className="flex-1 min-w-0 truncate text-slate-500 dark:text-slate-400">
+                  {d.coincide ? "Trae productos de esta obra" : "Sin productos de esta obra"}
+                </span>
+                <span className="tabular-nums font-semibold text-slate-700 dark:text-slate-200 flex-shrink-0">
+                  {pesos(d.monto)}
+                </span>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    disabled={resolverSugerido.isPending}
+                    onClick={() => resolverSugerido.mutate({ doc: d, esDeLaObra: true })}
+                    className="h-7 rounded-lg px-2.5 text-[11px] bg-[#fd6301] hover:bg-[#e35400] text-white"
+                    data-testid={`button-obra-sugerido-si-${d.idmaeedo}`}
+                  >
+                    <Check className="h-3 w-3 mr-1" />
+                    Es de esta obra
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={resolverSugerido.isPending}
+                    onClick={() => resolverSugerido.mutate({ doc: d, esDeLaObra: false })}
+                    className="h-7 rounded-lg px-2.5 text-[11px] text-slate-500 hover:text-slate-700"
+                    data-testid={`button-obra-sugerido-no-${d.idmaeedo}`}
+                  >
+                    No es
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {sugeridos.length > SUGERIDOS_VISIBLES && (
+            <button
+              onClick={() => setVerTodosSugeridos((v) => !v)}
+              className="w-full px-4 py-2 text-[11px] font-semibold text-slate-500 hover:text-[#fd6301] transition-colors text-left"
+              data-testid={`button-obra-sugeridos-ver-${obraId}`}
+            >
+              {verTodosSugeridos
+                ? "Ver menos"
+                : totalSugeridos > sugeridos.length
+                  ? `Ver los ${sugeridos.length} más recientes (de ${totalSugeridos})`
+                  : `Ver los ${sugeridos.length}`}
+            </button>
+          )}
+        </div>
       )}
 
       <DialogBuscarDocumentos

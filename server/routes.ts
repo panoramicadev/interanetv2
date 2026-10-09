@@ -11,6 +11,7 @@ import {
   obtenerDocumento as obtenerDocumentoDeVenta,
   lineasDeDocumentos as lineasDeDocumentosDeVenta,
 } from "./obras-ventas";
+import { autoAsociarVentasDeCotizacion, sugerirDocumentosParaObra } from "./obras-ventas-auto";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, isIndustrialSegment, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { rutContainsCondition } from "./utils/rut-sql";
 import { invalidateSessionUser } from "./auth";
@@ -18158,16 +18159,30 @@ export function registerRoutes(app: Express): Server {
       if (!['admin', 'supervisor', 'encargado_area', 'reception'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      const { entered, notes } = req.body || {};
+      const { entered, notes, nvvNumber } = req.body || {};
       const isEntered = !!entered;
+      // La nota de venta con que quedó en Random. Es lo que después deja colgar
+      // el documento de la obra de la cotización sin que nadie lo busque.
+      const numeroNvv = isEntered ? String(nvvNumber ?? '').trim().slice(0, 30) || null : null;
       const { quotes: quotesTable } = await import('@shared/schema');
       await db.update(quotesTable).set({
         erpEntered: isEntered,
         erpEnteredAt: isEntered ? new Date() : null,
         erpEnteredById: isEntered ? user.id : null,
         erpNotes: notes ?? null,
+        erpNvvNumber: numeroNvv,
         updatedAt: new Date(),
       } as any).where(eq(quotesTable.id, id));
+
+      // Si la nota de venta ya bajó del ERP se vincula ahora; si no, la toma la
+      // pasada que corre al final de cada sincronización.
+      if (numeroNvv) {
+        try {
+          await autoAsociarVentasDeCotizacion(id);
+        } catch (error: any) {
+          console.error('❌ Error al vincular la nota de venta con su obra:', error.message);
+        }
+      }
       res.json({ success: true });
     } catch (error: any) {
       console.error('Error updating ERP status:', error);
@@ -19097,6 +19112,7 @@ export function registerRoutes(app: Express): Server {
         <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 20px 0;">
           ${dataRow('N° Cotización', quote.quoteNumber)}
           ${dataRow('Cliente', quote.clientName)}
+          ${quote.obraNombre ? dataRow('Obra', `<strong>${quote.obraNombre}</strong>`, true) : ''}
           ${dataRow('Vendedor', `<strong>${senderName}</strong>${senderEmail ? ` <span style="color:#6b7280;">&lt;${senderEmail}&gt;</span>` : ''}`)}
           ${ocNumber ? dataRow('N° OC', `<strong>${ocNumber}</strong>`, true) : ''}
           ${segmentDisplay ? dataRow('Segmento', segmentDisplay) : ''}
@@ -19175,7 +19191,7 @@ export function registerRoutes(app: Express): Server {
           targetType: 'departamento',
           targetDepartment: 'Recepción',
           title: '📬 Cotización enviada a finanzas',
-          message: `${quote.quoteNumber} - ${quote.clientName}${ocNumber ? ` (OC ${ocNumber})` : ''} - Vendedor: ${senderName}`,
+          message: `${quote.quoteNumber} - ${quote.clientName}${quote.obraNombre ? ` · Obra ${quote.obraNombre}` : ''}${ocNumber ? ` (OC ${ocNumber})` : ''} - Vendedor: ${senderName}`,
           priority: 'alta',
           actionUrl: '/reception',
           createdByName: 'Sistema - Cotizaciones',
@@ -25048,7 +25064,16 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
-      res.json({ documentos: vinculos, productos: [...porProducto.values()], totales });
+      // Lo que podría ser de esta obra y todavía no es de ninguna. Si falla no
+      // se cae la tarjeta: lo ya asociado se muestra igual.
+      let sugeridos: Awaited<ReturnType<typeof sugerirDocumentosParaObra>> = { documentos: [], total: 0, otrasObras: [] };
+      try {
+        sugeridos = await sugerirDocumentosParaObra(req.params.id);
+      } catch (error: any) {
+        console.error('❌ Error al sugerir documentos para la obra:', error.message);
+      }
+
+      res.json({ documentos: vinculos, productos: [...porProducto.values()], totales, sugeridos });
     } catch (error: any) {
       console.error('❌ Error al obtener las ventas de la obra:', error);
       res.status(500).json({ message: 'Error al obtener las ventas de la obra', error: error.message });
@@ -25097,6 +25122,38 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('❌ Error al asociar ventas a la obra:', error);
       res.status(500).json({ message: 'Error al asociar los documentos', error: error.message });
+    }
+  }));
+
+  // "No es de esta obra": el documento sugerido queda descartado acá y no se
+  // vuelve a ofrecer ni a vincular solo. Sigue pudiendo asociarse a otra obra.
+  app.post('/api/obras/:id/ventas/descartar', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const obra = await storage.getObra(req.params.id);
+      if (!obra) return res.status(404).json({ message: 'Obra no encontrada' });
+
+      const { origen, idmaeedo } = req.body ?? {};
+      if (!ORIGENES_VENTA.includes(origen)) return res.status(400).json({ message: 'Origen de documento inválido' });
+      const doc = await obtenerDocumentoDeVenta(origen, idmaeedo);
+      if (!doc) return res.status(404).json({ message: 'Documento no encontrado' });
+
+      const usuario = req.user;
+      res.json(await storage.descartarObraVenta({
+        obraId: obra.id,
+        origen: doc.origen,
+        tido: doc.tido,
+        idmaeedo: doc.idmaeedo,
+        nudo: doc.nudo,
+        clienteRut: doc.clienteRut,
+        clienteNombre: doc.clienteNombre,
+        fechaEmision: doc.fechaEmision,
+        montoDocumento: String(doc.monto),
+        desasociadoPorId: usuario?.id ?? null,
+        desasociadoPorNombre: usuario?.salespersonName || usuario?.email || null,
+      }));
+    } catch (error: any) {
+      console.error('❌ Error al descartar el documento de la obra:', error);
+      res.status(500).json({ message: 'Error al descartar el documento', error: error.message });
     }
   }));
 

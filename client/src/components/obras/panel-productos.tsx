@@ -53,6 +53,7 @@ const FONDO_STICKY = "bg-[#fff7f1] dark:bg-slate-800/95";
 export function FilasProductos({
   obraId,
   viviendas,
+  pintadasObra,
   productos,
   columnas,
   /** La primera columna queda fija al hacer scroll lateral (tabla de la planilla). */
@@ -60,6 +61,8 @@ export function FilasProductos({
 }: {
   obraId: string;
   viviendas: number;
+  /** Viviendas pintadas cargadas en la obra: las hereda el producto sin número propio. */
+  pintadasObra: number;
   productos: ObraProducto[];
   columnas: ColumnaDef[];
   sticky?: boolean;
@@ -210,6 +213,7 @@ export function FilasProductos({
           key={producto.id}
           producto={producto}
           viviendas={viviendas}
+          pintadasObra={pintadasObra}
           columnas={columnas}
           sticky={sticky}
           colSpan={colSpan}
@@ -259,6 +263,7 @@ export function FilasProductos({
 function FilaProducto({
   producto,
   viviendas,
+  pintadasObra,
   columnas,
   sticky,
   colSpan,
@@ -271,6 +276,7 @@ function FilaProducto({
 }: {
   producto: ObraProducto;
   viviendas: number;
+  pintadasObra: number;
   columnas: ColumnaDef[];
   sticky: boolean;
   colSpan: number;
@@ -281,8 +287,8 @@ function FilaProducto({
   onMovimiento: (data: Record<string, unknown>) => void;
   registrando: boolean;
 }) {
-  const calc = calcularProducto(producto);
-  const ctx: CeldaProducto = { producto, calc, viviendas, onGuardar, onMovimiento, registrando };
+  const calc = calcularProducto(producto, pintadasObra);
+  const ctx: CeldaProducto = { producto, calc, viviendas, pintadasObra, onGuardar, onMovimiento, registrando };
 
   return (
     <>

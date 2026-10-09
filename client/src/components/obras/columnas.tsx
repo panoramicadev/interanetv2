@@ -7,7 +7,8 @@
  * columnas que no calzaban, así que había que volver a leer los encabezados en
  * cada nivel. Ahora cada columna sabe dibujarse en los dos:
  *
- *   render          → la celda de la obra (el total de sus productos)
+ *   render          → la celda de la obra (el total de sus productos; las
+ *                     viviendas pintadas se cargan ahí mismo)
  *   renderProducto  → la celda de uno de sus productos, editable
  *
  * y los productos se muestran como filas indentadas de la MISMA tabla, así el
@@ -28,9 +29,17 @@ export interface CeldaProducto {
   calc: ProductoCalculado;
   /** Viviendas de la obra: es el denominador del avance del producto. */
   viviendas: number;
+  /** Pintadas cargadas en la obra: lo que hereda el producto sin número propio. */
+  pintadasObra: number;
   onGuardar: (data: Record<string, unknown>) => void;
   onMovimiento: (data: Record<string, unknown>) => void;
   registrando: boolean;
+}
+
+/** Lo que la fila de la obra le pasa a sus celdas editables. */
+export interface CeldaObra {
+  /** Sin esto la celda queda de solo lectura. */
+  onGuardar?: (data: Record<string, unknown>) => void;
 }
 
 export interface ColumnaDef {
@@ -43,7 +52,7 @@ export interface ColumnaDef {
   thClassName?: string;
   /** Línea divisoria al inicio del bloque. La pone prepararColumnas(). */
   borde?: string;
-  render: (f: ObraCalculada) => React.ReactNode;
+  render: (f: ObraCalculada, c?: CeldaObra) => React.ReactNode;
   /** Celda del producto. Sin esto la columna queda vacía en la fila del producto. */
   renderProducto?: (c: CeldaProducto) => React.ReactNode;
   total?: (t: Totales) => React.ReactNode;
@@ -116,10 +125,28 @@ export const COLUMNAS: ColumnaDef[] = [
     label: "Pintadas",
     title: "Viviendas ya pintadas",
     grupo: AVANCE,
-    render: (f) => <Numero valor={f.pintadas} entero />,
+    // El avance se cuenta por obra, así que se escribe en su fila. El clic no
+    // tiene que desplegar la obra: por eso se corta acá.
+    render: (f, c) =>
+      c?.onGuardar ? (
+        <div onClick={(e) => e.stopPropagation()}>
+          <InputCantidad
+            valor={f.pintadas}
+            max={f.viviendas > 0 ? f.viviendas : undefined}
+            onGuardar={(v) => c.onGuardar?.({ viviendasPintadas: Math.round(toNum(v)) })}
+            testId={`input-pintadas-obra-${f.obra.id}`}
+          />
+        </div>
+      ) : (
+        <Numero valor={f.pintadas} entero />
+      ),
+    // Vacío = sigue a la obra (se lee en gris); con número propio, el producto
+    // lleva su ritmo aparte.
     renderProducto: (c) => (
       <InputCantidad
         valor={c.producto.viviendasPintadas}
+        max={c.viviendas > 0 ? c.viviendas : undefined}
+        placeholder={c.pintadasObra > 0 ? fmt(c.pintadasObra) : "0"}
         onGuardar={(v) => c.onGuardar({ viviendasPintadas: Math.round(toNum(v)) })}
         testId={`input-pintadas-${c.producto.id}`}
       />
@@ -257,7 +284,7 @@ export const COLUMNAS: ColumnaDef[] = [
         real={f.rendimientoReal}
         desviacion={f.desviacion}
         hayDesviacion={f.consumoTeorico > 0}
-        detalle={`La obra está usando ${fmtDec(f.rendimientoReal)} por vivienda (${fmtDec(f.usadas)} en ${fmt(f.pintadas)} pintadas, sumando todos sus productos)`}
+        detalle={`La obra está usando ${fmtDec(f.rendimientoReal)} por vivienda (${fmtDec(f.usadas)} entre todos sus productos, en ${fmt(f.pintadas)} pintadas)`}
       />
     ),
     renderProducto: (c) => (

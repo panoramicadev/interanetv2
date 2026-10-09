@@ -885,6 +885,15 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     // el nombre de su ferretería por el prefijo de su orden de compra.
     await imputarSucursalesPorPrefijo();
 
+    // Con los documentos ya cargados, los que solo pueden ser de una obra se
+    // cuelgan solos de ella (ver obras-ventas-auto.ts). Si falla no tumba el ETL.
+    try {
+      const { autoAsociarVentasObras } = await import('./obras-ventas-auto');
+      await autoAsociarVentasObras();
+    } catch (error: any) {
+      console.error('❌ Error al vincular documentos con sus obras:', error.message);
+    }
+
     // Actualizar log de ejecución
     emitProgress(10, TOTAL_STEPS, 'Finalizando', 'Actualizando log de sincronización...');
 

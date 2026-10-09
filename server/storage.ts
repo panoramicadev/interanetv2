@@ -1318,6 +1318,11 @@ export interface IStorage {
   ): Promise<Array<ObraVenta & { obraNombre: string | null }>>;
   /** Asocia un documento. Si ya estaba y se había desasociado, lo reactiva. */
   asociarObraVenta(vinculo: InsertObraVenta): Promise<ObraVenta>;
+  /**
+   * "No es de esta obra": deja el documento marcado como descartado para que no
+   * se vuelva a sugerir ni a vincular solo. Si estaba asociado, lo saca.
+   */
+  descartarObraVenta(vinculo: InsertObraVenta): Promise<ObraVenta>;
   /** Desasociar NO borra: marca la fila inactiva y deja quién y cuándo. */
   desasociarObraVenta(
     id: string,
@@ -13909,6 +13914,7 @@ export class DatabaseStorage implements IStorage {
           clienteNombre: vinculo.clienteNombre ?? null,
           fechaEmision: vinculo.fechaEmision ?? null,
           montoDocumento: vinculo.montoDocumento ?? null,
+          regla: vinculo.regla ?? null,
           asociadoPorId: vinculo.asociadoPorId ?? null,
           asociadoPorNombre: vinculo.asociadoPorNombre ?? null,
           desasociadoPorId: null,
@@ -13916,6 +13922,24 @@ export class DatabaseStorage implements IStorage {
           desasociadoEn: null,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },
+      })
+      .returning();
+    return guardado;
+  }
+
+  async descartarObraVenta(vinculo: InsertObraVenta): Promise<ObraVenta> {
+    const descarte = {
+      activo: false,
+      desasociadoPorId: vinculo.desasociadoPorId ?? null,
+      desasociadoPorNombre: vinculo.desasociadoPorNombre ?? null,
+      desasociadoEn: sql`CURRENT_TIMESTAMP`,
+    };
+    const [guardado] = await db
+      .insert(obraVentas)
+      .values({ ...vinculo, ...descarte })
+      .onConflictDoUpdate({
+        target: [obraVentas.obraId, obraVentas.origen, obraVentas.idmaeedo],
+        set: { ...descarte, updatedAt: sql`CURRENT_TIMESTAMP` },
       })
       .returning();
     return guardado;

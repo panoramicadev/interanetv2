@@ -466,7 +466,8 @@ function DetalleObra({
   const obra = calc.obra;
   const esEdificio = obra.tipoObra === "edificios";
   const unidad = esEdificio ? "departamentos" : "viviendas";
-  const calculados = productos.map(calcularProducto);
+  const pintadasObra = Number(obra.viviendasPintadas) || 0;
+  const calculados = productos.map((p) => calcularProducto(p, pintadasObra));
 
   return (
     <div className="space-y-5">
