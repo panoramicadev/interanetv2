@@ -876,6 +876,15 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     // venta retoma el nombre de su ferretería por el prefijo de su orden de compra.
     await imputarSucursalesPorPrefijo();
 
+    // Con los documentos ya cargados, los que solo pueden ser de una obra se
+    // cuelgan solos de ella (ver obras-ventas-auto.ts). Si falla no tumba el ETL.
+    try {
+      const { autoAsociarVentasObras } = await import('./obras-ventas-auto');
+      await autoAsociarVentasObras();
+    } catch (error: any) {
+      console.error('❌ Error al vincular documentos con sus obras:', error.message);
+    }
+
     // Contar filas DESPUÉS del proceso para calcular registros nuevos
     const countAfterResult = await db.execute(sql`SELECT COUNT(*) as count FROM ventas.fact_ventas`);
     const rowsAfterUpsert = Number(countAfterResult.rows[0].count);

@@ -1392,6 +1392,27 @@ export async function bootstrapDatabase(): Promise<void> {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_obra_ventas_obra" ON obra_ventas (obra_id)`);
     await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "UQ_obra_ventas_doc" ON obra_ventas (obra_id, origen, idmaeedo)`);
+    // Vinculación automática (migración 094): con qué regla entró el documento,
+    // y la nota de venta que recepción digitó en Random para la cotización.
+    //
+    // Junto con eso, las viviendas pintadas pasan a cargarse en la obra. Hasta
+    // acá la obra mostraba las del producto más adelantado y su propia columna
+    // quedó con números viejos: se copia UNA vez lo que se venía mostrando, para
+    // que ninguna obra cambie de avance con el despliegue. La columna nueva de
+    // quotes es la marca de que ya se hizo; después manda lo que se escriba.
+    const yaMigrado: any = await db.execute(sql`
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'quotes' AND column_name = 'erp_nvv_number'
+    `);
+    if ((yaMigrado.rows ?? yaMigrado).length === 0) {
+      await db.execute(sql`
+        UPDATE obras o SET viviendas_pintadas = m.pintadas
+        FROM (SELECT obra_id, MAX(viviendas_pintadas) AS pintadas FROM obra_productos GROUP BY obra_id) m
+        WHERE m.obra_id = o.id AND o.viviendas_pintadas <> m.pintadas
+      `);
+    }
+    await db.execute(sql`ALTER TABLE obra_ventas ADD COLUMN IF NOT EXISTS regla VARCHAR(30)`);
+    await db.execute(sql`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS erp_nvv_number VARCHAR(30)`);
 
     // Solicitud de crédito (migración 077). Ver migrations/077_solicitudes_credito.sql
     // — se replica acá porque el runner de .sql corre DESPUÉS del bootstrap y las

@@ -2258,6 +2258,9 @@ export const quotes = pgTable("quotes", {
   erpEnteredAt: timestamp("erp_entered_at"),
   erpEnteredById: varchar("erp_entered_by_id"),
   erpNotes: text("erp_notes"),
+  // La nota de venta con que recepción ingresó el pedido a Random. Con la obra
+  // de la cotización, es lo que deja vincular el documento a su obra sin adivinar.
+  erpNvvNumber: varchar("erp_nvv_number", { length: 30 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -3643,6 +3646,9 @@ export const obraVentas = pgTable("obra_ventas", {
   fechaEmision: date("fecha_emision"),
   montoDocumento: numeric("monto_documento", { precision: 18, scale: 2 }),
   notas: text("notas"),
+  // Por qué regla se vinculó solo (ver server/obras-ventas-auto.ts). NULL = lo
+  // asoció una persona.
+  regla: varchar("regla", { length: 30 }),
   // Desasociar NO borra la fila: la marca inactiva y deja quién y cuándo. Volver
   // a asociar el mismo documento reactiva esta misma fila (ver el índice único).
   activo: boolean("activo").notNull().default(true),
