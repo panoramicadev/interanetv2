@@ -452,6 +452,33 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
     },
   });
 
+  // Las viviendas pintadas se escriben en la fila de la obra. El número cambia
+  // en el acto sobre la caché (igual que las celdas de producto) y, si el
+  // servidor falla, vuelve al valor de la base.
+  const actualizarObra = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
+      const res = await apiRequest(`/api/obras/${id}`, { method: "PUT", data });
+      return res.json();
+    },
+    onMutate: async ({ id, data }) => {
+      const clave = ["/api/obras", vendedorFiltro];
+      await queryClient.cancelQueries({ queryKey: clave });
+      const anteriores = queryClient.getQueryData<ObraConCliente[]>(clave);
+      queryClient.setQueryData<ObraConCliente[]>(clave, (obras) =>
+        obras?.map((o) => (o.id === id ? { ...o, ...(data as Partial<ObraConCliente>) } : o)),
+      );
+      return { clave, anteriores };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/obras"] });
+    },
+    onError: (error: any, _vars, context) => {
+      if (context) queryClient.setQueryData(context.clave, context.anteriores);
+      toast({ title: "No se pudo guardar el cambio", description: error?.message, variant: "destructive" });
+      queryClient.invalidateQueries({ queryKey: ["/api/obras"] });
+    },
+  });
+
   const eliminar = useMutation({
     mutationFn: async (id: string) => {
       await apiRequest(`/api/obras/${id}`, { method: "DELETE" });
@@ -510,7 +537,7 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
     const items = cartera.flatMap((c) =>
       c.filas.flatMap((f) =>
         (productosPorObra.get(f.obra.id) ?? []).map((p) => {
-          const calc = calcularProducto(p);
+          const calc = calcularProducto(p, Number(f.obra.viviendasPintadas) || 0);
           const critico = f.pendientes > 0 && calc.saldo <= 0;
           return { producto: p, calc, obra: f.obra, constructora: c, pendientes: f.pendientes, critico };
         }),
@@ -1068,6 +1095,7 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                                   productos={productosPorObra.get(fila.obra.id) ?? []}
                                   expandida={expandida}
                                   onToggle={() => setObraExpandida(expandida ? null : fila.obra.id)}
+                                  onGuardar={(data) => actualizarObra.mutate({ id: fila.obra.id, data })}
                                   onAbrirConstructora={() => seleccionarConstructora(constructora)}
                                 />
                               );
@@ -1335,7 +1363,7 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                   <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                     Obras
                     <span className="ml-2 text-xs font-normal text-slate-400">
-                      Cada fila es el total de sus productos · toca una para abrirlos
+                      Las pintadas se anotan en la fila de la obra · toca una para ver sus productos
                     </span>
                   </div>
                   <button
@@ -1390,6 +1418,7 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                             productos={productosObra}
                             expandida={expandida}
                             onToggle={() => setObraExpandida(expandida ? null : f.obra.id)}
+                            onGuardar={(data) => actualizarObra.mutate({ id: f.obra.id, data })}
                             onEditar={() => abrirEdicion(f.obra)}
                             onEliminar={() => setObraAEliminar(f.obra)}
                           />
@@ -2246,6 +2275,7 @@ function FilaObra({
   productos,
   expandida,
   onToggle,
+  onGuardar,
   onEditar,
   onEliminar,
 }: {
@@ -2255,6 +2285,7 @@ function FilaObra({
   productos: ObraProducto[];
   expandida: boolean;
   onToggle: () => void;
+  onGuardar: (data: Record<string, unknown>) => void;
   onEditar: () => void;
   onEliminar: () => void;
 }) {
@@ -2299,7 +2330,7 @@ function FilaObra({
             key={c.key}
             className={`px-2.5 py-3 text-center tabular-nums text-slate-600 dark:text-slate-300 ${c.borde ?? ""}`}
           >
-            {c.render(fila)}
+            {c.render(fila, { onGuardar })}
           </td>
         ))}
         <td className="pr-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -2335,6 +2366,7 @@ function FilaObra({
           <FilasProductos
             obraId={fila.obra.id}
             viviendas={fila.viviendas}
+            pintadasObra={toInt(fila.obra.viviendasPintadas)}
             productos={productos}
             columnas={columnas}
             sticky
@@ -2381,6 +2413,7 @@ function FilaObraGlobal({
   productos,
   expandida,
   onToggle,
+  onGuardar,
   onAbrirConstructora,
 }: {
   fila: ObraCalculada;
@@ -2388,6 +2421,7 @@ function FilaObraGlobal({
   productos: ObraProducto[];
   expandida: boolean;
   onToggle: () => void;
+  onGuardar: (data: Record<string, unknown>) => void;
   onAbrirConstructora: () => void;
 }) {
   return (
@@ -2423,7 +2457,7 @@ function FilaObraGlobal({
             key={c.key}
             className={`px-2.5 py-3 text-center tabular-nums text-slate-600 dark:text-slate-300 ${c.borde ?? ""}`}
           >
-            {c.render(fila)}
+            {c.render(fila, { onGuardar })}
           </td>
         ))}
 
@@ -2448,6 +2482,7 @@ function FilaObraGlobal({
           <FilasProductos
             obraId={fila.obra.id}
             viviendas={fila.viviendas}
+            pintadasObra={toInt(fila.obra.viviendasPintadas)}
             productos={productos}
             columnas={columnas}
           />

@@ -41,7 +41,13 @@ export interface ProductoCalculado {
   sugerido: number;
 }
 
-export function calcularProducto(producto: ObraProducto): ProductoCalculado {
+/**
+ * `pintadasObra` son las viviendas pintadas que se cargaron en la fila de la
+ * obra. El producto las hereda mientras no tenga un número propio: en terreno
+ * el avance se cuenta por obra, y solo se ajusta por producto cuando alguno va
+ * a otro ritmo (el sellador adelantado, el esmalte de rejas rezagado).
+ */
+export function calcularProducto(producto: ObraProducto, pintadasObra = 0): ProductoCalculado {
   const proyectada = toNum(producto.cantidadProyectada);
   const pedida = toNum(producto.cantidadPedida);
   const entregada = toNum(producto.cantidadEntregada);
@@ -50,7 +56,7 @@ export function calcularProducto(producto: ObraProducto): ProductoCalculado {
   // las proyectadas van redondeadas hacia arriba y la división desviaría el
   // consumo esperado (1,502 en vez de 1,5).
   const rendimiento = toNum(producto.rendimientoPorVivienda);
-  const pintadas = toInt(producto.viviendasPintadas);
+  const pintadas = toInt(producto.viviendasPintadas) || pintadasObra;
 
   const porPedir = Math.max(0, proyectada - pedida);
   const saldo = entregada - utilizada;
@@ -137,9 +143,9 @@ export interface ObraCalculada {
  *  - saldo en obra      = entregado − utilizado
  *  - faltante por pedir = proyectado − pedido
  *  - próximo pedido     = proyectado − pedido − saldo disponible
- *  - avance             = el producto más adelantado marca las viviendas
- *                         pintadas de la obra (el detalle por producto muestra
- *                         cuánto va rezagado cada uno)
+ *  - avance             = las viviendas pintadas que se cargan en la fila de
+ *                         la obra; si todavía no se cargaron, las del producto
+ *                         más adelantado (así venían las obras anteriores)
  *  - desviación         = consumo real / consumo esperado − 1: es el "¿está
  *                         rindiendo lo que dijimos?" que se revisa en terreno
  *  - estado = Terminado si está todo pintado; Revisar saldo si algún producto
@@ -152,11 +158,12 @@ export interface ObraCalculada {
  */
 export function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[] = []): ObraCalculada {
   const viviendas = toInt(obra.viviendas);
-  const calculados = productosObra.map(calcularProducto);
+  const pintadasObra = toInt(obra.viviendasPintadas);
+  const calculados = productosObra.map((p) => calcularProducto(p, pintadasObra));
 
   if (calculados.length === 0) {
     const proyectadas = toInt(obra.tinetasProyectadas);
-    const pintadas = toInt(obra.viviendasPintadas);
+    const pintadas = pintadasObra;
     const pedidas = toInt(obra.tinetasPedidas);
     const entregadas = toInt(obra.tinetasEntregadas);
     const ratio = toNum(obra.tinetasPorVivienda);
@@ -201,9 +208,10 @@ export function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[]
   const consumoReal = conRendimiento.reduce((a, p) => a + p.utilizada, 0);
   const desviacion = consumoTeorico > 0 ? consumoReal / consumoTeorico - 1 : 0;
 
-  // La obra avanza al ritmo de su producto más adelantado (la fachada, casi
-  // siempre); el rezago de cada SKU se ve en el detalle.
-  const pintadas = calculados.reduce((max, p) => Math.max(max, p.pintadas), 0);
+  // Manda lo que se cargó en la fila de la obra. Las obras que venían con el
+  // avance cargado solo por producto siguen leyendo el más adelantado (la
+  // fachada, casi siempre) hasta que alguien escriba el número de la obra.
+  const pintadas = pintadasObra > 0 ? pintadasObra : calculados.reduce((max, p) => Math.max(max, p.pintadas), 0);
   const pendientes = Math.max(0, viviendas - pintadas);
   const avance = viviendas > 0 ? Math.min(1, pintadas / viviendas) : 0;
 
@@ -223,8 +231,8 @@ export function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[]
     obra, viviendas, pintadas, pendientes, avance,
     proyectadas, pedidas, entregadas, usadas, saldo, faltantePorPedir, sugerido,
     consumoTeorico, consumoReal, desviacion,
-    // Sobre las pintadas de la obra (el producto más adelantado): es el consumo
-    // total repartido entre las casas que efectivamente se pintaron.
+    // Sobre las pintadas de la obra: es el consumo total repartido entre las
+    // casas que efectivamente se pintaron.
     rendimientoReal: pintadas > 0 ? usadas / pintadas : 0,
     productos: calculados.length,
     estado,
