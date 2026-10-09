@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, startTransition } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -6491,7 +6491,10 @@ function TaskDetailDialog({
               deja ver dónde estás; va el desplegable de sección del módulo, en
               recuadro y pegado al título (pedido del usuario, oct-2026). */}
           <div className="sm:hidden mt-3">
-            <Select value={activeDetailTab} onValueChange={setActiveDetailTab}>
+            {/* El cambio de sección va en una transición: el desplegable se cierra al
+                instante y la sección nueva, que es pesada de dibujar en un teléfono,
+                se pinta después sin dejar la pantalla sin responder. */}
+            <Select value={activeDetailTab} onValueChange={(v) => startTransition(() => setActiveDetailTab(v))}>
               <SelectTrigger
                 className="w-full h-auto gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700 rounded-2xl pl-2.5 pr-4 py-2 shadow-sm focus:ring-0 focus:ring-offset-0 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:opacity-60"
                 data-testid="select-detalle-tab-movil"
@@ -6524,7 +6527,7 @@ function TaskDetailDialog({
           {creditoResumen && (
             <button
               type="button"
-              onClick={() => setActiveDetailTab("cobranza")}
+              onClick={() => startTransition(() => setActiveDetailTab("cobranza"))}
               className="sm:hidden mt-2 w-full grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-800 rounded-2xl border border-slate-200/70 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm text-left"
               data-testid="resumen-cobranza-movil"
             >
