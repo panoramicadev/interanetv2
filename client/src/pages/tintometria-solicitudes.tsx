@@ -105,6 +105,8 @@ const normalizar = (s: string) =>
 
 const CAMPO = "h-10 rounded-xl text-sm bg-slate-50/60 focus-visible:border-[#fd6301] focus-visible:ring-orange-500/20";
 const ETIQUETA = "text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1";
+// Los formatos que se pueden pedir. Se guardan juntos, en este orden: "Galón, Balde 4 gl".
+const FORMATOS = ["1/4 de Galón", "Galón", "Balde 4 gl", "Balde 5 gl"] as const;
 const BOTON_MARCA =
   "rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25";
 
@@ -448,7 +450,30 @@ function NuevaSolicitud({ colorInicial, onEnviada }: { colorInicial: string | nu
           </div>
           <div>
             <div className={ETIQUETA}>Formato</div>
-            <Input value={form.formato} onChange={(e) => set("formato", e.target.value)} className={CAMPO} placeholder="Ej.: 4 galones" />
+            <div className="flex flex-wrap gap-1.5">
+              {FORMATOS.map((f) => {
+                const elegidos = form.formato ? form.formato.split(", ") : [];
+                const activo = elegidos.includes(f);
+                return (
+                  <button
+                    key={f}
+                    type="button"
+                    aria-pressed={activo}
+                    onClick={() =>
+                      set("formato", FORMATOS.filter((x) => (x === f ? !activo : elegidos.includes(x))).join(", "))
+                    }
+                    className={`h-10 px-3 rounded-xl border text-sm transition-colors ${
+                      activo
+                        ? "border-[#fd6301] bg-[#fd6301] text-white font-semibold"
+                        : "border-slate-200 bg-slate-50/60 text-slate-600 hover:border-[#fd6301]/50 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300"
+                    }`}
+                    data-testid={`chip-lab-formato-${f}`}
+                  >
+                    {f}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           {form.tipo !== "formula" && (
             <div>
@@ -929,9 +954,10 @@ function RechazarBoton({ onRechazar }: { onRechazar: (motivo: string) => void })
   );
 }
 
-/** Galones del formato pedido, si se entiende ("4 galones" → 4, "galón" → 1). */
+/** Galones del formato pedido, si se entiende ("4 galones" → 4, "galón" → 1). Si
+ * pidieron varios, vale el primero. */
 function galonesDelFormato(formato: string | null | undefined): string {
-  const t = String(formato ?? "").toLowerCase();
+  const t = String(formato ?? "").split(",")[0].toLowerCase();
   const n = /(\d+(?:[.,]\d+)?)\s*(?:gl|gal)/.exec(t);
   if (n) return n[1].replace(",", ".");
   if (/1\/4/.test(t)) return "0.25";
