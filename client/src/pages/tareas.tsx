@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef, startTransition } from "react";
+import { useEffect, useMemo, useState, useRef, useDeferredValue } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -6430,6 +6430,9 @@ function TaskDetailDialog({
   // que se abre primero (en desktop vive en su columna fija y arranca en Detalle).
   const isNarrow = () => typeof window !== "undefined" && window.innerWidth < 1024;
   const [activeDetailTab, setActiveDetailTab] = useState<string>(() => (isNarrow() ? "chat" : "detalle"));
+  // El encabezado (selector de sección) cambia al instante; el contenido de la
+  // sección, que es pesado de dibujar en un teléfono, lo sigue sin trabar el toque.
+  const detailTabContenido = useDeferredValue(activeDetailTab);
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1024px)");
     // Al pasar a desktop el chat deja de ser pestaña: hay que mover el foco o el
@@ -6696,44 +6699,42 @@ function TaskDetailDialog({
           {/* Celular: en el riel no entran seis pestañas y arrastrarlas a ciegas no
               deja ver dónde estás; va el desplegable de sección del módulo, en
               recuadro y pegado al título (pedido del usuario, oct-2026). */}
-          <div className="sm:hidden mt-3">
-            {/* El cambio de sección va en una transición: el desplegable se cierra al
-                instante y la sección nueva, que es pesada de dibujar en un teléfono,
-                se pinta después sin dejar la pantalla sin responder. */}
-            <Select value={activeDetailTab} onValueChange={(v) => startTransition(() => setActiveDetailTab(v))}>
-              <SelectTrigger
-                className="w-full h-auto gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700 rounded-2xl pl-2.5 pr-4 py-2 shadow-sm focus:ring-0 focus:ring-offset-0 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:opacity-60"
-                data-testid="select-detalle-tab-movil"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  {/* Ícono suelto, sin fondo (pedido del usuario, oct-2026). */}
-                  <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] shrink-0">
-                    <DetailTabIcon className="h-5 w-5" />
-                  </div>
-                  <div className="flex flex-col items-start leading-none min-w-0">
-                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Sección</span>
-                    <span className="font-normal text-sm text-slate-700 dark:text-slate-100 truncate">{detailTabActiva.label}</span>
-                  </div>
-                </div>
-              </SelectTrigger>
-              <SelectContent className="rounded-2xl">
-                {detailTabs.map(({ value, label, Icon }) => (
-                  <SelectItem key={value} value={value} className="rounded-lg py-2.5">
-                    <span className="flex items-center gap-2.5">
-                      <Icon className="h-4 w-4 text-[#fd6301]" />
-                      {label}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="sm:hidden mt-3 relative">
+            {/* Selector NATIVO del teléfono, invisible sobre la tarjeta (oct-2026). El
+                desplegable de Radix abría una lista flotante que deja el `body` con
+                `pointer-events: none` mientras está abierta: en el celular, si no se
+                cerraba bien, toda la pantalla quedaba "pegada". El nativo no monta
+                nada encima de la página y se siente como el resto del teléfono.
+                text-base (16px): con menos, iOS hace zoom al enfocarlo. */}
+            <select
+              value={activeDetailTab}
+              onChange={(e) => setActiveDetailTab(e.target.value)}
+              aria-label="Sección"
+              className="peer absolute inset-0 z-10 w-full h-full opacity-0 cursor-pointer appearance-none text-base"
+              data-testid="select-detalle-tab-movil"
+            >
+              {detailTabs.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+            <div className="flex items-center gap-3 w-full bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700 rounded-2xl pl-2.5 pr-4 py-2 shadow-sm peer-focus-visible:ring-2 peer-focus-visible:ring-[#fd6301]/40">
+              {/* Ícono suelto, sin fondo (pedido del usuario, oct-2026). */}
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] shrink-0">
+                <DetailTabIcon className="h-5 w-5" />
+              </div>
+              <div className="flex flex-col items-start leading-none min-w-0 flex-1">
+                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Sección</span>
+                <span className="font-normal text-sm text-slate-700 dark:text-slate-100 truncate">{detailTabActiva.label}</span>
+              </div>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
+            </div>
           </div>
           {/* Celular: resumen de cobranza a la vista antes de entrar a conversar
               (pedido del usuario, oct-2026). Un toque abre la pestaña Cobranza. */}
           {creditoResumen && (
             <button
               type="button"
-              onClick={() => startTransition(() => setActiveDetailTab("cobranza"))}
+              onClick={() => setActiveDetailTab("cobranza")}
               className="sm:hidden mt-2 w-full grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-800 rounded-2xl border border-slate-200/70 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm text-left"
               data-testid="resumen-cobranza-movil"
             >
@@ -6783,7 +6784,7 @@ function TaskDetailDialog({
 
           {/* Right Panel: pestañas (Detalle + info del cliente) */}
           <div className="flex-1 flex flex-col min-h-0 bg-slate-50/50">
-            <Tabs value={activeDetailTab} onValueChange={setActiveDetailTab} className="flex-1 flex flex-col min-h-0">
+            <Tabs value={detailTabContenido} onValueChange={setActiveDetailTab} className="flex-1 flex flex-col min-h-0">
               {/* En el celular las pestañas son el desplegable "Sección" del encabezado. */}
               <div className="hidden sm:block px-4 pt-3 pb-2 border-b border-slate-200 bg-white flex-shrink-0 overflow-x-auto">
                 <TabsList className="bg-slate-100/80 h-9 p-1 w-max">
