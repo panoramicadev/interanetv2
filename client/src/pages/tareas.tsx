@@ -241,6 +241,13 @@ type TareasFiltrosPersistidos = {
   segmento: string;
 };
 
+// Cuentas admin que NO se suman solas a las tareas y citas nuevas (ver
+// `asignacionesPorDefecto`). Van por nombre, sin mayúsculas ni tildes, porque son las
+// mismas cuentas en todas las copias del sistema y el id cambia entre ellas.
+const normalizarNombre = (s?: string | null) =>
+  (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+const ADMINS_SIN_TAREAS = new Set(['administrador sistema', 'yoel paredes']);
+
 function loadTareasFiltros(): Partial<TareasFiltrosPersistidos> {
   try {
     const raw = sessionStorage.getItem(FILTERS_STORAGE_KEY);
@@ -364,6 +371,11 @@ export default function TareasPage() {
   // afuera Industrial, donde la pestaña es "Proyectos" (otra unidad de trabajo), y
   // Marketing, que tiene ahí su triage de solicitudes.
   const tareasEnCalendario = !isMarketing && !(esUsuarioIndustrial(user) && showExtraSegmentTabs);
+  // El Calendario como agenda del equipo ("Agendar", reuniones, eventos y visitas) es
+  // para todas las áreas menos Marketing, Industrial incluida (pedido del usuario,
+  // oct-2026): Industrial conserva su pestaña Proyectos, pero su calendario funciona
+  // igual que el del resto.
+  const agendaEnCalendario = !isMarketing;
   // Pestaña donde aterriza lo que antes caía en "Tareas".
   const tabTareas = tareasEnCalendario ? 'calendario' : 'tareas';
   // Solicitud de Crédito salió del Panel de Trabajo: se pide desde su módulo
@@ -377,7 +389,7 @@ export default function TareasPage() {
   // y con los chips de contexto del encabezado. El borde inferior transparente está
   // también en la inactiva para que al cambiar de pestaña no salte el alto.
   const tabTriggerClass =
-    "group inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 text-xs sm:text-sm font-normal transition-all duration-200 text-[#0a0a0a] dark:text-slate-200 hover:text-[#fd6301] dark:hover:text-white border-b-2 border-transparent bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-[#0a0a0a] data-[state=active]:border-[#0a0a0a] -mb-px dark:data-[state=active]:bg-transparent dark:data-[state=active]:text-white dark:data-[state=active]:border-slate-100 rounded-none whitespace-nowrap shrink-0";
+    "group inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 text-xs sm:text-sm font-normal transition-all duration-200 text-[#0a0a0a] dark:text-slate-200 hover:text-[#fd6301] dark:hover:text-white border-b-2 border-transparent bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-[#0a0a0a] data-[state=active]:border-[#0a0a0a] -mb-px dark:data-[state=active]:bg-transparent dark:data-[state=active]:text-white dark:data-[state=active]:border-slate-100 rounded-none whitespace-nowrap shrink-0 focus-visible:ring-0 focus-visible:ring-offset-0";
   const tabIconClass = "h-4 w-4 shrink-0 hidden sm:block";
 
   // La pestaña activa se centra dentro del riel al montar y al cambiar de pestaña. Se
@@ -1253,7 +1265,12 @@ export default function TareasPage() {
   const [taskFlow, setTaskFlow] = useState<'otras' | 'seguimiento' | 'marketing'>('otras');
   // Formulario "Agendar" del Calendario: el flujo 'otras' de siempre, con un tipo
   // (tarea, reunión, evento o visita a cliente) y sus datos propios.
-  const modoAgenda = taskFlow === 'otras' && tareasEnCalendario;
+  // En Industrial el flujo 'otras' es "Proyecto"; solo es la agenda cuando el formulario
+  // se abrió desde el Calendario (ver `abrirAgenda`).
+  const [abiertoDesdeAgenda, setAbiertoDesdeAgenda] = useState(false);
+  const modoAgenda = taskFlow === 'otras' && (tareasEnCalendario || abiertoDesdeAgenda);
+  // El formulario es de proyecto solo en Industrial y fuera de la agenda.
+  const proyectoEnFormulario = modoProyectos && !modoAgenda;
   const [agendaTipo, setAgendaTipo] = useState<AgendaTipo>('tarea');
   const [agendaLugar, setAgendaLugar] = useState('');
   const [agendaHoraFin, setAgendaHoraFin] = useState('');
@@ -1266,6 +1283,11 @@ export default function TareasPage() {
   };
   const [showMarketingDialog, setShowMarketingDialog] = useState(false);
   const seguimientoMode = taskFlow === 'seguimiento';
+  // Al cerrarse el formulario (guardado o cancelado) se olvida que vino de la agenda,
+  // para que el próximo "Añadir proyecto" de Industrial vuelva a ser un proyecto.
+  useEffect(() => {
+    if (!showCreateDialog) setAbiertoDesdeAgenda(false);
+  }, [showCreateDialog]);
 
   // En modo seguimiento el título por defecto es el nombre del cliente
   useEffect(() => {
@@ -1287,9 +1309,10 @@ export default function TareasPage() {
       setSearchClienteTask("");
       // Aterrizar en la pestaña donde el ítem recién creado será visible.
       const esSeguimiento = (vars as any)?.payload?.kind === 'seguimiento_cliente';
-      setActiveTab(esSeguimiento ? "seguimiento" : tabTareas);
+      const esAgenda = (vars as any)?.payload?.kind === 'agenda';
+      setActiveTab(esSeguimiento ? "seguimiento" : esAgenda ? "calendario" : tabTareas);
       // En el calendario se salta al mes de lo que se acaba de agendar.
-      if (!esSeguimiento && tareasEnCalendario && (vars as any)?.dueDate) {
+      if (!esSeguimiento && (tareasEnCalendario || esAgenda) && (vars as any)?.dueDate) {
         setCalendarMonth(new Date((vars as any).dueDate));
       }
       const tipo = AGENDA_TIPOS.find((t) => t.value === (vars as any)?.payload?.tipo);
@@ -1298,7 +1321,7 @@ export default function TareasPage() {
         title: esSeguimiento ? "Seguimiento creado" : agendado ? `Agendado: ${tipo!.label}` : "Tarea creada",
         description: esSeguimiento
           ? "El seguimiento se ha creado exitosamente."
-          : tareasEnCalendario ? "Ya aparece en el calendario." : "La tarea se ha creado exitosamente.",
+          : tareasEnCalendario || esAgenda ? "Ya aparece en el calendario." : "La tarea se ha creado exitosamente.",
       });
     },
     onError: (error: any) => {
@@ -1720,7 +1743,7 @@ export default function TareasPage() {
     // aparecen las revisiones propias con fecha (como antes), no las de todo el
     // equipo, que lo llenarían.
     if (kind === 'seguimiento_cliente' && !(task.dueDate && esMiaTarea(task))) return false;
-    if (!tareasEnCalendario) return esMiaTarea(task);
+    if (!agendaEnCalendario) return esMiaTarea(task);
     if (!isSalesperson && segmentoFilter !== 'all') {
       const area = areaEfectivaDeTarea(task);
       if (area && area !== segmentoFilter) return false;
@@ -1840,17 +1863,22 @@ export default function TareasPage() {
   //   tareas donde figura como asignado, no las que escribió.
   // - su supervisor, tomado de la ficha del creador. Si en su ficha no hay
   //   supervisor cargado, ese no se agrega y la tarea igual se crea.
-  // - la administración: todas las cuentas de rol admin.
+  // - la administración: las cuentas de rol admin, salvo las de `ADMINS_SIN_TAREAS`
+  //   (pedido del usuario, oct-2026): la cuenta genérica del sistema y la de soporte
+  //   aparecían en todas las tareas y citas sin tener nada que hacer en ellas. Igual
+  //   las pueden ver, porque un admin ve todas las tareas aunque no esté asignado.
   //
   // La lista de gente sale de la carga inicial del panel, que llega para todos los
   // roles; `availableUsers` (que no se pide para vendedor ni marketing) va primero
   // por si ya está fresca.
-  const personasDelSistema = (availableUsers || tareasInit?.salespeople || []) as Array<{ id: string; role: string }>;
+  const personasDelSistema = (availableUsers || tareasInit?.salespeople || []) as Array<{ id: string; role: string; salespersonName?: string | null }>;
   const asignacionesPorDefecto = (): CreateTaskWithAssignmentsInput['assignments'] => {
     const ids: string[] = [user.id];
     const supervisorDelCreador = (user as any).supervisorId as string | undefined | null;
     if (supervisorDelCreador) ids.push(supervisorDelCreador);
-    personasDelSistema.forEach((p) => { if (p.role === 'admin') ids.push(p.id); });
+    personasDelSistema.forEach((p) => {
+      if (p.role === 'admin' && !ADMINS_SIN_TAREAS.has(normalizarNombre(p.salespersonName))) ids.push(p.id);
+    });
     // Sin repetidos: el creador puede ser él mismo un admin, o su propio supervisor.
     return Array.from(new Set(ids)).map((id) => {
       const rol = personasDelSistema.find((p) => p.id === id)?.role;
@@ -1870,7 +1898,7 @@ export default function TareasPage() {
     }
     const payload = seguimientoMode
       ? { kind: 'seguimiento_cliente' }
-      : modoProyectos
+      : proyectoEnFormulario
         ? { kind: 'proyecto' }
         : modoAgenda
           ? {
@@ -1900,6 +1928,7 @@ export default function TareasPage() {
   // fecha queda puesta a las 09:00 para que solo haya que ajustar la hora.
   const abrirAgenda = (dia?: Date) => {
     setTaskFlow('otras');
+    setAbiertoDesdeAgenda(true);
     setSelectedClienteTask(null);
     setSearchClienteTask("");
     limpiarAgenda(dia ? 'reunion' : 'tarea');
@@ -2029,7 +2058,7 @@ export default function TareasPage() {
       return { label: 'Nueva ruta', onClick: () => rutasRef.current?.nuevaRuta() };
     }
     // Calendario: una sola acción para tareas, reuniones, eventos y visitas.
-    if (activeTab === 'calendario' && tareasEnCalendario) {
+    if (activeTab === 'calendario' && agendaEnCalendario) {
       return { label: 'Agendar', onClick: () => abrirAgenda() };
     }
     return {
@@ -2176,7 +2205,7 @@ export default function TareasPage() {
         testId: `select-obras-vendedor${sufijo}`,
       });
     }
-    if (activeTab === 'calendario' && tareasEnCalendario && puedeFiltrarPorVendedor) {
+    if (activeTab === 'calendario' && agendaEnCalendario && puedeFiltrarPorVendedor) {
       return pillVendedor({
         value: calendarioVendedor,
         onChange: setCalendarioVendedor,
@@ -2199,6 +2228,28 @@ export default function TareasPage() {
     return null;
   };
   const hayselectorVendedor = selectorVendedorPara() !== null;
+  // ¿Alguna pestaña puede mostrar el pill de Vendedor? Si sí, en escritorio la fila del
+  // Vendedor queda SIEMPRE reservada (vacía donde no aplica), para que el encabezado
+  // tenga el mismo alto en todas las pestañas y las pestañas no salten al cambiar de una
+  // a otra (pedido del usuario, oct-2026).
+  const reservarFilaVendedor = !isSalesperson && opcionesVendedor.length >= 2;
+
+  // Acción de Seguimiento (Mi Equipo). En escritorio "Nuevo seguimiento" sube al
+  // encabezado, en el lugar del botón de la fila del Vendedor (pedido del usuario,
+  // oct-2026); en celular sigue abajo, junto al buscador. "Agregar colaborador" se
+  // sacó de las dos vistas (pedido del usuario, oct-2026).
+  const accionesSeguimientoArriba =
+    activeTab === 'seguimiento' && seguimientoVista === 'clientes' && !isSalesperson &&
+    (user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'encargado_area');
+  const botonNuevoSeguimiento = (
+    <button
+      onClick={() => openNuevoSeguimiento()}
+      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-medium whitespace-nowrap text-white bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] rounded-2xl shadow-md shadow-orange-500/25 transition-all"
+      data-testid="button-nuevo-seguimiento"
+    >
+      <Building2 className="h-4 w-4" /> Nuevo seguimiento
+    </button>
+  );
 
   // Badge naranja de cambios no vistos de una pestaña (misma familia que el
   // pill de conteo de Solicitudes de Marketing).
@@ -2276,7 +2327,7 @@ export default function TareasPage() {
   const taskSearchBox = (
     <div className="relative flex-1 min-w-[220px] max-w-md">
       <div className="flex items-center gap-3 bg-white dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-3 py-2.5 shadow-sm hover:border-sky-200 hover:shadow focus-within:border-sky-300 transition-all">
-        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400 flex-shrink-0">
+        <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] flex-shrink-0">
           <Search className="h-4 w-4" />
         </div>
         <div className="flex flex-col leading-none flex-1 min-w-0">
@@ -2334,7 +2385,7 @@ export default function TareasPage() {
   const seguimientoSearchBox = (
     <div className="relative flex-1 min-w-[220px]">
       <div className="flex items-center gap-3 bg-white dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-3 py-2.5 shadow-sm hover:border-orange-200 hover:shadow focus-within:border-orange-300 transition-all">
-        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
+        <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] flex-shrink-0">
           <Search className="h-4 w-4" />
         </div>
         <div className="flex flex-col leading-none flex-1 min-w-0">
@@ -2389,7 +2440,7 @@ export default function TareasPage() {
         ? 'border-orange-300 dark:border-orange-500/50'
         : 'border-slate-200/70 dark:border-slate-700/60 hover:border-emerald-200'
     }`}>
-      <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 flex-shrink-0">
+      <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] flex-shrink-0">
         <Filter className="h-4 w-4" />
       </div>
       <div className="flex flex-col leading-none">
@@ -2451,10 +2502,22 @@ export default function TareasPage() {
                     quedaba solo, con un hueco vacío al lado del Vendedor. Esta fila es
                     solo de escritorio; en celular el Vendedor baja debajo de la Sección
                     y el botón cierra la pila. */}
-                {hayselectorVendedor && (
-                  <div className="hidden sm:flex items-center justify-end gap-2">
-                    {mostrarBotonAccion && botonAccionNueva}
-                    {selectorVendedorPara()}
+                {/* Si alguna pestaña usa el Vendedor, esta fila está siempre: en las
+                    que no lo usan va un hueco del mismo tamaño y el botón se queda en
+                    el mismo lugar. Así el encabezado no cambia de alto al pasar de una
+                    pestaña a otra (pedido del usuario, oct-2026). */}
+                {(reservarFilaVendedor || accionesSeguimientoArriba) && (
+                  <div className="hidden sm:flex items-center justify-end gap-2 min-h-[46px]">
+                    {/* Solo "Nuevo seguimiento": "Agregar colaborador" se sacó del
+                        encabezado (pedido del usuario, oct-2026). */}
+                    {accionesSeguimientoArriba ? (
+                      botonNuevoSeguimiento
+                    ) : (
+                      <>
+                        {mostrarBotonAccion && botonAccionNueva}
+                        {hayselectorVendedor ? selectorVendedorPara() : <div aria-hidden className="h-[46px] w-52" />}
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -2469,7 +2532,7 @@ export default function TareasPage() {
                   Área. Con pill, en escritorio se dibuja arriba (junto al Vendedor) y acá
                   solo queda la copia de celular. */}
               {mostrarBotonAccion && (
-                <div className={hayselectorVendedor ? 'sm:hidden' : undefined}>{botonAccionNueva}</div>
+                <div className={reservarFilaVendedor ? 'sm:hidden' : undefined}>{botonAccionNueva}</div>
               )}
             </div>
             <Dialog open={showCreateDialog} onOpenChange={(open) => {
@@ -2489,11 +2552,11 @@ export default function TareasPage() {
                       <Plus className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <DialogTitle className="text-lg font-bold text-foreground">{modoAgenda ? 'Agendar' : modoProyectos && !seguimientoMode ? 'Nuevo Proyecto' : 'Nueva Tarea'}</DialogTitle>
+                      <DialogTitle className="text-lg font-bold text-foreground">{modoAgenda ? 'Agendar' : proyectoEnFormulario && !seguimientoMode ? 'Nuevo Proyecto' : 'Nueva Tarea'}</DialogTitle>
                       <DialogDescription className="text-sm text-muted-foreground">
                         {modoAgenda
                           ? 'Una tarea, reunión, evento o visita a cliente en tu calendario'
-                          : modoProyectos && !seguimientoMode
+                          : proyectoEnFormulario && !seguimientoMode
                           ? 'Ponle nombre al proyecto y asígnalo; sus tareas se agregan adentro'
                           : 'Completa los detalles y asigna a miembros del equipo'}
                       </DialogDescription>
@@ -2536,7 +2599,7 @@ export default function TareasPage() {
                           <span className="w-6 h-6 text-[#fd6301] flex items-center justify-center">
                             <Pencil className="w-3.5 h-3.5" />
                           </span>
-                          {modoAgenda ? 'Información' : modoProyectos && !seguimientoMode ? 'Información del proyecto' : 'Información de la tarea'}
+                          {modoAgenda ? 'Información' : proyectoEnFormulario && !seguimientoMode ? 'Información del proyecto' : 'Información de la tarea'}
                         </div>
                         <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 p-4 space-y-4">
                           <FormField
@@ -2544,9 +2607,9 @@ export default function TareasPage() {
                             name="title"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{modoProyectos && !seguimientoMode ? 'Nombre del proyecto *' : 'Título *'}</FormLabel>
+                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{proyectoEnFormulario && !seguimientoMode ? 'Nombre del proyecto *' : 'Título *'}</FormLabel>
                                 <FormControl>
-                                  <Input placeholder={modoAgenda ? AGENDA_TIPOS.find((t) => t.value === agendaTipo)!.placeholder : modoProyectos && !seguimientoMode ? "Ej: Planta Aconcagua — recubrimiento estructural" : "Ej: Visita cliente zona sur"} className="bg-white border-slate-200 focus:border-orange-400 focus:ring-orange-400/20" {...field} data-testid="input-task-title" />
+                                  <Input placeholder={modoAgenda ? AGENDA_TIPOS.find((t) => t.value === agendaTipo)!.placeholder : proyectoEnFormulario && !seguimientoMode ? "Ej: Planta Aconcagua — recubrimiento estructural" : "Ej: Visita cliente zona sur"} className="bg-white border-slate-200 focus:border-orange-400 focus:ring-orange-400/20" {...field} data-testid="input-task-title" />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -2642,7 +2705,7 @@ export default function TareasPage() {
                               name="dueDate"
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{seguimientoMode ? "Fecha de Revisión (opcional)" : modoAgenda ? (agendaTipo === 'tarea' ? "Fecha límite (opcional)" : "Fecha y hora *") : modoProyectos ? "Fecha Objetivo (opcional)" : "Fecha Límite"}</FormLabel>
+                                  <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{seguimientoMode ? "Fecha de Revisión (opcional)" : modoAgenda ? (agendaTipo === 'tarea' ? "Fecha límite (opcional)" : "Fecha y hora *") : proyectoEnFormulario ? "Fecha Objetivo (opcional)" : "Fecha Límite"}</FormLabel>
                                   <FormControl>
                                     <DateTimePicker value={field.value || ""} onChange={field.onChange} />
                                   </FormControl>
@@ -2691,7 +2754,7 @@ export default function TareasPage() {
                         <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 p-4 space-y-3">
                           <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                             <Building2 className="h-3.5 w-3.5" />
-                            {modoProyectos && !seguimientoMode ? 'Posible cliente o producto (Opcional)' : 'Cliente Asociado (Opcional)'}
+                            {proyectoEnFormulario && !seguimientoMode ? 'Posible cliente o producto (Opcional)' : 'Cliente Asociado (Opcional)'}
                           </Label>
                           {selectedClienteTask ? (
                             <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-xl">
@@ -2749,7 +2812,7 @@ export default function TareasPage() {
                                 </div>
                               )}
                               {searchClienteTask.length >= 2 && clientesTask.length === 0 && (
-                                modoProyectos && !seguimientoMode ? (
+                                proyectoEnFormulario && !seguimientoMode ? (
                                   // Los proyectos de Industrial suelen nacer con un posible
                                   // cliente (o un producto en desarrollo) que todavía no
                                   // existe en el ERP: se anota a mano como prospecto.
@@ -3094,7 +3157,9 @@ export default function TareasPage() {
 
       {/* Tabs para Tareas, Calendario, Estimación Semanal/Mensual */}
       {/* Técnico de Obra no tiene acceso a la pestaña de promesas de compra */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      {/* Sin recuadro naranjo al elegir una pestaña (pedido del usuario, oct-2026): ni en
+          la pestaña (ver tabTriggerClass) ni alrededor de su contenido. */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6 [&>[role=tabpanel]:focus-visible]:ring-0 [&>[role=tabpanel]:focus-visible]:ring-offset-0">
         {/* Marketing no ve pestañas: aterriza directo en su lista de tareas. */}
         {/* En celular las pestañas van en un desplegable, no en el riel: en una barra no
             entran y había que arrastrarlas a ciegas para saber dónde estabas parado
@@ -3285,7 +3350,7 @@ export default function TareasPage() {
                     {/* View Mode Toggle */}
                     {(user.role === 'admin' || (user.role === 'supervisor' || user.role === 'encargado_area') || user.role === 'tecnico_obra') && (
                       <div className="flex items-center gap-3 bg-white dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:border-orange-200 hover:shadow transition-all">
-                        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
+                        <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] flex-shrink-0">
                           <Eye className="h-4 w-4" />
                         </div>
                         <div className="flex flex-col leading-none">
@@ -3305,7 +3370,7 @@ export default function TareasPage() {
 
                     {/* Status Filter */}
                     <div className="flex items-center gap-3 bg-white dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:border-emerald-200 hover:shadow transition-all">
-                      <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 flex-shrink-0">
+                      <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] flex-shrink-0">
                         <CheckCircle className="h-4 w-4" />
                       </div>
                       <div className="flex flex-col leading-none">
@@ -3328,7 +3393,7 @@ export default function TareasPage() {
 
                     {/* Priority Filter */}
                     <div className="flex items-center gap-3 bg-white dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:border-amber-200 hover:shadow transition-all">
-                      <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 flex-shrink-0">
+                      <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] flex-shrink-0">
                         <AlertTriangle className="h-4 w-4" />
                       </div>
                       <div className="flex flex-col leading-none">
@@ -4171,61 +4236,26 @@ export default function TareasPage() {
 
                         {/* Nombre + rol + clientes */}
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
                             <span className={`text-sm font-semibold truncate ${total === 0 ? 'text-slate-500' : 'text-slate-800'}`}>{grp.name}</span>
                             {isSupervisor && !isNone && (
                               <span className="text-[9px] font-bold text-slate-500 bg-slate-100 uppercase tracking-wider px-1.5 py-0.5 rounded flex-shrink-0">Supervisor</span>
                             )}
-                          </div>
-                          <div className="flex items-center gap-x-2 gap-y-1 mt-1 flex-wrap">
-                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
-                              <Building2 className="h-3 w-3" />
+                            {/* Los clientes van al lado del nombre, más grandes y sin
+                                negrita (pedido del usuario, oct-2026): sin los chips de
+                                abajo quedaban solos en una segunda línea chica. */}
+                            <span className="inline-flex items-center gap-1.5 text-[13px] font-normal text-slate-400 whitespace-nowrap flex-shrink-0">
+                              <Building2 className="h-3.5 w-3.5" />
                               {total === 0 ? 'Sin clientes asignados' : `${total} cliente${total !== 1 ? 's' : ''} en seguimiento`}
                             </span>
-                            {/* Radiografía del colaborador sin abrir su card */}
-                            {resumen.conPendientes > 0 && (
-                              <span
-                                className="inline-flex items-center gap-1 rounded-full bg-[#fd6301]/10 text-[#c74e01] px-2 py-0.5 text-[10px] font-bold"
-                                data-testid={`chip-pendientes-${id}`}
-                              >
-                                <Clock className="h-3 w-3" />
-                                {resumen.conPendientes} con pendientes
-                              </span>
-                            )}
-                            {resumen.frenados > 0 && (
-                              <span
-                                className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-[10px] font-bold"
-                                title={`Sin interacción hace ${DIAS_SIN_MOVIMIENTO_ALERTA} días o más`}
-                                data-testid={`chip-frenados-${id}`}
-                              >
-                                <AlertTriangle className="h-3 w-3" />
-                                {resumen.frenados} sin movimiento
-                              </span>
-                            )}
-                            {total > 0 && resumen.conPendientes === 0 && resumen.frenados === 0 && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[10px] font-bold">
-                                <Check className="h-3 w-3" />
-                                Todo al día
-                              </span>
-                            )}
                           </div>
+                          {/* Sin chips de "con pendientes", "sin movimiento" ni "Todo al día"
+                              (pedido del usuario, oct-2026): esa radiografía ya está en las
+                              tarjetas de resumen de arriba. */}
                         </div>
 
-                        {/* Métrica: clientes al día sobre el total de su cartera */}
-                        {total > 0 && (
-                          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                            <span className={`text-[13px] font-bold tabular-nums ${done ? 'text-emerald-600' : 'text-slate-700'}`} title="Clientes sin tareas internas pendientes">
-                              {alDia}<span className="text-slate-300 font-medium">/{total}</span>
-                              <span className="ml-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">al día</span>
-                            </span>
-                            <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
-                              <div
-                                className="h-full rounded-full transition-all duration-700"
-                                style={{ width: `${pct}%`, backgroundColor: done ? '#10b981' : '#f97316' }}
-                              />
-                            </div>
-                          </div>
-                        )}
+                        {/* Sin la métrica "N/M al día" ni su barra (pedido del usuario,
+                            oct-2026). */}
 
                         <ChevronRight className={`h-4 w-4 text-slate-300 transition-transform duration-200 flex-shrink-0 ${!isCollapsed ? 'rotate-90' : ''}`} />
                       </button>
@@ -4308,7 +4338,10 @@ export default function TareasPage() {
                       // borde parecía una sección más y competía con las tarjetas de
                       // arriba. El recuadro vuelve solo cuando se abre el buscador de
                       // colaboradores, que sí es un panel con contenido propio.
-                      <div className={showAddMember ? "rounded-2xl border border-slate-200/80 bg-white p-2.5 shadow-sm" : ""}>
+                      // En escritorio, en reposo, "Nuevo seguimiento" vive en el encabezado
+                      // (ver accionesSeguimientoArriba): esta fila queda solo para celular.
+                      // "Agregar colaborador" se sacó (pedido del usuario, oct-2026).
+                      <div className={showAddMember ? "rounded-2xl border border-slate-200/80 bg-white p-2.5 shadow-sm" : "sm:hidden"}>
                         {!showAddMember ? (
                           /* Mismo molde que los botones del encabezado (corrección del
                              usuario, sep-2026): rounded-2xl y alto normal, no los chips
@@ -4317,20 +4350,7 @@ export default function TareasPage() {
                           /* En celular van apilados y a todo el ancho: uno al lado del
                              otro, "Agregar colaborador" parte la palabra en dos líneas. */
                           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                            <button
-                              onClick={() => { setShowAddMember(true); setAddMemberSearch(""); }}
-                              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold whitespace-nowrap text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-orange-200 hover:text-[#fd6301] rounded-2xl shadow-sm transition-all"
-                              data-testid="button-agregar-colaborador"
-                            >
-                              <Plus className="h-4 w-4" /> Agregar colaborador
-                            </button>
-                            <button
-                              onClick={() => openNuevoSeguimiento()}
-                              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold whitespace-nowrap text-white bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] rounded-2xl shadow-md shadow-orange-500/25 transition-all"
-                              data-testid="button-nuevo-seguimiento"
-                            >
-                              <Building2 className="h-4 w-4" /> Nuevo seguimiento
-                            </button>
+                            {botonNuevoSeguimiento}
                           </div>
                         ) : (
                           <div className="space-y-2">
@@ -4828,7 +4848,7 @@ export default function TareasPage() {
         <TabsContent value="calendario" className="space-y-6">
           <CalendarViewTab
             tasks={calendarTasks}
-            onCreateOnDay={tareasEnCalendario && canCreateTasks ? abrirAgenda : undefined}
+            onCreateOnDay={agendaEnCalendario && canCreateTasks ? abrirAgenda : undefined}
             mostrarSinFecha={tareasEnCalendario}
             calendarMonth={calendarMonth}
             setCalendarMonth={setCalendarMonth}
@@ -5011,31 +5031,16 @@ function EstimacionSemanalTab({
 
   return (
     <div className="space-y-3 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
-        <div className="flex items-center gap-3">
-          {/* Mismo tamaño que el ícono del título del módulo ("Panel de Trabajo"):
-              40px y esquina xl (corrección del usuario, ago-2026). La bajada
-              "Registra compromisos de compra…" se sacó: explicaba lo que la propia
-              pantalla muestra y ocupaba dos líneas en celular. */}
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-[#fd6301] flex items-center justify-center shadow-md shadow-orange-500/25 flex-shrink-0">
-            <TrendingUp className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">{esConstruccion ? 'Estimación Mensual' : 'Estimación Semanal'}</h2>
-          </div>
-        </div>
-        {/* El filtro de Vendedor y el botón "Nueva Promesa" que vivían acá subieron al
-            encabezado del módulo (pedido del usuario, sep-2026): quedan en la misma fila
-            que el Área y el botón de las demás pestañas, en vez de repetir una barra de
-            acciones a media pantalla. */}
-      </div>
+      {/* El título "Estimación Semanal/Mensual" se sacó (pedido del usuario, oct-2026):
+          repetía el nombre de la pestaña activa justo encima. El filtro de Vendedor y
+          el botón "Nueva Promesa" ya viven en el encabezado del módulo (sep-2026). */}
 
       {/* Selector de período */}
       <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm">
         <CardHeader className="py-3 sm:py-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#fd6301] text-white flex-shrink-0 shadow-md shadow-[#fd6301]/25">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] flex-shrink-0">
                 <CalendarIcon className="h-4 w-4" />
               </div>
               <div className="flex flex-col leading-none">
@@ -7911,7 +7916,7 @@ function CalendarViewTab({
             <span className="ml-2 font-medium text-slate-400">{format(calendarMonth, 'yyyy')}</span>
           </h2>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs" data-testid="calendar-legend">
-            {(mostrarSinFecha ? AGENDA_TIPOS : AGENDA_TIPOS.slice(0, 1)).map((t) => (
+            {(mostrarSinFecha || onCreateOnDay ? AGENDA_TIPOS : AGENDA_TIPOS.slice(0, 1)).map((t) => (
               <span key={t.value} className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
                 <span className={`w-2.5 h-2.5 rounded-full ${t.dot}`} />
                 {t.label}

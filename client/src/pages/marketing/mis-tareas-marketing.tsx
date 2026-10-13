@@ -184,7 +184,7 @@ export default function MisTareasMarketing() {
             />
           </div>
           <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-4 py-2 shadow-sm hover:border-orange-200 transition-all">
-            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/10 flex-shrink-0">
+            <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] flex-shrink-0">
               <Flame className="h-4 w-4" />
             </div>
             <div className="flex flex-col leading-none">

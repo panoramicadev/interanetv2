@@ -386,12 +386,16 @@ Fijado en el Panel de Trabajo (jul-2026):
 - Botones de solo-ícono chicos pueden quedar `rounded-lg`.
 
 ### Tarjeta-pill de filtro (selector con ícono)
-Card blanca `rounded-2xl`, ícono en cuadro de color (`w-9 h-9 rounded-xl`) y un
-`Select` sin bordes. El label micro-uppercase va **pegado** al valor (`mb-0.5`).
-Color del ícono por categoría: Vista→naranja, Estado→emerald, Prioridad→amber.
+Card blanca `rounded-2xl`, ícono **naranjo suelto, sin cuadro de color detrás**
+(`w-9 h-9` solo para reservar el espacio) y un `Select` sin bordes. El label
+micro-uppercase va **pegado** al valor (`mb-0.5`).
+**Todos los íconos de pill van en naranjo de marca `text-[#fd6301]`, sin fondo**
+(corrección del usuario, oct-2026): ni `bg-orange-50`, ni el cuadro sólido naranjo, ni
+los celestes/verdes/ámbar por categoría que había antes. Mismo criterio que el selector
+de Área del Panel de Trabajo.
 ```
 <div className="flex items-center gap-3 bg-white ... border border-slate-200/70 rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:border-orange-200 hover:shadow transition-all">
-  <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 flex-shrink-0"><Icon className="h-4 w-4" /></div>
+  <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] flex-shrink-0"><Icon className="h-4 w-4" /></div>
   <div className="flex flex-col leading-none">
     <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-0.5">Label</span>
     <Select>…<SelectTrigger className="h-5 border-0 shadow-none p-0 gap-2 w-auto bg-transparent font-semibold text-sm text-slate-700 focus:ring-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-60" />…</Select>

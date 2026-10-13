@@ -613,8 +613,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         >
           {/* Abajo a la derecha, en la esquina que ocupaba la burbuja de Woob (que ya no
               se carga en el celular) — corrección del usuario, oct-2026. Antes iba al
-              centro de la mitad izquierda. */}
-          <div className="h-14 w-full flex items-center justify-end pr-4">
+              centro de la mitad izquierda. Un poco más arriba y más hacia adentro
+              (mb-3, pr-7) para que no quede pegado a la esquina — pedido del usuario,
+              oct-2026. */}
+          <div className="h-14 w-full flex items-center justify-end pr-7 mb-3">
             <button
               className="pointer-events-auto w-10 h-10 bg-[#0a0a0a] rounded-full flex items-center justify-center shadow-md active:scale-95 transition-transform"
               onClick={() => setIsMobileOpen(!isMobileOpen)}
