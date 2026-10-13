@@ -4916,6 +4916,108 @@ export const resolverSolicitudNuevoClienteSchema = z.object({
 export type SolicitudNuevoCliente = typeof solicitudesNuevoCliente.$inferSelect;
 export type InsertSolicitudNuevoCliente = z.infer<typeof insertSolicitudNuevoClienteSchema>;
 
+// ==================================================================================
+// SOLICITUD DE MUESTRA
+// ==================================================================================
+//
+// El vendedor pide una muestra para un cliente que ya existe: producto del
+// catálogo, un color o material de exhibición (oct-2026).
+//
+// Flujo: el supervisor de quien la pide la aprueba o la rechaza → queda "en
+// curso": Franco (Administración) crea la NVV, y laboratorio y logística la
+// preparan conversando en el hilo con el vendedor, el supervisor y Franco →
+// Franco la cierra cuando la muestra se entregó.
+export const solicitudesMuestra = pgTable("solicitudes_muestra", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  numero: integer("numero").generatedByDefaultAsIdentity(),
+  tipo: varchar("tipo", { length: 20 }).notNull(), // producto | color | material
+  estado: varchar("estado", { length: 20 }).notNull().default("pendiente"), // pendiente | en_curso | rechazada | cerrada
+
+  // Siempre un cliente que ya existe en el maestro
+  clienteId: varchar("cliente_id").notNull(),
+  clienteNombre: text("cliente_nombre").notNull(),
+  clienteRut: varchar("cliente_rut", { length: 20 }),
+  obra: text("obra"), // en pantalla "Obra / Sucursal" (producto y color) o "Sucursal" (material), oct-2026
+
+  // Qué se pide: [{ producto, sku, color, formato }]. En Producto de Línea se elige
+  // de la lista de precios (sku y formato vienen de ahí, sin color). El formato es el envase
+  // ("1/4 de Galón, Galón"); en material de exhibición, la cantidad ("20 unidades").
+  items: jsonb("items").notNull().default(sql`'[]'::jsonb`),
+  motivo: text("motivo"),
+
+  solicitanteId: varchar("solicitante_id"),
+  solicitanteNombre: text("solicitante_nombre"),
+  supervisorId: varchar("supervisor_id"), // el de quien la pide, al momento de enviarla
+
+  // Aprobación del supervisor (o el motivo del rechazo)
+  aprobadaPorId: varchar("aprobada_por_id"),
+  aprobadaPorNombre: text("aprobada_por_nombre"),
+  aprobadaAt: timestamp("aprobada_at", { withTimezone: true }),
+  motivoRechazo: text("motivo_rechazo"),
+
+  // Lo que hace Franco mientras está en curso
+  nvvNumero: varchar("nvv_numero", { length: 40 }),
+  nvvRegistradaPorNombre: text("nvv_registrada_por_nombre"),
+  nvvRegistradaAt: timestamp("nvv_registrada_at", { withTimezone: true }),
+  cerradaPorId: varchar("cerrada_por_id"),
+  cerradaPorNombre: text("cerrada_por_nombre"),
+  cerradaAt: timestamp("cerrada_at", { withTimezone: true }),
+
+  ultimoMovimientoAt: timestamp("ultimo_movimiento_at", { withTimezone: true }).defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  solicitanteIdx: index("IDX_solicitudes_muestra_solicitante").on(table.solicitanteId),
+  supervisorIdx: index("IDX_solicitudes_muestra_supervisor").on(table.supervisorId),
+  estadoIdx: index("IDX_solicitudes_muestra_estado").on(table.estado),
+}));
+
+// El hilo de cada muestra: mensajes y, como eventos, los cambios de estado.
+export const solicitudMuestraMensajes = pgTable("solicitud_muestra_mensajes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  solicitudId: varchar("solicitud_id").notNull(),
+  autorId: varchar("autor_id"),
+  autorNombre: text("autor_nombre"),
+  autorRol: varchar("autor_rol", { length: 40 }), // "Vendedor", "Supervisor", "Laboratorio"… para leer el hilo
+  texto: text("texto"),
+  adjuntoUrl: text("adjunto_url"),
+  adjuntoNombre: text("adjunto_nombre"),
+  evento: varchar("evento", { length: 30 }), // null = mensaje; creada | aprobada | rechazada | nvv | cerrada
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  solicitudIdx: index("IDX_solicitud_muestra_mensajes_solicitud").on(table.solicitudId),
+}));
+
+export const TIPOS_SOLICITUD_MUESTRA = ["producto", "color", "material"] as const;
+export const ESTADOS_SOLICITUD_MUESTRA = ["pendiente", "en_curso", "rechazada", "cerrada"] as const;
+
+// Lo que manda el vendedor. Estado, quién la pide y su supervisor los pone el servidor.
+export const insertSolicitudMuestraSchema = z.object({
+  tipo: z.enum(TIPOS_SOLICITUD_MUESTRA, { errorMap: () => ({ message: "Elige qué tipo de muestra necesitas" }) }),
+  clienteId: z.string({ required_error: "Elige el cliente de la lista" }).trim().min(1, "Elige el cliente de la lista"),
+  clienteNombre: z.string().trim().min(1, "Elige el cliente de la lista"),
+  clienteRut: z.string().trim().max(20).optional().nullable(),
+  obra: z.string().trim().max(500).optional().nullable(),
+  items: z
+    .array(
+      z.object({
+        producto: z.string().trim().min(1, "Indica el producto de cada línea").max(300),
+        // Producto de Línea: el código del producto elegido de la lista de precios.
+        sku: z.string().trim().max(60).optional().nullable(),
+        color: z.string().trim().max(120).optional().nullable(),
+        formato: z.string().trim().min(1, "Indica el formato de cada línea").max(120),
+      }),
+    )
+    .min(1, "Agrega al menos un producto")
+    .max(15),
+  motivo: z.string().trim().max(4000).optional().nullable(),
+});
+
+export type SolicitudMuestra = typeof solicitudesMuestra.$inferSelect;
+export type SolicitudMuestraMensaje = typeof solicitudMuestraMensajes.$inferSelect;
+export type InsertSolicitudMuestra = z.infer<typeof insertSolicitudMuestraSchema>;
+export type ItemSolicitudMuestra = InsertSolicitudMuestra["items"][number];
+
 // Suscripciones Web Push (PWA): una fila por dispositivo/navegador suscrito.
 // El endpoint es único por dispositivo; si otro usuario inicia sesión en el
 // mismo dispositivo, la suscripción se reasigna (upsert por endpoint).
