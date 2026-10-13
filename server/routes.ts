@@ -17,6 +17,7 @@ import {
   actualizarCantidadesObra,
   lineasGuardadas as lineasGuardadasDeObra,
   recalcularCantidadesObra,
+  proyectadoEnPesos,
 } from "./obras-cantidades";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, isIndustrialSegment, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { rutContainsCondition } from "./utils/rut-sql";
@@ -25102,6 +25103,35 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Lo comprado por la obra: los documentos asociados y el desglose por producto.
+  // Las líneas de un documento asociado a una obra, para verlo al pinchar su
+  // número en "Compras de la obra" (pedido del usuario, oct-2026). Sale de la
+  // copia guardada (obra_venta_lineas), no consulta el ERP.
+  app.get('/api/obras/ventas/:vinculoId/lineas', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const lineas = await lineasGuardadasDeObra([String(req.params.vinculoId)]);
+      res.json(lineas.map(({ kopr, nombre, cantidad, monto }) => ({ kopr, nombre, cantidad, monto })));
+    } catch (error: any) {
+      console.error('❌ Error al obtener las líneas del documento:', error);
+      res.status(500).json({ message: 'Error al obtener el detalle del documento', error: error.message });
+    }
+  }));
+
+  // Total proyecto en $ de una o varias constructoras (ver proyectadoEnPesos).
+  app.get('/api/obras/proyectado-pesos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      // ?clienteId=  una constructora · ?clienteIds=a,b,c  varias (la cartera)
+      const ids = String(req.query.clienteIds ?? req.query.clienteId ?? '')
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean);
+      if (ids.length === 0) return res.status(400).json({ message: 'Falta clienteId' });
+      res.json(await proyectadoEnPesos(ids));
+    } catch (error: any) {
+      console.error('❌ Error al calcular lo proyectado en $:', error);
+      res.status(500).json({ message: 'Error al calcular lo proyectado en $', error: error.message });
+    }
+  }));
+
   app.get('/api/obras/:id/ventas', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const vinculos = await storage.getObraVentas(req.params.id);

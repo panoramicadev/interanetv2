@@ -311,7 +311,7 @@ export function SeguimientoObrasContent({ onIrAObras }: { onIrAObras?: () => voi
         <Indicador
           icono={<ShoppingCart className="h-3.5 w-3.5" />}
           tono="amber"
-          label="Próximo pedido"
+          label="Producto por Vender"
           valor={textoMaterial(totales.material, "sugerido")}
           sufijo="entre todas las obras"
         />
@@ -358,7 +358,7 @@ export function SeguimientoObrasContent({ onIrAObras }: { onIrAObras?: () => voi
           <div className="hidden lg:flex items-center gap-3 px-4 py-2 bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/70 dark:border-slate-700/60 text-[10px] font-bold uppercase tracking-wider text-slate-400">
             <span className="flex-1 min-w-0">Obra</span>
             <span className="w-[150px] text-center">Avance</span>
-            <span className="w-24 text-right">Próx. pedido</span>
+            <span className="w-24 text-right">Producto por Vender</span>
             <span className="w-[230px]">Última anotación</span>
             <span className="w-[104px]">Estado</span>
             <span className="w-4" />
@@ -409,7 +409,7 @@ function FilaObraSeguimiento({ fila, onAbrir }: { fila: FilaSeguimiento; onAbrir
         </div>
 
         <div className="min-w-[6rem] text-right">
-          <div className="lg:hidden text-[9px] uppercase tracking-wider font-bold text-slate-400">Próx. pedido</div>
+          <div className="lg:hidden text-[9px] uppercase tracking-wider font-bold text-slate-400">Producto por Vender</div>
           <div className="text-sm font-bold">
             <CeldaMaterial material={calc.material} campo="sugerido" />
           </div>
@@ -523,7 +523,7 @@ function DetalleObra({
             <div className="rounded-xl bg-white/15 px-3 py-1.5">
               <div className="text-[9px] uppercase tracking-wider font-bold text-white/70 flex items-center gap-1.5">
                 <ShoppingCart className="h-3 w-3" />
-                Próximo pedido
+                Producto por Vender
               </div>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-xl font-bold tabular-nums">{textoMaterial(calc.material, "sugerido")}</span>

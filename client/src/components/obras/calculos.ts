@@ -19,15 +19,15 @@ export interface ProductoCalculado {
   pedida: number;
   entregada: number;
   utilizada: number;
+  /** Desde los documentos: lo facturado (menos notas de crédito). */
+  facturada: number;
+  /** Desde los documentos: notas de venta o guías que aún no se facturan. */
+  nvv: number;
   /** Proyectado − pedido: lo que todavía no se le compró a la obra. */
   porPedir: number;
   /** Entregado − utilizado: lo que debería estar hoy en la bodega de la obra. */
   saldo: number;
-  /**
-   * Avance del producto = utilizado ÷ proyectado: cuánto del material previsto
-   * ya se aplicó. Las viviendas pintadas se cargan por obra, así que no dicen
-   * nada de cuánto lleva cada producto.
-   */
+  /** Avance del producto = (facturado + NVV) ÷ proyectado. */
   avance: number;
   /** Se consumió más de lo que llegó a la obra (saldo negativo). */
   alertaSaldo: boolean;
@@ -64,6 +64,8 @@ export function calcularProducto(producto: ObraProducto, pintadasObra = 0): Prod
   const pedida = toNum(producto.cantidadPedida);
   const entregada = toNum(producto.cantidadEntregada);
   const utilizada = toNum(producto.cantidadUtilizada);
+  const facturada = toNum(producto.cantidadFacturada);
+  const nvv = toNum(producto.cantidadNvv);
   // El rendimiento es un dato de entrada, no se deriva de proyectada/viviendas:
   // las proyectadas van redondeadas hacia arriba y la división desviaría el
   // consumo esperado (1,502 en vez de 1,5).
@@ -72,7 +74,11 @@ export function calcularProducto(producto: ObraProducto, pintadasObra = 0): Prod
 
   const porPedir = Math.max(0, proyectada - pedida);
   const saldo = entregada - utilizada;
-  const avance = proyectada > 0 ? Math.min(1, utilizada / proyectada) : 0;
+  // Avance del producto = (facturado + NVV) ÷ proyectado (pedido del usuario,
+  // oct-2026): cuánto de lo proyectado ya se le vendió. Un producto cargado a
+  // mano no tiene facturado ni NVV, así que se mide con su pedido.
+  const comprometido = producto.desdeDocumentos ? facturada + nvv : pedida;
+  const avance = proyectada > 0 ? Math.min(1, comprometido / proyectada) : 0;
   const alertaSaldo = saldo < 0;
   const alertaPedido = pedida > proyectada;
   const teorico = pintadas * rendimiento;
@@ -82,7 +88,7 @@ export function calcularProducto(producto: ObraProducto, pintadasObra = 0): Prod
   const sugerido = Math.max(0, proyectada - pedida - Math.max(0, saldo));
 
   return {
-    producto, proyectada, pedida, entregada, utilizada, porPedir, saldo,
+    producto, proyectada, pedida, entregada, utilizada, facturada, nvv, porPedir, saldo,
     avance, alertaSaldo, alertaPedido,
     rendimiento, pintadas, teorico, rendimientoReal, desviacion, cobertura, sugerido,
   };
@@ -102,6 +108,8 @@ export function calcularProducto(producto: ObraProducto, pintadasObra = 0): Prod
 export interface MaterialPorUnidad {
   proyectadas: number;
   pedidas: number;
+  facturadas: number;
+  nvv: number;
   entregadas: number;
   usadas: number;
   saldo: number;
@@ -114,7 +122,7 @@ export type CampoMaterial = keyof MaterialPorUnidad;
 export type Material = Record<string, MaterialPorUnidad>;
 
 const materialVacio = (): MaterialPorUnidad => ({
-  proyectadas: 0, pedidas: 0, entregadas: 0, usadas: 0, saldo: 0, faltante: 0, sugerido: 0,
+  proyectadas: 0, pedidas: 0, facturadas: 0, nvv: 0, entregadas: 0, usadas: 0, saldo: 0, faltante: 0, sugerido: 0,
 });
 
 function sumarMaterial(destino: Material, unidad: string, m: MaterialPorUnidad) {
@@ -189,6 +197,16 @@ export interface ObraCalculada {
   pintadas: number;
   pendientes: number;
   avance: number;
+  /**
+   * Columna "% avance" de la planilla: (facturado + NVV) ÷ proyectado, sumando
+   * sus productos. Facturado + NVV es lo pedido (ver server/obras-cantidades.ts).
+   */
+  avanceVenta: number;
+  /**
+   * Lo pedido de cada producto, pero sin pasar su propia proyección: lo que se
+   * compró de más (o sin proyectar) no puede inflar el avance de los demás.
+   */
+  pedidasHastaProyectado: number;
   proyectadas: number;
   pedidas: number;
   entregadas: number;
@@ -264,6 +282,8 @@ export function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[]
       obra, viviendas, pintadas,
       pendientes: Math.max(0, viviendas - pintadas),
       avance: viviendas > 0 ? Math.min(1, pintadas / viviendas) : 0,
+      avanceVenta: proyectadas > 0 ? Math.min(1, pedidas / proyectadas) : 0,
+      pedidasHastaProyectado: Math.min(pedidas, proyectadas),
       proyectadas, pedidas, entregadas, usadas, saldo,
       faltantePorPedir: Math.max(0, proyectadas - pedidas),
       sugerido: Math.max(0, proyectadas - pedidas - Math.max(0, saldo)),
@@ -278,6 +298,8 @@ export function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[]
         : {
             [UNIDAD_POR_DEFECTO]: {
               proyectadas, pedidas, entregadas, usadas, saldo,
+              // La planilla vieja no separaba facturado de nota de venta.
+              facturadas: 0, nvv: 0,
               faltante: Math.max(0, proyectadas - pedidas),
               sugerido: Math.max(0, proyectadas - pedidas - Math.max(0, saldo)),
             },
@@ -300,6 +322,9 @@ export function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[]
   const usadas = suma((p) => p.utilizada);
   const saldo = suma((p) => p.saldo);
   const faltantePorPedir = suma((p) => p.porPedir);
+  const pedidasHastaProyectado = suma((p) =>
+    Math.min(p.producto.desdeDocumentos ? p.facturada + p.nvv : p.pedida, p.proyectada),
+  );
   const sugerido = suma((p) => p.sugerido);
 
   // Solo entran al contraste los productos que declararon rendimiento: sin ese
@@ -327,6 +352,8 @@ export function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[]
     sumarMaterial(material, normalizarUnidad(p.producto.unidad), {
       proyectadas: p.proyectada,
       pedidas: p.pedida,
+      facturadas: p.facturada,
+      nvv: p.nvv,
       entregadas: p.entregada,
       usadas: p.utilizada,
       saldo: p.saldo,
@@ -346,6 +373,8 @@ export function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[]
 
   return {
     obra, viviendas, pintadas, pendientes, avance,
+    avanceVenta: proyectadas > 0 ? Math.min(1, pedidasHastaProyectado / proyectadas) : 0,
+    pedidasHastaProyectado,
     proyectadas, pedidas, entregadas, usadas, saldo, faltantePorPedir, sugerido,
     consumoTeorico, consumoReal, desviacion,
     // Sobre las pintadas de la obra: es el consumo total repartido entre las
@@ -372,6 +401,7 @@ export function calcularTotales(filas: ObraCalculada[]) {
       acc.entregadas += f.entregadas;
       acc.saldo += f.saldo;
       acc.faltante += f.faltantePorPedir;
+      acc.pedidasHastaProyectado += f.pedidasHastaProyectado;
       acc.sugerido += f.sugerido;
       acc.consumoTeorico += f.consumoTeorico;
       acc.consumoReal += f.consumoReal;
@@ -380,6 +410,7 @@ export function calcularTotales(filas: ObraCalculada[]) {
     {
       viviendas: 0, proyectadas: 0, pintadas: 0, pendientes: 0, usadas: 0,
       pedidas: 0, entregadas: 0, saldo: 0, faltante: 0, sugerido: 0,
+      pedidasHastaProyectado: 0,
       consumoTeorico: 0, consumoReal: 0,
     },
   );
@@ -391,10 +422,18 @@ export function calcularTotales(filas: ObraCalculada[]) {
     const d = f.obra.updatedAt ? new Date(f.obra.updatedAt as any) : null;
     return d && (!max || d > max) ? d : max;
   }, null);
+  // La columna "Edificio / Casa" cuenta torres en los edificios y viviendas en
+  // las casas: el total las lleva por separado porque no se suman entre sí.
+  const torres = filas.reduce((a, f) => a + (f.obra.tipoObra === "edificios" ? toInt(f.obra.torres) : 0), 0);
+  const casas = filas.reduce((a, f) => a + (f.obra.tipoObra === "edificios" ? 0 : f.viviendas), 0);
   return {
     ...t,
+    torres,
+    casas,
     material: juntarMaterial(filas.map((f) => f.material)),
     avance: t.viviendas > 0 ? t.pintadas / t.viviendas : 0,
+    // Columna "% avance": (facturado + NVV) ÷ proyectado de todas las obras.
+    avanceVenta: t.proyectadas > 0 ? Math.min(1, t.pedidasHastaProyectado / t.proyectadas) : 0,
     desviacion: t.consumoTeorico > 0 ? t.consumoReal / t.consumoTeorico - 1 : 0,
     rendimientoReal: t.pintadas > 0 ? t.usadas / t.pintadas : 0,
     conteoEstados,

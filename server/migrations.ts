@@ -1436,6 +1436,9 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "UQ_obra_venta_lineas_linea" ON obra_venta_lineas (obra_venta_id, idmaeddo)`);
     await db.execute(sql`ALTER TABLE obra_productos ADD COLUMN IF NOT EXISTS desde_documentos BOOLEAN NOT NULL DEFAULT false`);
     await db.execute(sql`ALTER TABLE obra_productos ADD COLUMN IF NOT EXISTS revisar BOOLEAN NOT NULL DEFAULT false`);
+    // Facturado y NVV por producto (oct-2026): la planilla los muestra por separado.
+    await db.execute(sql`ALTER TABLE obra_productos ADD COLUMN IF NOT EXISTS cantidad_facturada NUMERIC(12, 2) NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE obra_productos ADD COLUMN IF NOT EXISTS cantidad_nvv NUMERIC(12, 2) NOT NULL DEFAULT 0`);
 
     // Solicitud de crédito (migración 077). Ver migrations/077_solicitudes_credito.sql
     // — se replica acá porque el runner de .sql corre DESPUÉS del bootstrap y las

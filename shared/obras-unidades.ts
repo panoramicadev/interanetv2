@@ -25,8 +25,9 @@ export interface UnidadObra {
 }
 
 export const UNIDADES_OBRA: UnidadObra[] = [
-  { valor: "tineta_4gl", label: "Tineta 4 galones", corto: "Tineta 4 gl", plural: "tinetas de 4 galones" },
-  { valor: "tineta_5gl", label: "Tineta 5 galones", corto: "Tineta 5 gl", plural: "tinetas de 5 galones" },
+  // Se muestran como "Balde" (pedido del usuario, oct-2026); los slugs siguen siendo tineta_*.
+  { valor: "tineta_4gl", label: "Balde 4 galones", corto: "Balde 4 gl", plural: "baldes de 4 galones" },
+  { valor: "tineta_5gl", label: "Balde 5 galones", corto: "Balde 5 gl", plural: "baldes de 5 galones" },
   { valor: "galon", label: "Galón", corto: "Galón", plural: "galones" },
   { valor: "litro", label: "Litro", corto: "Litro", plural: "litros" },
 ];

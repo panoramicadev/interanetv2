@@ -24,13 +24,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { etiquetaCortaUnidad } from "@/components/obras/unidades";
-import { fmtDec } from "@/components/obras/formato";
-import type { ObraProducto } from "@shared/schema";
-import { AlertTriangle, Check, FileText, Link2, Loader2, Plus, Search, Sparkles, Truck, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, ExternalLink, FileText, Link2, Loader2, Plus, Search, Sparkles, Truck, X } from "lucide-react";
 
 type Origen = "facturado" | "nvv" | "gdv";
 
@@ -134,23 +132,21 @@ const pesos = (valor: number | string | null | undefined) =>
 const fecha = (iso: string | null) =>
   iso ? iso.split("-").reverse().join("-") : "—";
 
-/** Los SKU se comparan sin espacios ni mayúsculas: el ERP los escribe de las dos formas. */
-const clave = (kopr: string | null | undefined) => (kopr ?? "").trim().toUpperCase();
 
 export function ComprasObra({
   obraId,
   obraNombre,
   clienteNombre,
-  productos,
 }: {
   obraId: string;
   obraNombre: string;
   clienteNombre?: string | null;
-  productos: ObraProducto[];
 }) {
   const { toast } = useToast();
   const [dialogBuscar, setDialogBuscar] = useState(false);
   const [verTodosSugeridos, setVerTodosSugeridos] = useState(false);
+  // Documento abierto en "Documentos asociados": se ven sus productos.
+  const [docAbierto, setDocAbierto] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<RespuestaVentas>({
     queryKey: ["/api/obras", obraId, "ventas"],
@@ -221,63 +217,14 @@ export function ComprasObra({
   const otrasObras = data?.sugeridos?.otrasObras ?? [];
   const sugeridosVisibles = verTodosSugeridos ? sugeridos : sugeridos.slice(0, SUGERIDOS_VISIBLES);
 
-  /**
-   * Una fila por producto: lo proyectado al empezar contra lo comprado en cada
-   * uno de los tres orígenes. Abajo van los SKU que se compraron y no estaban
-   * proyectados, que es justo lo que la planilla no mostraba.
-   */
-  const filas = useMemo(() => {
-    const comprado = new Map<string, Record<Origen, number>>();
-    const nombres = new Map<string, string>();
-    for (const p of data?.productos ?? []) {
-      const k = clave(p.kopr);
-      if (!k) continue;
-      const acum = comprado.get(k) ?? { facturado: 0, nvv: 0, gdv: 0 };
-      acum[p.origen] += p.cantidad;
-      comprado.set(k, acum);
-      if (p.nombre && !nombres.has(k)) nombres.set(k, p.nombre);
-    }
-
-    const proyectadas = productos.map((p) => {
-      const k = clave(p.kopr);
-      const c = comprado.get(k);
-      if (k) comprado.delete(k);
-      return {
-        clave: p.id,
-        nombre: p.nombre,
-        color: p.color,
-        unidad: p.unidad,
-        proyectado: Number(p.cantidadProyectada ?? 0),
-        compras: c ?? { facturado: 0, nvv: 0, gdv: 0 },
-        fueraDePlan: false,
-      };
-    });
-
-    // Lo que quedó en el mapa se compró sin estar en la planilla de la obra.
-    const sueltas = Array.from(comprado.entries()).map(([k, c]) => ({
-      clave: `fuera-${k}`,
-      nombre: nombres.get(k) ?? k,
-      color: null as string | null,
-      unidad: null as string | null,
-      proyectado: 0,
-      compras: c,
-      fueraDePlan: true,
-    }));
-
-    return [...proyectadas, ...sueltas];
-  }, [data?.productos, productos]);
-
   const hayCompras = (data?.documentos?.length ?? 0) > 0;
 
   return (
     <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900/60 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-200/70 dark:border-slate-700/60">
-        <div className="min-w-0">
-          <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">Compras de la obra</h4>
-          <p className="text-[11px] text-slate-400">
-            Lo que la obra compró de verdad, contra lo que se proyectó al empezar
-          </p>
-        </div>
+        {/* Sin el subtítulo "contra lo que se proyectó": esa comparación por
+            producto se quitó (oct-2026); lo proyectado se ve en la planilla. */}
+        <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 min-w-0">Compras de la obra</h4>
         <Button
           size="sm"
           onClick={() => setDialogBuscar(true)}
@@ -299,23 +246,25 @@ export function ComprasObra({
             Todavía no hay facturas ni notas de venta asociadas a esta obra.
           </p>
           <p className="text-[11px] text-slate-400 mt-1 max-w-md mx-auto">
-            Las facturas de la constructora que traen productos de esta obra se vinculan solas después de
-            cada sincronización. Si el material lo compró el contratista, el documento está a su nombre:
-            ese se busca con «Asociar documento».
+            Se vinculan solas después de cada sincronización. Si lo compró el contratista, búscalo con «Asociar documento».
           </p>
         </div>
       ) : (
         <>
           {/* Los tres van por separado a propósito: sumarlos contaría la misma
               compra hasta tres veces (nota de venta → factura → guía). */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-200/70 dark:divide-slate-700/60 border-b border-slate-200/70 dark:border-slate-700/60">
-            {ORIGENES.map(({ clave: k, titulo, icono, color }) => (
-              <div key={k} className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <span className={color}>{icono}</span>
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">{titulo}</span>
+          {/* Siempre en tres columnas: en celular apiladas ocupaban media pantalla. */}
+          <div className="grid grid-cols-3 divide-x divide-slate-200/70 dark:divide-slate-700/60 border-b border-slate-200/70 dark:border-slate-700/60">
+            {ORIGENES.map(({ clave: k, titulo, corto, icono, color }) => (
+              <div key={k} className="px-2.5 sm:px-4 py-3 min-w-0">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className={`${color} [&>svg]:h-3.5 [&>svg]:w-3.5 sm:[&>svg]:h-4 sm:[&>svg]:w-4`}>{icono}</span>
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 truncate">
+                    <span className="sm:hidden">{corto}</span>
+                    <span className="hidden sm:inline">{titulo}</span>
+                  </span>
                 </div>
-                <div className="text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums mt-1">
+                <div className="text-sm sm:text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums mt-1 truncate">
                   {pesos(data?.totales?.[k]?.monto)}
                 </div>
                 <div className="text-[11px] text-slate-400">
@@ -326,65 +275,8 @@ export function ComprasObra({
             ))}
           </div>
 
-          {/* Comparación por producto */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs min-w-[640px]">
-              <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-200/70 dark:border-slate-700/60">
-                  <th className="text-left font-bold px-4 py-2">Producto</th>
-                  <th className="text-center font-bold px-2 py-2">Proyectado</th>
-                  {ORIGENES.map((o) => (
-                    <th key={o.clave} className="text-center font-bold px-2 py-2">{o.corto}</th>
-                  ))}
-                  <th className="text-center font-bold px-2 py-2">Falta comprar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((f) => {
-                  // "Falta comprar" se mide contra lo facturado: es la única de
-                  // las tres que dice que la compra ya está cerrada.
-                  const falta = f.proyectado - f.compras.facturado;
-                  return (
-                    <tr
-                      key={f.clave}
-                      className="border-b border-slate-100 dark:border-slate-700/40 last:border-0"
-                    >
-                      <td className="px-4 py-2">
-                        <div className="font-semibold text-slate-700 dark:text-slate-200">{f.nombre}</div>
-                        <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-slate-400">
-                          {f.color && <span className="uppercase">{f.color}</span>}
-                          {f.unidad && <span>{etiquetaCortaUnidad(f.unidad)}</span>}
-                          {f.fueraDePlan && (
-                            <span className="inline-flex items-center gap-1 font-bold text-amber-600">
-                              <AlertTriangle className="h-3 w-3" />
-                              No estaba proyectado
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-2 py-2 text-center tabular-nums text-slate-500">
-                        {f.proyectado > 0 ? fmtDec(f.proyectado) : "—"}
-                      </td>
-                      {ORIGENES.map((o) => (
-                        <td key={o.clave} className="px-2 py-2 text-center tabular-nums font-semibold text-slate-700 dark:text-slate-200">
-                          {f.compras[o.clave] > 0 ? fmtDec(f.compras[o.clave]) : <span className="text-slate-300">—</span>}
-                        </td>
-                      ))}
-                      <td className="px-2 py-2 text-center tabular-nums font-bold">
-                        {f.proyectado <= 0 ? (
-                          <span className="text-slate-300">—</span>
-                        ) : falta > 0 ? (
-                          <span className="text-slate-700 dark:text-slate-200">{fmtDec(falta)}</span>
-                        ) : (
-                          <span className="text-emerald-600">Completo</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {/* Sin la comparación por producto (Proyectado / Fact. / NVV / GDV / Falta
+              comprar): se ocultó a pedido del usuario (oct-2026). */}
 
           {/* Documentos asociados */}
           <div className="border-t border-slate-200/70 dark:border-slate-700/60">
@@ -393,17 +285,30 @@ export function ComprasObra({
             </div>
             <ul className="divide-y divide-slate-100 dark:divide-slate-700/40">
               {(data?.documentos ?? []).map((d) => (
-                <li key={d.id} className="flex items-center gap-3 px-4 py-2">
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 w-12 flex-shrink-0">
+                // Letra chica y cada dato en una línea (pedido del usuario,
+                // oct-2026): con la columna a media pantalla la fecha se partía.
+                <li key={d.id} className="text-xs">
+                  <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2">
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 w-8 sm:w-12 flex-shrink-0">
                     {d.tido ?? d.origen}
                   </span>
-                  <span className="font-bold tabular-nums text-slate-700 dark:text-slate-200 w-20 flex-shrink-0">
+                  {/* Se pincha para ver el documento (pedido del usuario, oct-2026). */}
+                  <button
+                    type="button"
+                    onClick={() => setDocAbierto(docAbierto === d.id ? null : d.id)}
+                    className="inline-flex items-center gap-0.5 font-bold tabular-nums text-[#fd6301] hover:underline sm:w-20 flex-shrink-0 whitespace-nowrap text-left"
+                    title="Ver el documento"
+                    data-testid={`button-ver-documento-${d.id}`}
+                  >
+                    {docAbierto === d.id ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                     {d.nudo ?? "—"}
-                  </span>
-                  <span className="text-slate-400 tabular-nums w-24 flex-shrink-0">{fecha(d.fechaEmision)}</span>
-                  <span className="truncate flex-1 min-w-0 text-slate-500 dark:text-slate-400">
+                  </button>
+                  <span className="text-slate-400 tabular-nums sm:w-[4.5rem] flex-shrink-0 whitespace-nowrap">{fecha(d.fechaEmision)}</span>
+                  {/* En celular no cabe: es casi siempre la misma constructora. */}
+                  <span className="hidden sm:block truncate flex-1 min-w-0 text-slate-500 dark:text-slate-400">
                     {d.clienteNombre ?? "—"}
                   </span>
+                  <span className="sm:hidden flex-1" />
                   {d.regla && (
                     <span
                       className="inline-flex items-center gap-1 rounded-md bg-orange-50 dark:bg-orange-950/30 px-1.5 py-0.5 text-[10px] font-bold text-[#fd6301] flex-shrink-0"
@@ -414,7 +319,7 @@ export function ComprasObra({
                       Automático
                     </span>
                   )}
-                  <span className="tabular-nums font-semibold text-slate-700 dark:text-slate-200 flex-shrink-0">
+                  <span className="tabular-nums font-semibold text-slate-700 dark:text-slate-200 flex-shrink-0 whitespace-nowrap">
                     {pesos(d.montoDocumento)}
                   </span>
                   <Button
@@ -422,12 +327,14 @@ export function ComprasObra({
                     size="icon"
                     disabled={desasociar.isPending}
                     onClick={() => desasociar.mutate(d.id)}
-                    className="h-7 w-7 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 flex-shrink-0"
+                    className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 flex-shrink-0"
                     aria-label="Sacar de la obra"
                     data-testid={`button-obra-desasociar-${d.id}`}
                   >
                     <X className="h-3.5 w-3.5" />
                   </Button>
+                  </div>
+                  {docAbierto === d.id && <DetalleDocumento vinculoId={d.id} idmaeedo={d.idmaeedo} tido={d.tido} />}
                 </li>
               ))}
             </ul>
@@ -648,7 +555,12 @@ function DialogBuscarDocumentos({
 
   return (
     <Dialog open={abierto} onOpenChange={(v) => { if (!v) onCerrar(); }}>
-      <DialogContent className="sm:max-w-[720px] z-[70]" overlayClassName="z-[70]">
+      {/* En celular ocupa la pantalla completa: la lista de documentos es lo
+          que se usa y en la ventana chica quedaban dos o tres a la vista. */}
+      <DialogContent
+        className="sm:max-w-[720px] z-[70] max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:rounded-none max-sm:flex max-sm:flex-col"
+        overlayClassName="z-[70]"
+      >
         <DialogTitle className="text-base font-bold flex items-center gap-2">
           <span className="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 flex items-center justify-center">
             <FileText className="h-4 w-4" />
@@ -658,7 +570,7 @@ function DialogBuscarDocumentos({
         <DialogDescription className="text-sm text-muted-foreground">
           {cliente
             ? `Todos los documentos de ${cliente.nombre}. Marca los que son de esta obra.`
-            : "Busca por cliente, RUT o nombre de la obra (lo que dice la observación del documento). Si el material lo compró el contratista, búscalo a él y no a la constructora."}
+            : "Busca por cliente, RUT u obra. Si lo compró el contratista, búscalo a él."}
         </DialogDescription>
 
         {cliente ? (
@@ -695,7 +607,7 @@ function DialogBuscarDocumentos({
 
         {/* Paso 1: elegir el cliente */}
         {!cliente && (
-          <div className="max-h-80 overflow-y-auto -mx-1 px-1">
+          <div className="max-h-80 max-sm:max-h-none max-sm:flex-1 max-sm:min-h-0 overflow-y-auto -mx-1 px-1">
             {termino.length < 2 && (
               <div className="py-8 text-center text-sm text-slate-400">Escribe al menos 2 letras</div>
             )}
@@ -776,12 +688,18 @@ function DialogBuscarDocumentos({
             data-testid="input-obra-filtrar-docs"
           />
           <span className="text-[11px] text-slate-400 tabular-nums flex-shrink-0">
-            {candidatos.length} de {candidatosCrudos.length}
+            {isFetching ? "Buscando…" : `${candidatos.length} de ${candidatosCrudos.length}`}
           </span>
         </div>
-        <div className="max-h-80 overflow-y-auto -mx-1 px-1">
+        <div className="max-h-80 max-sm:max-h-none max-sm:flex-1 max-sm:min-h-0 overflow-y-auto -mx-1 px-1">
+          {/* La consulta al ERP puede tardar medio minuto: se avisa con texto,
+              si no el "0 de 0" se leía como que el cliente no tenía nada. */}
           {isFetching && (
-            <div className="py-8 text-center text-slate-300"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></div>
+            <div className="py-8 text-center" data-testid="text-buscando-documentos">
+              <Loader2 className="h-6 w-6 animate-spin mx-auto text-[#fd6301]" />
+              <p className="mt-2 text-sm font-medium text-slate-600 dark:text-slate-300">Buscando documentos en el ERP…</p>
+              <p className="text-xs text-slate-400">Puede tardar hasta un minuto.</p>
+            </div>
           )}
           {!isFetching && candidatos.length === 0 && (
             <div className="py-8 text-center text-sm text-slate-400">
@@ -801,7 +719,9 @@ function DialogBuscarDocumentos({
                 type="button"
                 disabled={enEsta}
                 onClick={() => alternar(c)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-xs transition-colors ${
+                // En celular, dos líneas: arriba tipo, N°, fecha y monto; abajo la
+                // observación (dice de qué obra es) y el aviso si ya está en otra.
+                className={`w-full flex items-center max-sm:flex-wrap gap-2.5 max-sm:gap-x-2 max-sm:gap-y-1 px-3 py-2.5 rounded-xl text-left text-xs transition-colors ${
                   enEsta
                     ? "opacity-50 cursor-default"
                     : elegido
@@ -817,31 +737,31 @@ function DialogBuscarDocumentos({
                 >
                   {elegido && <span className="text-white text-[10px] leading-none">✓</span>}
                 </span>
-                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 w-10 flex-shrink-0">
+                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 w-8 sm:w-10 flex-shrink-0">
                   {c.tido ?? c.origen}
                 </span>
-                <span className="font-bold tabular-nums text-slate-700 dark:text-slate-200 w-20 flex-shrink-0">
+                <span className="font-bold tabular-nums text-slate-700 dark:text-slate-200 sm:w-20 flex-shrink-0">
                   {c.nudo ?? "—"}
                 </span>
-                <span className="text-slate-400 tabular-nums w-24 flex-shrink-0">{fecha(c.fechaEmision)}</span>
-                <span className="flex-1 min-w-0">
-                  <span className="block truncate text-slate-500 dark:text-slate-400">{c.clienteNombre ?? "—"}</span>
+                <span className="text-slate-400 tabular-nums sm:w-24 flex-shrink-0">{fecha(c.fechaEmision)}</span>
+                <span className="flex-1 min-w-0 max-sm:order-last max-sm:basis-full max-sm:pl-6">
+                  <span className="hidden sm:block truncate text-slate-500 dark:text-slate-400">{c.clienteNombre ?? "—"}</span>
                   {c.observacion && (
                     <span className="block truncate text-[11px] text-slate-400" title={c.observacion}>
                       {c.observacion}
                     </span>
                   )}
                 </span>
-                <span className="tabular-nums font-semibold text-slate-700 dark:text-slate-200 flex-shrink-0">
+                <span className="tabular-nums font-semibold text-slate-700 dark:text-slate-200 flex-shrink-0 max-sm:ml-auto">
                   {pesos(c.monto)}
                 </span>
                 {/* Un documento colgado de dos obras contaría la compra dos
                     veces: se avisa antes, no después. */}
                 {enEsta && (
-                  <span className="text-[10px] uppercase font-bold text-emerald-600 flex-shrink-0">Ya está</span>
+                  <span className="text-[10px] uppercase font-bold text-emerald-600 flex-shrink-0 max-sm:order-last max-sm:pl-6">Ya está</span>
                 )}
                 {enOtraObra && (
-                  <span className="text-[10px] uppercase font-bold text-amber-600 flex-shrink-0 max-w-[120px] truncate">
+                  <span className="text-[10px] uppercase font-bold text-amber-600 flex-shrink-0 max-w-[120px] truncate max-sm:order-last max-sm:pl-6 max-sm:max-w-full">
                     En {c.obraNombre}
                   </span>
                 )}
@@ -877,3 +797,74 @@ function DialogBuscarDocumentos({
     </Dialog>
   );
 }
+
+/**
+ * Lo que trae un documento asociado (sus productos, cantidad y monto) y, si es
+ * una factura, el PDF oficial del ERP. Se abre al pinchar su número.
+ */
+function DetalleDocumento({ vinculoId, idmaeedo, tido }: { vinculoId: string; idmaeedo: string; tido: string | null }) {
+  const { user } = useAuth();
+  const { data: lineas = [], isLoading } = useQuery<Array<{ kopr: string | null; nombre: string | null; cantidad: number; monto: number }>>({
+    queryKey: ["/api/obras/ventas", vinculoId, "lineas"],
+    queryFn: async () => {
+      const res = await apiRequest(`/api/obras/ventas/${vinculoId}/lineas`);
+      return res.json();
+    },
+  });
+  // El PDF timbrado sale de la ruta de facturas del ERP (solo facturas; la deja
+  // ver a admin, supervisor y encargado de área). Una nota de venta no tiene DTE.
+  const esDte = !!tido && tido.trim().toUpperCase().startsWith("F");
+  const puedePdf = ["admin", "supervisor", "encargado_area"].includes((user as any)?.role ?? "");
+
+  return (
+    <div className="mx-4 mb-3 rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-900/30 px-3 py-2">
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-slate-400 py-1">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…
+        </div>
+      ) : lineas.length === 0 ? (
+        <p className="text-slate-400 py-1">Sin productos guardados para este documento.</p>
+      ) : (
+        <table className="w-full">
+          <thead>
+            <tr className="text-[10px] uppercase tracking-wider text-slate-400">
+              <th className="text-left font-bold py-1">Producto</th>
+              <th className="text-right font-bold py-1 px-2">Cant.</th>
+              <th className="text-right font-bold py-1">Monto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lineas.map((l, i) => (
+              <tr key={i} className="border-t border-slate-200/60 dark:border-slate-700/40">
+                <td className="py-1 pr-2">
+                  <div className="text-slate-700 dark:text-slate-200">{l.nombre ?? l.kopr ?? "—"}</div>
+                  {l.kopr && <div className="text-[10px] text-slate-400 tabular-nums">{l.kopr}</div>}
+                </td>
+                <td className="py-1 px-2 text-right tabular-nums text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                  {fmtCantidad(l.cantidad)}
+                </td>
+                <td className="py-1 text-right tabular-nums font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                  {pesos(l.monto)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {esDte && puedePdf && (
+        <a
+          href={`/api/erp/facturas/${idmaeedo}/pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex items-center gap-1 font-semibold text-[#fd6301] hover:underline"
+          data-testid={`link-pdf-documento-${vinculoId}`}
+        >
+          <ExternalLink className="h-3 w-3" />
+          Ver PDF del documento
+        </a>
+      )}
+    </div>
+  );
+}
+
+const fmtCantidad = (n: number) => new Intl.NumberFormat("es-CL", { maximumFractionDigits: 1 }).format(n);

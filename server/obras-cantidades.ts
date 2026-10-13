@@ -8,6 +8,10 @@
  *   Pedidas     lo comprometido por el cliente (notas de venta, guías y
  *               facturas), contando cada unidad UNA vez aunque pase por las tres.
  *   Entregadas  lo despachado: las guías, más las facturas que no tuvieron guía.
+ *   Facturadas  lo facturado (menos las notas de crédito).
+ *   NVV         lo comprometido en notas de venta o guías que todavía no se
+ *               factura. Facturadas + NVV = Pedidas: la misma unidad no cuenta
+ *               en las dos columnas.
  *
  * Por pedir y Saldo se recalculan solos en pantalla a partir de la Proyección,
  * que se sigue cargando a mano.
@@ -312,6 +316,8 @@ export interface CantidadesSku {
   nombre: string | null;
   pedidas: number;
   entregadas: number;
+  facturadas: number;
+  nvv: number;
 }
 
 /**
@@ -340,7 +346,15 @@ export function calcularPorSku(lineas: LineaCalculo[]): CantidadesSku[] {
       porRaiz.set(clave, niveles);
     }
     let pedidas = 0;
-    for (const n of Array.from(porRaiz.values())) pedidas += Math.max(n.nvv, n.gdv, n.fac);
+    let facturadas = 0;
+    let nvv = 0;
+    for (const n of Array.from(porRaiz.values())) {
+      const comprometido = Math.max(n.nvv, n.gdv, n.fac);
+      pedidas += comprometido;
+      facturadas += n.fac;
+      // Lo que de esa compra todavía no se factura (nota de venta o guía).
+      nvv += Math.max(0, comprometido - Math.max(0, n.fac));
+    }
 
     // Entregado: las guías, más lo facturado que no pasó por guía. Si no se
     // sabe si una factura tuvo guía, cuenta como directa solo cuando el SKU no
@@ -356,7 +370,14 @@ export function calcularPorSku(lineas: LineaCalculo[]): CantidadesSku[] {
     }
 
     const nombre = propias.find((l) => l.nombre)?.nombre ?? null;
-    resultado.push({ kopr, nombre, pedidas: Math.max(0, pedidas), entregadas: Math.max(0, entregadas) });
+    resultado.push({
+      kopr,
+      nombre,
+      pedidas: Math.max(0, pedidas),
+      entregadas: Math.max(0, entregadas),
+      facturadas: Math.max(0, facturadas),
+      nvv: Math.max(0, nvv),
+    });
   }
   return resultado;
 }
@@ -409,6 +430,7 @@ export async function recalcularCantidadesObra(obraId: string): Promise<void> {
       await db.execute(sql`
         UPDATE obra_productos
         SET cantidad_pedida = ${c.pedidas}, cantidad_entregada = ${c.entregadas},
+            cantidad_facturada = ${c.facturadas}, cantidad_nvv = ${c.nvv},
             desde_documentos = true, updated_at = now()
         WHERE id = ${existente}
       `);
@@ -418,10 +440,10 @@ export async function recalcularCantidadesObra(obraId: string): Promise<void> {
       await db.execute(sql`
         INSERT INTO obra_productos
           (obra_id, kopr, nombre, unidad, cantidad_proyectada, cantidad_pedida, cantidad_entregada,
-           desde_documentos, revisar)
+           cantidad_facturada, cantidad_nvv, desde_documentos, revisar)
         VALUES
           (${obraId}, ${c.kopr}, ${nombre}, ${unidadDesdeCatalogo(nombre, null)}, 0, ${c.pedidas}, ${c.entregadas},
-           true, true)
+           ${c.facturadas}, ${c.nvv}, true, true)
       `);
     }
   }
@@ -430,7 +452,8 @@ export async function recalcularCantidadesObra(obraId: string): Promise<void> {
     if (p.desde_documentos && !actualizados.has(String(p.id))) {
       await db.execute(sql`
         UPDATE obra_productos
-        SET cantidad_pedida = 0, cantidad_entregada = 0, desde_documentos = false, updated_at = now()
+        SET cantidad_pedida = 0, cantidad_entregada = 0, cantidad_facturada = 0, cantidad_nvv = 0,
+            desde_documentos = false, updated_at = now()
         WHERE id = ${p.id}
       `);
     }
@@ -471,4 +494,135 @@ export async function actualizarCantidadesObrasActivas(): Promise<number> {
     }
   }
   return obras.length;
+}
+
+/**
+ * Completa Facturadas y NVV de los productos que se llenaron desde documentos
+ * antes de que existieran esas columnas: tienen Pedidas pero las dos nuevas en
+ * cero. Usa solo las líneas ya guardadas (no consulta Random), así que es
+ * barato; una vez completadas, deja de encontrar obras.
+ */
+export async function completarFacturadoNvv(): Promise<number> {
+  const obras = filasDe(await db.execute(sql`
+    SELECT DISTINCT obra_id
+    FROM obra_productos
+    WHERE desde_documentos AND cantidad_pedida > 0 AND cantidad_facturada = 0 AND cantidad_nvv = 0
+  `)).map((f) => String(f.obra_id));
+  for (const obraId of obras) {
+    try {
+      await recalcularCantidadesObra(obraId);
+    } catch (error: any) {
+      console.error(`❌ [Obras] No se pudo completar Facturado/NVV de la obra ${obraId}:`, error?.message);
+    }
+  }
+  return obras.length;
+}
+
+// ---------------------------------------------------------------------------
+// Lo proyectado en dinero
+// ---------------------------------------------------------------------------
+
+/**
+ * "Total proyecto en $" de una o varias constructoras: cantidad proyectada ×
+ * precio de cada producto de sus obras (pedido del usuario, oct-2026).
+ *
+ * El precio es el de venta real, neto: monto ÷ cantidad de las líneas de los
+ * documentos asociados. Se prefieren las facturas (precio cerrado), después las
+ * notas de venta y guías; primero los de la misma obra y, si esa obra todavía no
+ * tiene documentos del SKU, los de otra obra de la misma constructora. Sin
+ * ningún documento se usa el precio de lista.
+ */
+export async function proyectadoEnPesos(clienteIds: string[]): Promise<{
+  total: number;
+  /** Por Pedir en $: (proyectado − facturado − NVV) × precio, sumado. */
+  porPedir: number;
+  porObra: Record<string, number>;
+  conPrecioDocumento: number;
+  conPrecioLista: number;
+  sinPrecio: number;
+}> {
+  if (clienteIds.length === 0) {
+    return { total: 0, porPedir: 0, porObra: {}, conPrecioDocumento: 0, conPrecioLista: 0, sinPrecio: 0 };
+  }
+  const productos = filasDe(await db.execute(sql`
+    SELECT p.obra_id, o.cliente_id, p.kopr, p.cantidad_proyectada, p.cantidad_pedida
+    FROM obra_productos p
+    JOIN obras o ON o.id = p.obra_id
+    WHERE o.cliente_id IN (${sql.join(clienteIds.map((c) => sql`${c}`), sql`, `)}) AND p.cantidad_proyectada > 0
+  `)).map((f) => ({
+    obraId: String(f.obra_id),
+    clienteId: String(f.cliente_id),
+    kopr: sku(f.kopr),
+    proyectada: Number(f.cantidad_proyectada ?? 0),
+    // Facturado + NVV = pedido (ver calcularPorSku).
+    pedida: Number(f.cantidad_pedida ?? 0),
+  }));
+
+  const resultado = { total: 0, porPedir: 0, porObra: {} as Record<string, number>, conPrecioDocumento: 0, conPrecioLista: 0, sinPrecio: 0 };
+  if (clienteIds.length === 0 || productos.length === 0) return resultado;
+
+  const lineas = filasDe(await db.execute(sql`
+    SELECT v.obra_id, o.cliente_id, l.kopr, l.tido, SUM(l.monto) AS monto, SUM(l.cantidad) AS cantidad
+    FROM obra_venta_lineas l
+    JOIN obra_ventas v ON v.id = l.obra_venta_id
+    JOIN obras o ON o.id = v.obra_id
+    WHERE o.cliente_id IN (${sql.join(clienteIds.map((c) => sql`${c}`), sql`, `)}) AND v.activo AND l.vigente
+      AND l.cantidad > 0 AND l.monto > 0 AND l.kopr IS NOT NULL
+    GROUP BY v.obra_id, o.cliente_id, l.kopr, l.tido
+  `));
+
+  // Menor = mejor: factura, después nota de venta, después guía.
+  const prioridad = (tido: string | null) => {
+    const n = nivelDe(tido);
+    return n === "fac" ? 0 : n === "nvv" ? 1 : 2;
+  };
+  type Acum = { prioridad: number; monto: number; cantidad: number };
+  const quedarseConMejor = (mapa: Map<string, Acum>, clave: string, a: Acum) => {
+    const actual = mapa.get(clave);
+    if (!actual || a.prioridad < actual.prioridad) mapa.set(clave, { ...a });
+    else if (a.prioridad === actual.prioridad) {
+      actual.monto += a.monto;
+      actual.cantidad += a.cantidad;
+    }
+  };
+  const porObraSku = new Map<string, Acum>();
+  const porSku = new Map<string, Acum>();
+  for (const l of lineas) {
+    if (signoDe(l.tido) < 0) continue; // las notas de crédito no dicen el precio
+    const a = { prioridad: prioridad(l.tido), monto: Number(l.monto ?? 0), cantidad: Number(l.cantidad ?? 0) };
+    quedarseConMejor(porObraSku, `${l.obra_id}|${sku(l.kopr)}`, a);
+    quedarseConMejor(porSku, `${l.cliente_id}|${sku(l.kopr)}`, a);
+  }
+
+  const skus = Array.from(new Set(productos.map((p) => p.kopr).filter(Boolean)));
+  const lista = new Map<string, number>();
+  if (skus.length > 0) {
+    const filas = filasDe(await db.execute(sql`
+      SELECT UPPER(TRIM(codigo)) AS kopr, MAX(lista) AS lista
+      FROM price_list
+      WHERE UPPER(TRIM(codigo)) IN (${sql.join(skus.map((s) => sql`${s}`), sql`, `)})
+      GROUP BY UPPER(TRIM(codigo))
+    `));
+    for (const f of filas) if (Number(f.lista) > 0) lista.set(String(f.kopr), Number(f.lista));
+  }
+
+  for (const p of productos) {
+    const doc = porObraSku.get(`${p.obraId}|${p.kopr}`) ?? porSku.get(`${p.clienteId}|${p.kopr}`);
+    let precio = 0;
+    if (doc && doc.cantidad > 0) {
+      precio = doc.monto / doc.cantidad;
+      resultado.conPrecioDocumento += 1;
+    } else if (lista.has(p.kopr)) {
+      precio = lista.get(p.kopr)!;
+      resultado.conPrecioLista += 1;
+    } else {
+      resultado.sinPrecio += 1;
+      continue;
+    }
+    const monto = Math.round(p.proyectada * precio);
+    resultado.total += monto;
+    resultado.porPedir += Math.round(Math.max(0, p.proyectada - p.pedida) * precio);
+    resultado.porObra[p.obraId] = (resultado.porObra[p.obraId] ?? 0) + monto;
+  }
+  return resultado;
 }

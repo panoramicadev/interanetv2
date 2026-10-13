@@ -3,14 +3,18 @@
  *
  * Vive aparte porque la planilla (control-obras.tsx) y el detalle por producto
  * (panel-productos.tsx) tienen que mostrar los mismos números igual: tinetas
- * enteras, consumo con un decimal y porcentajes redondeados.
+ * enteras, sin ",0" de relleno, y porcentajes redondeados.
  */
 
 const nf = new Intl.NumberFormat("es-CL");
-const nfDec = new Intl.NumberFormat("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const nfDec = new Intl.NumberFormat("es-CL", { minimumFractionDigits: 0, maximumFractionDigits: 1 });
 
 export const fmt = (n: number) => nf.format(Math.round(n));
-/** Las tinetas utilizadas/saldo van con un decimal, igual que en la planilla. */
+/**
+ * Cantidades de material: sin ",0" de relleno (pedido del usuario, oct-2026),
+ * "68" en vez de "68,0". Solo aparece la coma si la cantidad de verdad la tiene
+ * (p. ej. un rendimiento de 0,3 tinetas por vivienda).
+ */
 export const fmtDec = (n: number) => nfDec.format(n);
 export const fmtPct = (n: number) => `${Math.round(n * 100)}%`;
 
