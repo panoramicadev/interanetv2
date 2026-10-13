@@ -134,7 +134,7 @@ export function BarraAvance({
   if (!hayDato) return <SinDato title={faltante} />;
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 flex-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden min-w-[52px]">
+      <div className="h-1.5 flex-1 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden min-w-[52px]">
         <div
           className="h-full rounded-full bg-gradient-to-r from-orange-400 to-[#fd6301]"
           style={{ width: `${Math.round(avance * 100)}%` }}

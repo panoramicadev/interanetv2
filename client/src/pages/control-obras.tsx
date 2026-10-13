@@ -5,16 +5,14 @@
  * constructora ("Planilla Control <cliente> Temporada 2026-2027").
  *
  * La pantalla tiene DOS niveles:
- *  1. Portada — listado de la cartera, en dos vistas: por constructora (una fila
- *     cada una con su avance y su próximo pedido) o todas las obras juntas,
- *     filtrables por estado, para cuando lo que se busca es una obra puntual.
- *     De acá se entra a una constructora y se agregan nuevas (el buscador contra
- *     la base de clientes).
+ *  1. Portada — listado de la cartera por constructora (una fila cada una con
+ *     sus obras y su avance). De acá se entra a una constructora y se agregan
+ *     nuevas (el buscador contra la base de clientes).
  *  2. Detalle — la planilla de esa constructora: resumen arriba y una fila por
- *     obra.
+ *     obra (en celular, una tarjeta por obra).
  *
- * En los dos listados, cada obra se despliega y sus productos aparecen como
- * filas indentadas de la MISMA tabla (components/obras/panel-productos.tsx),
+ * Cada obra se despliega y sus productos aparecen como filas indentadas de la
+ * MISMA tabla (components/obras/panel-productos.tsx),
  * usando las mismas columnas que la obra (components/obras/columnas.tsx): así el
  * número de cada SKU queda justo debajo del total al que suma. Ahí se cargan los
  * productos y se lleva el día a día de pedidos, entregas y consumo.
@@ -56,18 +54,15 @@ import {
   calcularObra,
   calcularProducto,
   calcularTotales,
-  algunNegativo,
-  fmtDesviacion,
   textoMaterial,
+  porFormato,
   type EstadoObra,
   type ObraCalculada,
   type Totales,
 } from "@/components/obras/calculos";
 import {
-  CLAVES_CARTERA,
   COLUMNAS,
-  CeldaMaterial,
-  columnaConstructora,
+  etiquetaUnidades,
   prepararColumnas,
   type ColumnaDef,
 } from "@/components/obras/columnas";
@@ -89,13 +84,12 @@ import {
   Paintbrush,
   Pencil,
   Plus,
-  Scale,
   Search,
   ShoppingCart,
   Trash2,
-  Truck,
   Users,
   X,
+  DollarSign,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -265,24 +259,19 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
   const [cliente, setCliente] = useState<ClienteBusqueda | null>(null);
   const [filtroCartera, setFiltroCartera] = useState("");
   // Portada: agrupada por constructora o el listado plano de todas las obras.
-  const [vistaCartera, setVistaCartera] = useState<"constructoras" | "obras">("constructoras");
   // En celular las pestañas, el buscador y los dos botones bajan debajo de las
   // tarjetas de resumen (pedido del usuario, ago-2026); en computador siguen
   // arriba, en la misma fila del título.
   const esCelular = useIsMobile();
-  const [filtroEstado, setFiltroEstado] = useState<EstadoObra | "todos">("todos");
   const [dialogAgregarCliente, setDialogAgregarCliente] = useState(false);
   // El buscador de constructoras se usa para dos cosas: sumarla a la cartera o
   // elegirla como paso previo a cargarle una obra (ver abrirNueva).
   const [altaTrasElegir, setAltaTrasElegir] = useState(false);
   // Detalle del "próximo pedido total": qué productos faltan y cuáles ya están críticos.
-  const [dialogPedido, setDialogPedido] = useState(false);
   const [busqueda, setBusqueda] = useState("");
 
   const [temporadaFiltro, setTemporadaFiltro] = useState("todas");
-  const [planillaCompleta, setPlanillaCompleta] = useState(false);
   // Los indicadores van plegados: la tabla de obras es lo primero que se ve.
-  const [detalleAbierto, setDetalleAbierto] = useState(false);
   const [obraExpandida, setObraExpandida] = useState<string | null>(null);
 
   const [dialogAbierto, setDialogAbierto] = useState(false);
@@ -361,6 +350,18 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
     queryKey: ["/api/obra-productos"],
     queryFn: async () => {
       const res = await apiRequest("/api/obra-productos");
+      return res.json();
+    },
+  });
+
+  // Total proyecto en $ de la constructora abierta. La clave arranca con
+  // "/api/obra-productos" para que se recalcule cada vez que cambian los
+  // productos (esas mutaciones invalidan ese prefijo).
+  const { data: proyectadoPesos } = useQuery<{ total: number; porPedir: number; sinPrecio: number; conPrecioLista: number }>({
+    queryKey: ["/api/obra-productos", "proyectado-pesos", cliente?.id],
+    enabled: !!cliente?.id,
+    queryFn: async () => {
+      const res = await apiRequest(`/api/obras/proyectado-pesos?clienteId=${encodeURIComponent(cliente!.id)}`);
       return res.json();
     },
   });
@@ -512,6 +513,18 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
 
   const cartera = useMemo(() => armarCartera(todasLasObras, productosPorObra), [todasLasObras, productosPorObra]);
 
+  // Total proyectado en $ de toda la cartera (pedido del usuario, oct-2026).
+  // Mismo cálculo que el de cada constructora, sumado.
+  const idsCartera = useMemo(() => cartera.map((c) => c.id).sort(), [cartera]);
+  const { data: proyectadoCartera } = useQuery<{ total: number; sinPrecio: number }>({
+    queryKey: ["/api/obra-productos", "proyectado-pesos-cartera", idsCartera.join(",")],
+    enabled: idsCartera.length > 0,
+    queryFn: async () => {
+      const res = await apiRequest(`/api/obras/proyectado-pesos?clienteIds=${encodeURIComponent(idsCartera.join(","))}`);
+      return res.json();
+    },
+  });
+
   const carteraFiltrada = useMemo(() => {
     const q = normalizar(filtroCartera.trim());
     if (!q) return cartera;
@@ -527,85 +540,6 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
     () => calcularTotales(cartera.flatMap((c) => c.filas)),
     [cartera],
   );
-
-  /**
-   * Qué hay que comprar, producto por producto y de toda la cartera.
-   *
-   * El "próximo pedido total" era un número suelto: decía cuánto pero no de
-   * qué ni para quién. Acá se abre en sus productos, con los críticos primero
-   * —los que ya no tienen nada en obra y todavía tienen viviendas por pintar,
-   * que es cuando la cuadrilla se para— y después los que solo faltan pedir.
-   */
-  const pedidoPendiente = useMemo(() => {
-    const items = cartera.flatMap((c) =>
-      c.filas.flatMap((f) =>
-        (productosPorObra.get(f.obra.id) ?? []).map((p) => {
-          const calc = calcularProducto(p, Number(f.obra.viviendasPintadas) || 0);
-          const critico = f.pendientes > 0 && calc.saldo <= 0;
-          return { producto: p, calc, obra: f.obra, constructora: c, pendientes: f.pendientes, critico };
-        }),
-      ),
-    );
-    return items
-      .filter((i) => i.calc.sugerido > 0 || i.critico)
-      .sort(
-        (a, b) =>
-          Number(b.critico) - Number(a.critico) ||
-          b.calc.sugerido - a.calc.sugerido ||
-          a.constructora.nombre.localeCompare(b.constructora.nombre),
-      );
-  }, [cartera, productosPorObra]);
-
-  const criticos = useMemo(() => pedidoPendiente.filter((i) => i.critico).length, [pedidoPendiente]);
-
-  // Todas las obras de la cartera, cada una con su constructora al lado: es el
-  // listado plano de la portada. Primero lo que hay que comprar.
-  const obrasDeLaCartera = useMemo(
-    () =>
-      cartera
-        .flatMap((c) => c.filas.map((fila) => ({ fila, constructora: c })))
-        .sort(
-          (a, b) =>
-            b.fila.sugerido - a.fila.sugerido ||
-            a.constructora.nombre.localeCompare(b.constructora.nombre) ||
-            a.fila.obra.nombre.localeCompare(b.fila.obra.nombre),
-        ),
-    [cartera],
-  );
-
-  const obrasFiltradas = useMemo(() => {
-    const q = normalizar(filtroCartera.trim());
-    return obrasDeLaCartera.filter(({ fila, constructora }) => {
-      if (filtroEstado !== "todos" && fila.estado !== filtroEstado) return false;
-      if (!q) return true;
-      return (
-        normalizar(fila.obra.nombre).includes(q) ||
-        normalizar(fila.obra.ciudad ?? "").includes(q) ||
-        normalizar(fila.obra.programa ?? "").includes(q) ||
-        normalizar(constructora.nombre).includes(q)
-      );
-    });
-  }, [obrasDeLaCartera, filtroCartera, filtroEstado]);
-
-  // Columnas del listado plano: la constructora (acá las obras vienen
-  // mezcladas) más las de decisión de la planilla. Al desplegar una obra, sus
-  // productos usan estas mismas columnas.
-  const constructoraPorCliente = useMemo(() => {
-    const mapa = new Map<string, Constructora>();
-    for (const c of cartera) mapa.set(c.id, c);
-    return mapa;
-  }, [cartera]);
-
-  const { columnas: columnasCartera } = prepararColumnas([
-    columnaConstructora(
-      (f) => constructoraPorCliente.get(f.obra.clienteId)?.nombre ?? "—",
-      (f) => {
-        const destino = constructoraPorCliente.get(f.obra.clienteId);
-        if (destino) seleccionarConstructora(destino);
-      },
-    ),
-    ...COLUMNAS.filter((c) => CLAVES_CARTERA.has(c.key)),
-  ]);
 
   const obras = useMemo(
     () => todasLasObras.filter((o) => o.clienteId === cliente?.id),
@@ -634,11 +568,10 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
 
   const totales = useMemo(() => calcularTotales(filas), [filas]);
 
-  // Columnas de la planilla, agrupadas en bloques (obra / avance / material /
-  // qué hacer). El toggle "planilla completa" suma las columnas de detalle.
+  // Columnas de la planilla, agrupadas en bloques (obra / avance / material).
   const { columnas: columnasVisibles, grupos } = useMemo(
-    () => prepararColumnas(COLUMNAS.filter((c) => planillaCompleta || !c.soloCompleta)),
-    [planillaCompleta],
+    () => prepararColumnas(COLUMNAS),
+    [],
   );
 
   // --- Formulario de obra ---
@@ -823,7 +756,7 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
       <Input
         value={filtroCartera}
         onChange={(e) => setFiltroCartera(e.target.value)}
-        placeholder={vistaCartera === "obras" ? "Buscar obra, ciudad o constructora…" : "Buscar constructora, obra o ciudad…"}
+        placeholder="Buscar constructora, obra o ciudad…"
         className="pl-9 rounded-2xl bg-white dark:bg-slate-800/60 border-slate-200/70 dark:border-slate-700/60"
         data-testid="input-obras-filtrar-cartera"
       />
@@ -881,7 +814,7 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                   ? vendedorFiltro === "sin-asignar"
                     ? "Todas las obras de la cartera ya tienen un vendedor a cargo."
                     : "Este vendedor todavía no tiene obras a su nombre. Si la obra existe pero la cargó otra persona, ábrela con el filtro en “Todos” y asígnasela desde el formulario de la obra."
-                  : "Agrega las constructoras con las que estás trabajando esta temporada. De cada una vas a ver el avance de sus obras, las tinetas pedidas y entregadas, el saldo en obra y el próximo pedido sugerido."}
+                  : "Agrega las constructoras con las que estás trabajando esta temporada. De cada una vas a ver el avance de sus obras, las tinetas pedidas y entregadas, el saldo en obra y el producto por vender."}
               </p>
               {vendedorFiltro !== "all" && onVerTodaLaCartera ? (
                 <Button
@@ -924,8 +857,14 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
               {/* Resumen de toda la cartera */}
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
                 <MiniStat icon={<Building2 className="h-3.5 w-3.5" />} tono="sky" label="Constructoras" valor={fmt(cartera.length)} />
-                <MiniStat icon={<Home className="h-3.5 w-3.5" />} tono="slate" label="Viviendas en control" valor={fmt(totalesCartera.viviendas)} />
-                <MiniStat icon={<Paintbrush className="h-3.5 w-3.5" />} tono="emerald" label="Avance global" valor={fmtPct(totalesCartera.avance)} />
+                {/* Sin "Viviendas en control" (pedido del usuario, oct-2026). */}
+                <MiniStat icon={<Paintbrush className="h-3.5 w-3.5" />} tono="emerald" label="Avance global" valor={fmtPct(
+                    // Promedio del avance de cada constructora del listado
+                    // (pedido del usuario, oct-2026): cada una pesa lo mismo.
+                    cartera.length > 0
+                      ? cartera.reduce((a, c) => a + c.totales.avanceVenta, 0) / cartera.length
+                      : 0,
+                  )} />
                 {/* Cuántas obras hay en la cartera. Reemplaza a "Próximo pedido
                     total" (pedido del usuario, oct-2026). */}
                 <MiniStat
@@ -934,117 +873,38 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                   label="Obras"
                   valor={fmt(totalesCartera.conteoEstados.reduce((a, e) => a + e.cantidad, 0))}
                 />
+                <MiniStat
+                  icon={<DollarSign className="h-3.5 w-3.5" />}
+                  tono="emerald"
+                  label={
+                    proyectadoCartera && proyectadoCartera.sinPrecio > 0
+                      ? `Total proyectado · ${proyectadoCartera.sinPrecio} sin precio`
+                      : "Total proyectado"
+                  }
+                  valor={proyectadoCartera ? `$${Math.round(proyectadoCartera.total).toLocaleString("es-CL")}` : "—"}
+                  testId="text-cartera-proyectado-pesos"
+                />
               </div>
 
               {/* ---------- Listado de constructoras ---------- */}
-              {vistaCartera === "constructoras" && (
-                carteraFiltrada.length === 0 ? (
+              {carteraFiltrada.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 px-6 py-12 text-center text-sm text-slate-500">
                     Ninguna constructora coincide con «{filtroCartera}».
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 shadow-sm overflow-hidden">
-                    <div className="hidden lg:flex items-center gap-3 px-4 py-2 bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/70 dark:border-slate-700/60 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      <span className="flex-1 min-w-0">Constructora</span>
-                      <span className="w-[150px] text-center">Avance</span>
-                      <span className="w-20 text-right">Saldo obra</span>
-                      <span className="w-24 text-right">Próx. pedido</span>
-                      <span className="w-4" />
+                    <div className={`hidden lg:grid ${GRID_CONSTRUCTORAS} items-center gap-6 px-4 py-2 bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/70 dark:border-slate-700/60 text-[10px] font-bold uppercase tracking-wider text-slate-400`}>
+                      <span className="min-w-0">Constructora</span>
+                      <span className="text-center">Obras</span>
+                      <span className="text-center">Avance global</span>
+                      <span />
                     </div>
                     {carteraFiltrada.map((c) => (
                       <FilaConstructora key={c.id} constructora={c} onAbrir={() => seleccionarConstructora(c)} />
                     ))}
                   </div>
-                )
-              )}
+                )}
 
-              {/* ---------- Listado de todas las obras de la cartera ---------- */}
-              {vistaCartera === "obras" && (
-                <>
-                  {/* Filtro por estado: la lista larga se usa para ir a lo que hay que pedir. */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <button
-                      onClick={() => setFiltroEstado("todos")}
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold transition-colors ${
-                        filtroEstado === "todos"
-                          ? "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900"
-                          : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
-                      }`}
-                      data-testid="button-filtro-estado-todos"
-                    >
-                      Todas
-                      <span className="tabular-nums opacity-70">{obrasDeLaCartera.length}</span>
-                    </button>
-                    {totalesCartera.conteoEstados
-                      .filter((e) => e.cantidad > 0)
-                      .map((e) => (
-                        <button
-                          key={e.key}
-                          onClick={() => setFiltroEstado(filtroEstado === e.key ? "todos" : e.key)}
-                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold transition-all ${e.badge} ${
-                            filtroEstado === e.key ? "ring-2 ring-offset-1 ring-slate-400 dark:ring-offset-slate-900" : "opacity-80 hover:opacity-100"
-                          }`}
-                          data-testid={`button-filtro-estado-${e.key}`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full ${e.dot}`} />
-                          {e.label}
-                          <span className="tabular-nums">{e.cantidad}</span>
-                        </button>
-                      ))}
-                  </div>
-
-                  {obrasFiltradas.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 px-6 py-12 text-center text-sm text-slate-500">
-                      Ninguna obra coincide con la búsqueda.
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 shadow-sm overflow-hidden">
-                      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200/70 dark:border-slate-700/60">
-                        <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                          {obrasFiltradas.length} {obrasFiltradas.length === 1 ? "obra" : "obras"}
-                          <span className="ml-2 text-xs font-normal text-slate-400">
-                            Toca una obra para cargar sus productos
-                          </span>
-                        </div>
-                      </div>
-                      <div className="overflow-x-auto">
-                        {/* Mismas columnas que la planilla, recortadas a las de
-                            decisión: una obra se lee igual en los dos listados. */}
-                        <table className="w-full text-sm min-w-[900px]">
-                          <thead>
-                            <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/70 dark:border-slate-700/60">
-                              <Th className="text-left pl-4 min-w-[260px]">Obra</Th>
-                              {columnasCartera.map((c) => (
-                                <Th key={c.key} title={c.title} className={`${c.borde ?? ""} ${c.thClassName ?? ""}`}>
-                                  {c.label}
-                                </Th>
-                              ))}
-                              <Th className="pr-4"> </Th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {obrasFiltradas.map(({ fila, constructora }) => {
-                              const expandida = obraExpandida === fila.obra.id;
-                              return (
-                                <FilaObraGlobal
-                                  key={fila.obra.id}
-                                  fila={fila}
-                                  columnas={columnasCartera}
-                                  productos={productosPorObra.get(fila.obra.id) ?? []}
-                                  expandida={expandida}
-                                  onToggle={() => setObraExpandida(expandida ? null : fila.obra.id)}
-                                  onGuardar={(data) => actualizarObra.mutate({ id: fila.obra.id, data })}
-                                  onAbrirConstructora={() => seleccionarConstructora(constructora)}
-                                />
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
             </>
           )}
         </>
@@ -1112,15 +972,25 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                   constructora se ve siempre con todas sus temporadas. */}
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* En celular: la fecha y "Nueva obra" en una sola línea; el contador
+                de obras se oculta porque ya lo dice la primera tarjeta. */}
+            <div className="flex items-center justify-between lg:justify-end gap-2">
+              {/* Última actualización junto a los botones, en negro y sin negrita
+                  (pedido del usuario, oct-2026). */}
               {filas.length > 0 && (
-                <Badge className="bg-gradient-to-r from-orange-500 to-[#fd6301] text-white border-0 text-sm font-semibold px-4 py-2 shadow-sm shadow-orange-500/25 rounded-full">
+                <span className="text-xs sm:text-sm text-slate-900 dark:text-slate-100 lg:mr-2 min-w-0" data-testid="text-obras-ultima-actualizacion">
+                  {temporadaFiltro !== "todas" && `Temporada ${temporadaFiltro} · `}
+                  Última actualización {totales.ultima ? totales.ultima.toLocaleDateString("es-CL") : "—"}
+                </span>
+              )}
+              {filas.length > 0 && (
+                <Badge className="hidden sm:inline-flex bg-gradient-to-r from-orange-500 to-[#fd6301] text-white border-0 text-sm font-semibold px-4 py-2 shadow-sm shadow-orange-500/25 rounded-full">
                   {filas.length} {filas.length === 1 ? "obra" : "obras"}
                 </Badge>
               )}
               <Button
                 onClick={abrirNueva}
-                className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all"
+                className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all flex-shrink-0"
                 data-testid="button-nueva-obra"
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -1153,174 +1023,131 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
 
           {filas.length > 0 && (
             <>
-              {/* Franja de resumen: banner + los cuatro números que se miran
-                  siempre. El resto de los indicadores va plegado para que la
-                  tabla de obras quede a la vista al entrar. */}
-              <div className="rounded-2xl overflow-hidden shadow-md shadow-orange-500/25">
-                <div className="bg-gradient-to-r from-[#fd6301] to-[#e35400] text-white px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-3">
-                  {/* El nombre se lee completo: con ancho mínimo propio, si no cabe
-                      junto a los números estos bajan a la fila de abajo en vez de
-                      dejar "CONTR…" (pedido del usuario, oct-2026). */}
-                  <div className="flex items-center gap-3 min-w-[260px] flex-1">
-                    <span className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
-                      <HardHat className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0">
-                      <h3 className="text-sm sm:text-base font-bold uppercase tracking-wide leading-snug break-words">
-                        Control {cliente.nokoen}
-                      </h3>
-                      <p className="text-[11px] text-white/75">
-                        {temporadaFiltro !== "todas" ? `Temporada ${temporadaFiltro} · ` : ""}
-                        Avance, compra, entrega y saldo
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
-                    {/* El total del cliente, no el de una obra: suma las viviendas
-                        de TODAS sus obras, que es el número con el que se habla
-                        con una constructora que tiene varios proyectos. */}
-                    <BannerStat
-                      label="Viviendas"
-                      valor={fmt(totales.viviendas)}
-                      sufijo={`en ${fmt(filas.length)} ${filas.length === 1 ? "obra" : "obras"}`}
-                    />
-                    {/* El material va una cifra por formato: sumar tinetas con
-                        galones daba un número que no era ninguna de las dos cosas. */}
-                    <BannerStat label="Proyectadas" valor={textoMaterial(totales.material, "proyectadas")} />
-                    <BannerStat
-                      label="Pintadas"
-                      valor={fmt(totales.pintadas)}
-                      sufijo={`${fmtPct(totales.avance)} de ${fmt(totales.viviendas)}`}
-                    />
-                    {/* Próximo pedido — el número que la planilla usaba para gatillar la compra */}
-                    <div className="rounded-xl bg-white/15 px-3 py-1.5">
-                      <div className="text-[9px] uppercase tracking-wider font-bold text-white/70 flex items-center gap-1.5">
-                        <ShoppingCart className="h-3 w-3" />
-                        Próximo pedido
-                      </div>
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="text-xl font-bold tabular-nums" data-testid="text-obras-sugerido">
-                          {textoMaterial(totales.material, "sugerido")}
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => setDetalleAbierto((v) => !v)}
-                      className="flex items-center gap-1.5 rounded-xl bg-white/15 hover:bg-white/25 transition-colors px-3 py-2 text-[11px] font-semibold uppercase tracking-wider"
-                      data-testid="button-toggle-detalle-obras"
-                    >
-                      {detalleAbierto ? "Ocultar" : "Indicadores"}
-                      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${detalleAbierto ? "rotate-180" : ""}`} />
-                    </button>
-                  </div>
+              {/* Resumen de la constructora con las mismas tarjetas blancas de la
+                  portada (pedido del usuario, oct-2026): reemplaza al banner
+                  naranjo. Solo los cuatro números que se miran siempre. */}
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                  {/* El total del cliente, no el de una obra. Igual que la columna
+                      "Edificio / Casa" (pedido del usuario, oct-2026): los
+                      edificios suman sus torres y las casas sus viviendas; si la
+                      constructora tiene de los dos, van uno debajo del otro. */}
+                  {(() => {
+                    const obrasTxt = `${fmt(filas.length)} ${filas.length === 1 ? "obra" : "obras"}`;
+                    const hayEdificios = filas.some((f) => f.obra.tipoObra === "edificios");
+                    const hayCasas = filas.some((f) => f.obra.tipoObra !== "edificios");
+                    const torresTxt = `${fmt(totales.torres)} ${totales.torres === 1 ? "torre" : "torres"}`;
+                    const casasTxt = `${fmt(totales.casas)} viviendas`;
+                    return (
+                      <MiniStat
+                        icon={hayEdificios && !hayCasas ? <Building2 className="h-3.5 w-3.5" /> : <Home className="h-3.5 w-3.5" />}
+                        tono="slate"
+                        label={
+                          hayEdificios && hayCasas
+                            ? obrasTxt
+                            : `${hayEdificios ? "Torres" : "Viviendas"} · ${obrasTxt}`
+                        }
+                        valor={
+                          hayEdificios && hayCasas
+                            ? `${torresTxt} · ${casasTxt}`
+                            : hayEdificios
+                              ? fmt(totales.torres)
+                              : fmt(totales.casas)
+                        }
+                      />
+                    );
+                  })()}
+                  {/* Sin tarjeta de Pintadas (pedido del usuario, oct-2026). */}
+                  {/* Avance de todas las obras juntas (pedido del usuario, oct-2026):
+                      (facturado + NVV) ÷ proyectado sumando todos sus productos,
+                      igual que la columna "% avance". */}
+                  <MiniStat icon={<HardHat className="h-3.5 w-3.5" />} tono="amber" label="Avance global" valor={fmtPct(totales.avanceVenta)} />
+                  {/* Producto por Vender (antes "Próximo pedido") — el número que la planilla usaba para gatillar la compra */}
+                  <MiniStat
+                    icon={<ShoppingCart className="h-3.5 w-3.5" />}
+                    tono="sky"
+                    label="Por Pedir"
+                    // Lo de la columna "Por Pedir" (proyectado − facturado − NVV),
+                    // pero en dinero y en un solo total (pedido del usuario,
+                    // oct-2026): las unidades por formato quedan en la tabla.
+                    valor={proyectadoPesos ? `$${Math.round(proyectadoPesos.porPedir).toLocaleString("es-CL")}` : "—"}
+                    testId="text-obras-sugerido"
+                  />
+                  {/* Total proyecto en $ (pedido del usuario, oct-2026): lo
+                      proyectado × el precio de venta real de cada producto. */}
+                  <MiniStat
+                    icon={<DollarSign className="h-3.5 w-3.5" />}
+                    tono="emerald"
+                    label={
+                      proyectadoPesos && proyectadoPesos.sinPrecio > 0
+                        ? `Total proyecto · ${proyectadoPesos.sinPrecio} sin precio`
+                        : "Total proyecto"
+                    }
+                    valor={proyectadoPesos ? `$${Math.round(proyectadoPesos.total).toLocaleString("es-CL")}` : "—"}
+                    testId="text-obras-proyectado-pesos"
+                  />
                 </div>
 
-                {detalleAbierto && (
-                  <div className="bg-white dark:bg-slate-900 border border-t-0 border-slate-200/70 dark:border-slate-700/60 p-4 space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
-                      <span>Faltan {textoMaterial(totales.material, "faltante")} por pedir del total proyectado</span>
-                      <span>
-                        <span className="uppercase tracking-wider font-bold">Última actualización</span>{" "}
-                        <span className="font-semibold text-slate-500 dark:text-slate-300">
-                          {totales.ultima ? totales.ultima.toLocaleDateString("es-CL") : "—"}
-                        </span>
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-                      <div className="xl:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        <MiniStat icon={<ShoppingCart className="h-3.5 w-3.5" />} tono="sky" label="Pedidas" valor={textoMaterial(totales.material, "pedidas")} />
-                        <MiniStat icon={<Truck className="h-3.5 w-3.5" />} tono="violet" label="Entregadas" valor={textoMaterial(totales.material, "entregadas")} />
-                        <MiniStat
-                          icon={<Paintbrush className="h-3.5 w-3.5" />}
-                          tono="slate"
-                          label="Utilizadas en obra"
-                          valor={textoMaterial(totales.material, "usadas")}
-                        />
-                        {/* Reemplaza al "teórico vs real": lo que se mira es si
-                            el producto rinde lo que se prometió. */}
-                        <MiniStat
-                          icon={<Scale className="h-3.5 w-3.5" />}
-                          tono={totales.consumoTeorico === 0 ? "slate" : totales.desviacion > 0.05 ? "red" : "emerald"}
-                          label="Rendimiento vs declarado"
-                          valor={totales.consumoTeorico > 0 ? fmtDesviacion(totales.desviacion) : "—"}
-                        />
-                        <MiniStat
-                          icon={<Package className="h-3.5 w-3.5" />}
-                          tono={algunNegativo(totales.material, "saldo") ? "red" : "emerald"}
-                          label="Saldo en obra"
-                          valor={textoMaterial(totales.material, "saldo")}
-                        />
-                        <MiniStat icon={<AlertTriangle className="h-3.5 w-3.5" />} tono="amber" label="Faltante por pedir" valor={textoMaterial(totales.material, "faltante")} />
-                      </div>
-
-                      {/* Resumen por estado */}
-                      <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 p-4 shadow-sm">
-                        <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-3">Obras por estado</div>
-                        <div className="space-y-2">
-                          {totales.conteoEstados.map((e) => {
-                            const pct = filas.length > 0 ? e.cantidad / filas.length : 0;
-                            return (
-                              <div key={e.key} className="flex items-center gap-2.5" data-testid={`row-estado-${e.key}`}>
-                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${e.dot}`} />
-                                <span className="text-sm font-medium text-slate-600 dark:text-slate-300 flex-1 min-w-0 truncate">{e.label}</span>
-                                <span className="text-sm font-bold tabular-nums text-slate-700 dark:text-slate-100">{e.cantidad}</span>
-                                <span className="text-[11px] tabular-nums text-slate-400 w-10 text-right">{fmtPct(pct)}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {/* Sin "Ver más indicadores" ni su panel (Pedidas, Entregadas,
+                    Utilizadas, Rendimiento, Saldo, Faltante y Obras por estado):
+                    se quitaron a pedido del usuario (oct-2026). */}
               </div>
 
-              {/* Tabla de obras */}
-              <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 shadow-sm overflow-hidden">
-                <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200/70 dark:border-slate-700/60">
-                  <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    Obras
-                    <span className="ml-2 text-xs font-normal text-slate-400">
-                      Las pintadas se anotan en la fila de la obra · toca una para ver sus productos
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setPlanillaCompleta((v) => !v)}
-                    className="text-xs font-semibold text-slate-500 hover:text-orange-600 transition-colors flex-shrink-0"
-                    data-testid="button-toggle-planilla-completa"
-                  >
-                    {planillaCompleta ? "Ver resumen" : "Ver planilla completa"}
-                  </button>
+              {/* Celular: cada obra es una tarjeta (pedido del usuario, oct-2026);
+                  en la tabla la columna del proyecto tapaba los números. */}
+              {esCelular ? (
+                <div className="space-y-3">
+                  {filas.map((f, i) => {
+                    const expandida = obraExpandida === f.obra.id;
+                    return (
+                      <TarjetaObra
+                        key={f.obra.id}
+                        fila={f}
+                        indice={i}
+                        columnas={columnasVisibles}
+                        productos={productosPorObra.get(f.obra.id) ?? []}
+                        expandida={expandida}
+                        onToggle={() => setObraExpandida(expandida ? null : f.obra.id)}
+                        onGuardar={(data) => actualizarObra.mutate({ id: f.obra.id, data })}
+                        onEditar={() => abrirEdicion(f.obra)}
+                        onEliminar={() => setObraAEliminar(f.obra)}
+                      />
+                    );
+                  })}
                 </div>
+              ) : (
+              /* Tabla de obras */
+              <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 shadow-sm overflow-hidden">
+                {/* Sin barra de título ni botón "Ver planilla completa" (pedido del
+                    usuario, oct-2026): la tabla arranca directo en sus columnas. */}
                 <div className="overflow-x-auto">
                   {/* Columnas de la hoja "Control General" de la planilla, en
                       bloques: qué obra es → cómo va → cuánto material → qué
                       hago. La primera queda fija al hacer scroll lateral. */}
-                  <table className={`w-full text-sm ${planillaCompleta ? "min-w-[1720px]" : "min-w-[1180px]"}`}>
-                    <thead>
-                      <tr className="bg-slate-50/80 dark:bg-slate-800/60">
-                        <th className="sticky left-0 z-10 bg-slate-50 dark:bg-slate-800" />
+                  <table className="w-full text-sm min-w-[1180px]">
+                    {/* Encabezado en naranjo fuerte con letra blanca (pedido del
+                        usuario, oct-2026), igual que la cabecera de la obra en celular. */}
+                    <thead className="[&_th]:!text-white [&_th]:!border-white/30">
+                      <tr className="bg-[#fd6301]">
+                        <th className="sticky left-0 z-10 bg-[#fd6301]" />
                         {grupos.map((g, i) => (
                           <th
                             key={g.label}
                             colSpan={g.span}
-                            className={`px-3 pt-2.5 pb-1 text-center text-[9px] uppercase tracking-[0.14em] font-bold text-slate-400/80 whitespace-nowrap ${i > 0 ? BORDE_GRUPO : ""}`}
+                            className={`px-3 pt-2.5 pb-1 text-center text-[9px] uppercase tracking-[0.14em] font-bold whitespace-nowrap ${i > 0 ? BORDE_GRUPO : ""}`}
                           >
                             {g.label}
                           </th>
                         ))}
                         <th />
                       </tr>
-                      <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/70 dark:border-slate-700/60">
-                        <Th className="text-left pl-4 sticky left-0 z-10 bg-slate-50 dark:bg-slate-800 min-w-[270px]">
+                      <tr className="bg-[#fd6301]">
+                        <Th className="text-left pl-4 sticky left-0 z-10 bg-[#fd6301] min-w-[270px]">
                           Proyecto
                         </Th>
                         {columnasVisibles.map((c) => (
                           <Th key={c.key} title={c.title} className={`pt-1 ${c.borde ?? ""} ${c.thClassName ?? ""}`}>
-                            {c.label}
+                            {c.key === "viv" ? etiquetaUnidades(filas.map((f) => f.obra)) : c.label}
                           </Th>
                         ))}
                         <Th className="pr-4"> </Th>
@@ -1346,148 +1173,40 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                         );
                       })}
                     </tbody>
-                    <tfoot>
-                      <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-t border-slate-200/70 dark:border-slate-700/60 font-bold text-slate-700 dark:text-slate-100">
-                        <td className="pl-4 py-3 text-left sticky left-0 z-10 bg-slate-50 dark:bg-slate-800">Total</td>
-                        {columnasVisibles.map((c) => (
-                          <td key={c.key} className={`px-2.5 py-3 text-center tabular-nums ${c.borde ?? ""}`}>
-                            {c.total ? c.total(totales) : null}
-                          </td>
-                        ))}
-                        <td />
-                      </tr>
-                    </tfoot>
+                    {/* Sin fila de Total (pedido del usuario, oct-2026). */}
                   </table>
                 </div>
               </div>
+              )}
 
-              {/* Las tres fórmulas que no se adivinan mirando la tabla. El resto
-                  (proyectado, pedido, entregado) se explica solo. */}
-              <dl className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-1.5 text-[11px] text-slate-400 px-1">
-                <div>
-                  <dt className="font-bold text-slate-500 dark:text-slate-400">Saldo en obra</dt>
-                  <dd>Entregado − utilizado: lo que debería quedar en la bodega de la obra.</dd>
-                </div>
-                <div>
-                  <dt className="font-bold text-slate-500 dark:text-slate-400">Próx. pedido</dt>
-                  <dd>Proyectado − pedido − saldo en obra: lo que hay que comprar ahora.</dd>
-                </div>
-                <div>
-                  <dt className="font-bold text-slate-500 dark:text-slate-400">Rendimiento</dt>
-                  <dd>Utilizado ÷ viviendas pintadas: cuánto producto se va en cada una.</dd>
-                </div>
-              </dl>
+              {/* Compras y bitácora de la obra abierta van DEBAJO de la tabla, para
+                  que el Total quede pegado a las obras y sus productos (pedido
+                  del usuario, oct-2026). */}
+              {(() => {
+                const abierta = filas.find((f) => f.obra.id === obraExpandida);
+                // En celular van dentro de la tarjeta de la obra.
+                if (!abierta || esCelular) return null;
+                return (
+                  // Lado a lado (pedido del usuario, oct-2026): el chat de la
+                  // obra a la izquierda, compras y documentos a la derecha.
+                  // En celular quedan uno debajo del otro.
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
+                    <BitacoraObra obraId={abierta.obra.id} obraNombre={abierta.obra.nombre} />
+                    <ComprasObra
+                      obraId={abierta.obra.id}
+                      obraNombre={abierta.obra.nombre}
+                      clienteNombre={abierta.obra.clienteNombre}
+                    />
+                  </div>
+                );
+              })()}
+
             </>
           )}
         </>
       )}
 
       {/* ===================== DIÁLOGOS ===================== */}
-
-      {/* Qué falta comprar: el "próximo pedido total" abierto por producto */}
-      <Dialog open={dialogPedido} onOpenChange={setDialogPedido}>
-        <DialogContent
-          className="sm:max-w-[680px] max-h-[85vh] flex flex-col p-0 overflow-hidden z-[70]"
-          overlayClassName="z-[70]"
-        >
-          <div className="px-6 py-5 border-b border-slate-200/70 dark:border-slate-700/60">
-            <div className="flex items-center gap-3">
-              <span className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
-                <ShoppingCart className="h-5 w-5" />
-              </span>
-              <div>
-                <DialogTitle className="text-lg font-bold text-foreground">Qué hay que pedir</DialogTitle>
-                <DialogDescription className="text-sm text-muted-foreground">
-                  {textoMaterial(totalesCartera.material, "sugerido")} en {fmt(pedidoPendiente.length)}{" "}
-                  {pedidoPendiente.length === 1 ? "producto" : "productos"}
-                  {criticos > 0 && ` · ${fmt(criticos)} sin stock en obra`}
-                </DialogDescription>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-6 py-4">
-            {pedidoPendiente.length === 0 ? (
-              <p className="text-sm text-slate-400 py-8 text-center">
-                No hay nada pendiente de pedir: todas las obras tienen material suficiente para lo que
-                les falta pintar.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {pedidoPendiente.map(({ producto, calc, obra, constructora, pendientes, critico }) => (
-                  <li
-                    key={producto.id}
-                    className={`rounded-2xl border px-3.5 py-3 ${
-                      critico
-                        ? "border-red-200 bg-red-50/60 dark:border-red-900/50 dark:bg-red-950/20"
-                        : "border-slate-200/70 bg-white dark:border-slate-700/60 dark:bg-slate-800/40"
-                    }`}
-                    data-testid={`row-pedido-pendiente-${producto.id}`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 break-words">
-                          {producto.nombre}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400 mt-0.5">
-                          {producto.kopr && <span className="font-bold tabular-nums">{producto.kopr}</span>}
-                          {producto.color && <span className="uppercase tracking-wide">{producto.color}</span>}
-                          <span className="uppercase tracking-wide">{producto.unidad}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            seleccionarConstructora(constructora);
-                            setDialogPedido(false);
-                          }}
-                          className="mt-1 text-[11px] font-semibold text-slate-500 hover:text-orange-600 dark:text-slate-400 transition-colors text-left"
-                          data-testid={`link-pedido-obra-${producto.id}`}
-                        >
-                          {constructora.nombre} · {obra.nombre}
-                        </button>
-                      </div>
-
-                      <div className="text-right flex-shrink-0">
-                        <div className="text-lg font-bold tabular-nums text-[#fd6301] leading-tight">
-                          {fmtDec(calc.sugerido)}
-                        </div>
-                        <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">
-                          {etiquetaCortaUnidad(producto.unidad)} a pedir
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Por qué está en la lista: lo que queda en obra contra lo
-                        que todavía falta pintar. */}
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-                      {critico ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300 px-2 py-0.5 font-bold">
-                          <AlertTriangle className="h-3 w-3" />
-                          Sin material en obra
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 px-2 py-0.5 font-bold">
-                          Falta pedir
-                        </span>
-                      )}
-                      <span className="text-slate-400">
-                        Saldo en obra {fmtDec(calc.saldo)} {etiquetaCortaUnidad(producto.unidad)} · quedan {fmt(pendientes)}{" "}
-                        {pendientes === 1 ? "vivienda" : "viviendas"} por pintar
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className="px-6 py-4 border-t border-slate-200/70 dark:border-slate-700/60 flex justify-end">
-            <Button variant="outline" className="rounded-2xl" onClick={() => setDialogPedido(false)}>
-              Cerrar
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Agregar constructora a la cartera */}
       <Dialog
@@ -2108,64 +1827,194 @@ const TONOS: Record<string, string> = {
   red: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400",
 };
 
-/** Una constructora en el listado de la portada, con su avance y lo que hay que pedir. */
+/** Columnas del listado de constructoras: encabezado y filas comparten la grilla. */
+const GRID_CONSTRUCTORAS = "lg:grid-cols-[minmax(0,2.6fr)_minmax(0,0.8fr)_minmax(0,1.6fr)_1rem]";
+
+/** Una constructora en el listado de la portada: obras, viviendas, pintadas y avance global. */
 function FilaConstructora({ constructora, onAbrir }: { constructora: Constructora; onAbrir: () => void }) {
   const { totales, filas } = constructora;
 
   return (
     <button
       onClick={onAbrir}
-      className="w-full text-left flex flex-col lg:flex-row lg:items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-700/40 last:border-0 hover:bg-orange-50/40 dark:hover:bg-orange-950/10 transition-colors group"
+      className={`w-full text-left grid grid-cols-3 ${GRID_CONSTRUCTORAS} items-center gap-x-6 gap-y-2 px-4 py-3 border-b border-slate-100 dark:border-slate-700/40 last:border-0 hover:bg-orange-50/40 dark:hover:bg-orange-950/10 transition-colors group`}
       data-testid={`row-constructora-${constructora.id}`}
     >
-      {/* Sin ícono a la izquierda (pedido del usuario, oct-2026): el nombre abre la fila. */}
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        <div className="min-w-0">
-          <div className="font-bold text-sm text-slate-800 dark:text-slate-100 leading-tight truncate group-hover:text-orange-600 transition-colors">
-            {constructora.nombre}
-          </div>
-          <div className="text-[11px] text-slate-400 truncate">
-            {filas.length} {filas.length === 1 ? "obra" : "obras"}
-            {constructora.ciudades.length > 0 && ` · ${constructora.ciudades.slice(0, 3).join(", ")}`}
-            {constructora.ciudades.length > 3 && ` +${constructora.ciudades.length - 3}`}
-            {` · ${fmt(totales.pintadas)} de ${fmt(totales.viviendas)} viviendas pintadas`}
-          </div>
-        </div>
+      {/* Sin ícono ni línea de detalle bajo el nombre (pedido del usuario, oct-2026). */}
+      <div className="col-span-3 lg:col-span-1 min-w-0 text-sm text-slate-800 dark:text-slate-100 leading-tight truncate group-hover:text-orange-600 transition-colors">
+        {constructora.nombre}
       </div>
 
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <div className="w-[150px] flex items-center gap-2">
-          <div className="h-1.5 flex-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+      {/* Solo obras y avance global (pedido del usuario, oct-2026): sin viviendas
+          ni pintadas; el detalle se ve al abrir la constructora. */}
+      {/* En celular sin rótulos por fila: "2 obras" y la barra en una línea. */}
+      <div className="lg:text-center whitespace-nowrap">
+        <span className="text-sm font-bold tabular-nums text-slate-700 dark:text-slate-200">{fmt(filas.length)}</span>
+        <span className="lg:hidden text-xs text-slate-500"> {filas.length === 1 ? "obra" : "obras"}</span>
+      </div>
+
+
+      <div className="col-span-2 lg:col-span-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <div className="h-1.5 flex-1 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-orange-400 to-[#fd6301]"
-              style={{ width: `${Math.round(totales.avance * 100)}%` }}
+              className="h-full rounded-full bg-[#fd6301]"
+              // (Facturado + NVV) ÷ proyectado, igual que dentro de la
+              // constructora (pedido del usuario, oct-2026).
+              style={{ width: `${Math.round(totales.avanceVenta * 100)}%` }}
             />
           </div>
           <span className="text-xs font-bold tabular-nums text-slate-600 dark:text-slate-300 w-9 text-right">
-            {fmtPct(totales.avance)}
+            {fmtPct(totales.avanceVenta)}
           </span>
         </div>
-
-        {/* Una cifra por formato, apiladas: no se suman tinetas con galones. */}
-        <div className="min-w-[5rem] text-right">
-          <div className="lg:hidden text-[9px] uppercase tracking-wider font-bold text-slate-400">Saldo</div>
-          <div className="text-sm font-bold text-slate-700 dark:text-slate-200">
-            <CeldaMaterial material={totales.material} campo="saldo" />
-          </div>
-        </div>
-
-        <div className="min-w-[6rem] text-right">
-          <div className="lg:hidden text-[9px] uppercase tracking-wider font-bold text-slate-400">Próx. pedido</div>
-          <div className="text-sm font-bold">
-            <CeldaMaterial material={totales.material} campo="sugerido" />
-          </div>
-        </div>
-
-        {/* Sin columna de alertas en el listado (pedido del usuario, oct-2026):
-            el estado de cada obra se ve al abrir la constructora. */}
-        <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-orange-500 transition-colors flex-shrink-0" />
       </div>
+
+      {/* Sin columna de alertas en el listado (pedido del usuario, oct-2026):
+          el estado de cada obra se ve al abrir la constructora. */}
+      <ChevronRight className="hidden lg:block h-4 w-4 text-slate-300 group-hover:text-orange-500 transition-colors" />
     </button>
+  );
+}
+
+/**
+ * La obra como tarjeta (celular): nombre arriba, cada columna de la planilla con
+ * su nombre debajo, y al abrirla sus productos también como tarjetas.
+ */
+function TarjetaObra({
+  fila,
+  indice,
+  columnas,
+  productos,
+  expandida,
+  onToggle,
+  onEditar,
+  onEliminar,
+}: {
+  fila: ObraCalculada;
+  indice: number;
+  columnas: ColumnaDef[];
+  productos: ObraProducto[];
+  expandida: boolean;
+  onToggle: () => void;
+  onGuardar: (data: Record<string, unknown>) => void;
+  onEditar: () => void;
+  onEliminar: () => void;
+}) {
+  const esEdificio = fila.obra.tipoObra === "edificios";
+  const torres = toInt(fila.obra.torres);
+  const tamano = esEdificio
+    ? torres > 0 ? `${fmt(torres)} ${torres === 1 ? "torre" : "torres"}` : "Edificio"
+    : `${fmt(fila.viviendas)} viviendas`;
+
+  // Material por formato en una tablita: así las cifras de cada formato quedan
+  // alineadas y se comparan de un vistazo (en columnas sueltas no se leían).
+  const campos = [
+    { campo: "proyectadas" as const, label: "Proy." },
+    { campo: "facturadas" as const, label: "Fact." },
+    { campo: "nvv" as const, label: "NVV" },
+    { campo: "faltante" as const, label: "Por pedir" },
+  ];
+  const formatos = porFormato(fila.material, "proyectadas")
+    .map(({ unidad }) => unidad)
+    .filter((u) => campos.some(({ campo }) => (fila.material[u.valor]?.[campo] ?? 0) !== 0));
+
+  // La cabecera de la obra va siempre en naranjo fuerte con letra blanca
+  // (pedido del usuario, oct-2026).
+  return (
+    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 shadow-sm overflow-hidden" data-testid={`card-obra-${fila.obra.id}`}>
+      <div className="p-4 bg-[#fd6301]">
+        <div className="flex items-start gap-1">
+          <button onClick={onToggle} className="flex items-start gap-2 min-w-0 flex-1 text-left" data-testid={`button-abrir-obra-${fila.obra.id}`}>
+            <span className="pt-0.5 flex-shrink-0 text-white">
+              {expandida ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </span>
+            <span className="min-w-0">
+              <span className={`block font-semibold break-words text-white`}>
+                <span className={`text-[11px] font-bold tabular-nums mr-1.5 text-white/60`}>{indice + 1}</span>
+                {fila.obra.nombre}
+              </span>
+              <span className={`block text-xs text-white/85`}>{[fila.obra.ciudad, tamano].filter(Boolean).join(" · ")}</span>
+              {/* Avance corto, bajo el nombre (pedido del usuario, oct-2026):
+                  (facturado + NVV) ÷ proyectado, igual que en la tabla. */}
+              {fila.proyectadas > 0 && (
+                <span className="mt-1.5 flex items-center gap-2">
+                  <span className={`h-1.5 w-24 rounded-full overflow-hidden bg-white/30`}>
+                    <span className={`block h-full rounded-full bg-white`} style={{ width: `${Math.round(fila.avanceVenta * 100)}%` }} />
+                  </span>
+                  <span className={`text-[11px] font-bold tabular-nums text-white`}>{fmtPct(fila.avanceVenta)}</span>
+                </span>
+              )}
+            </span>
+          </button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`h-8 w-8 rounded-lg flex-shrink-0 text-white/90 hover:text-white hover:bg-white/15`}
+            onClick={onEditar}
+            aria-label="Editar obra"
+            data-testid={`button-editar-obra-${fila.obra.id}`}
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`h-8 w-8 rounded-lg flex-shrink-0 text-white/90 hover:text-white hover:bg-white/15`}
+            onClick={onEliminar}
+            aria-label="Eliminar obra"
+            data-testid={`button-eliminar-obra-${fila.obra.id}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {formatos.length > 0 && (
+          <table className="mt-3 w-full text-xs tabular-nums">
+            <thead>
+              <tr className={`text-[9px] uppercase tracking-wider text-white/75`}>
+                <th className="text-left font-bold pb-1" />
+                {campos.map(({ label }) => (
+                  <th key={label} className="text-right font-bold pb-1 pl-2">{label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {formatos.map((u) => (
+                <tr key={u.valor} className={`border-t border-white/25`}>
+                  <td className={`py-1.5 text-[10px] uppercase tracking-wide whitespace-nowrap text-white/75`}>{u.corto}</td>
+                  {campos.map(({ campo }) => {
+                    const v = fila.material[u.valor]?.[campo] ?? 0;
+                    return (
+                      <td key={campo} className={`py-1.5 pl-2 text-right ${v === 0 ? "text-white/45" : campo === "faltante" ? "font-bold text-white" : "text-white"}`}>
+                        {fmtDec(v)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Abierta: sus productos, y la compra y el chat de ESTA obra, dentro de la
+          misma tarjeta y sin fondo de color (pedido del usuario, oct-2026). */}
+      {expandida && (
+        <div className="px-3 py-3 space-y-3">
+          <FilasProductos
+            obraId={fila.obra.id}
+            viviendas={fila.viviendas}
+            pintadasObra={toInt(fila.obra.viviendasPintadas)}
+            productos={productos}
+            columnas={columnas}
+            tarjetas
+          />
+          <ComprasObra obraId={fila.obra.id} obraNombre={fila.obra.nombre} clienteNombre={fila.obra.clienteNombre} />
+          <BitacoraObra obraId={fila.obra.id} obraNombre={fila.obra.nombre} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -2197,11 +2046,15 @@ function FilaObra({
   return (
     <>
       <tr
-        className={`border-b border-slate-100 dark:border-slate-700/40 hover:bg-orange-50/40 dark:hover:bg-orange-950/10 transition-colors group cursor-pointer ${expandida ? "bg-orange-50/40 dark:bg-orange-950/10" : ""}`}
-        onClick={onToggle}
+        className="border-b border-slate-100 dark:border-slate-700/40 bg-white dark:bg-slate-800/40 group"
         data-testid={`row-obra-${fila.obra.id}`}
       >
-        <td className={`pl-4 py-3 sticky left-0 z-10 group-hover:bg-orange-50/90 dark:group-hover:bg-slate-800 ${expandida ? "bg-orange-50/90 dark:bg-slate-800" : "bg-white dark:bg-slate-800/95"}`}>
+        {/* Solo el nombre abre y cierra la obra (pedido del usuario, oct-2026):
+            antes toda la fila lo hacía y un clic en un número —por ejemplo para
+            cargar las pintadas— cerraba la obra y la página saltaba. */}
+        <td
+          onClick={onToggle}
+          className="pl-4 py-3 cursor-pointer sticky left-0 z-10 bg-white dark:bg-slate-800/95">
           <div className="flex items-start gap-2">
             <span className="text-slate-300 dark:text-slate-600 pt-0.5 flex-shrink-0">
               {expandida ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
@@ -2213,20 +2066,8 @@ function FilaObra({
               <div className="font-semibold text-slate-700 dark:text-slate-100 truncate max-w-[210px]">
                 {fila.obra.nombre}
               </div>
-              {/* Ciudad y estado de la obra son identidad: van con el nombre y
-                  no ocupando columnas de números. */}
-              <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                {fila.obra.ciudad && <span className="truncate max-w-[100px]">{fila.obra.ciudad}</span>}
-                {fila.obra.estado !== "activa" && (
-                  <span className="inline-flex uppercase tracking-wide font-bold">{fila.obra.estado}</span>
-                )}
-                <span className="inline-flex items-center gap-1 font-bold flex-shrink-0">
-                  <Layers className="h-3 w-3" />
-                  {productos.length === 0
-                    ? "sin productos"
-                    : `${productos.length} ${productos.length === 1 ? "producto" : "productos"}`}
-                </span>
-              </div>
+              {/* Sin línea de detalle bajo el nombre (pedido del usuario,
+                  oct-2026): la ciudad pasó a su propia columna. */}
             </div>
           </div>
         </td>
@@ -2276,29 +2117,6 @@ function FilaObra({
             columnas={columnas}
             sticky
           />
-          {/* Lo comprado de verdad, del sistema de la empresa, contra lo que se
-              proyectó al empezar. Va debajo de los productos porque es la misma
-              lectura, pero con el dato real en vez del cargado a mano. */}
-          <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/70 dark:bg-slate-900/40">
-            <td colSpan={columnas.length + 2} className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-              <div className="sticky left-0 w-full max-w-[980px] pl-6">
-                <ComprasObra
-                  obraId={fila.obra.id}
-                  obraNombre={fila.obra.nombre}
-                  clienteNombre={fila.obra.clienteNombre}
-                  productos={productos}
-                />
-              </div>
-            </td>
-          </tr>
-          {/* La bitácora cierra la obra: los números arriba, lo que pasó abajo. */}
-          <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/70 dark:bg-slate-900/40">
-            <td colSpan={columnas.length + 2} className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-              <div className="sticky left-0 w-full max-w-[720px] pl-6">
-                <BitacoraObra obraId={fila.obra.id} obraNombre={fila.obra.nombre} />
-              </div>
-            </td>
-          </tr>
         </>
       )}
     </>
@@ -2306,125 +2124,29 @@ function FilaObra({
 }
 
 /**
- * Fila del listado de TODAS las obras de la cartera. Muestra las columnas de
- * decisión (avance, saldo, próximo pedido) más la constructora, porque acá las
- * obras vienen mezcladas; el detalle completo de la planilla sigue estando al
- * entrar a la constructora. Al desplegarla, sus productos aparecen como filas
- * de esta misma tabla, igual que en la planilla.
+ * Valor de una tarjeta. Si trae unidades ("3.617 Balde 4 gl · 0 Galón") el
+ * número va grande y la unidad chica al lado, para que el texto no se coma la
+ * tarjeta (pedido del usuario, oct-2026). Un valor sin unidad ("1.783", "37%")
+ * se ve igual que antes.
  */
-function FilaObraGlobal({
-  fila,
-  columnas,
-  productos,
-  expandida,
-  onToggle,
-  onGuardar,
-  onAbrirConstructora,
-}: {
-  fila: ObraCalculada;
-  columnas: ColumnaDef[];
-  productos: ObraProducto[];
-  expandida: boolean;
-  onToggle: () => void;
-  onGuardar: (data: Record<string, unknown>) => void;
-  onAbrirConstructora: () => void;
-}) {
+function ValorConUnidad({ valor }: { valor: string }) {
+  const partes = valor.split(" · ").map((p) => p.match(/^(-?[\d.,]+)\s+(.+)$/));
+  if (partes.some((m) => !m)) {
+    // Los montos largos ("$206.230.428") bajan de tamaño para no quedar
+    // apretados contra el borde de la tarjeta (pedido del usuario, oct-2026).
+    const tamano = valor.length > 10 ? "text-lg sm:text-xl" : valor.length > 7 ? "text-xl sm:text-2xl" : "text-2xl";
+    return <span className={`${tamano} font-bold tabular-nums leading-none text-[#fd6301]`}>{valor}</span>;
+  }
+  // Con más de un formato van uno debajo del otro (pedido del usuario,
+  // oct-2026): en fila se partían a mitad y no se leían.
   return (
-    <>
-      <tr
-        className={`border-b border-slate-100 dark:border-slate-700/40 hover:bg-orange-50/40 dark:hover:bg-orange-950/10 transition-colors group cursor-pointer ${expandida ? "bg-orange-50/40 dark:bg-orange-950/10" : ""}`}
-        onClick={onToggle}
-        data-testid={`row-obra-global-${fila.obra.id}`}
-      >
-        <td className="pl-4 py-3">
-          <div className="flex items-start gap-2">
-            <span className="text-slate-300 dark:text-slate-600 pt-0.5 flex-shrink-0">
-              {expandida ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            </span>
-            <div className="min-w-0">
-              <div className="font-semibold text-slate-700 dark:text-slate-100 truncate max-w-[240px]">
-                {fila.obra.nombre}
-              </div>
-              <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                {fila.obra.ciudad && <span className="truncate">{fila.obra.ciudad}</span>}
-                {fila.obra.programa && <span className="font-bold">{fila.obra.programa}</span>}
-                <span className="inline-flex items-center gap-1 font-bold">
-                  <Layers className="h-3 w-3" />
-                  {productos.length === 0 ? "sin productos" : productos.length}
-                </span>
-              </div>
-            </div>
-          </div>
-        </td>
-
-        {columnas.map((c) => (
-          <td
-            key={c.key}
-            className={`px-2.5 py-3 text-center tabular-nums text-slate-600 dark:text-slate-300 ${c.borde ?? ""}`}
-          >
-            {c.render(fila, { onGuardar })}
-          </td>
-        ))}
-
-        <td className="pr-4 py-3" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-end opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onAbrirConstructora}
-              className="h-8 rounded-lg text-xs text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/30"
-              data-testid={`button-ver-planilla-${fila.obra.id}`}
-            >
-              Ver planilla
-              <ChevronRight className="h-3.5 w-3.5 ml-1" />
-            </Button>
-          </div>
-        </td>
-      </tr>
-
-      {expandida && (
-        <>
-          <FilasProductos
-            obraId={fila.obra.id}
-            viviendas={fila.viviendas}
-            pintadasObra={toInt(fila.obra.viviendasPintadas)}
-            productos={productos}
-            columnas={columnas}
-          />
-          <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/70 dark:bg-slate-900/40">
-            <td colSpan={columnas.length + 2} className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-              <div className="w-full max-w-[980px] pl-6">
-                <ComprasObra
-                  obraId={fila.obra.id}
-                  obraNombre={fila.obra.nombre}
-                  clienteNombre={fila.obra.clienteNombre}
-                  productos={productos}
-                />
-              </div>
-            </td>
-          </tr>
-          <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/70 dark:bg-slate-900/40">
-            <td colSpan={columnas.length + 2} className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-              <div className="w-full max-w-[720px] pl-6">
-                <BitacoraObra obraId={fila.obra.id} obraNombre={fila.obra.nombre} />
-              </div>
-            </td>
-          </tr>
-        </>
-      )}
-    </>
-  );
-}
-
-/** Número suelto dentro del banner naranja (sin tarjeta, para ahorrar alto). */
-function BannerStat({ label, valor, sufijo }: { label: string; valor: string; sufijo?: string }) {
-  return (
-    <div className="leading-tight">
-      <div className="text-[9px] uppercase tracking-wider font-bold text-white/70">{label}</div>
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-xl font-bold tabular-nums">{valor}</span>
-        {sufijo && <span className="text-[10px] font-semibold text-white/70">{sufijo}</span>}
-      </div>
+    <div className="flex flex-col items-center sm:items-start gap-1">
+      {partes.map((m, i) => (
+        <span key={i} className="whitespace-nowrap">
+          <span className="text-2xl font-bold tabular-nums leading-none text-[#fd6301]">{m![1]}</span>{" "}
+          <span className="text-[11px] font-semibold text-orange-500/80">{m![2]}</span>
+        </span>
+      ))}
     </div>
   );
 }
@@ -2459,8 +2181,8 @@ function MiniStat({
         {icon}
       </span>
       <div className="min-w-0">
-        <div className="flex items-baseline justify-center sm:justify-start gap-1.5">
-          <span className="text-2xl font-bold tabular-nums leading-none text-[#fd6301]">{valor}</span>
+        <div className="flex flex-wrap items-baseline justify-center sm:justify-start gap-x-1.5 gap-y-1">
+          <ValorConUnidad valor={valor} />
           {sufijo && <span className="text-[11px] font-semibold text-slate-400">{sufijo}</span>}
         </div>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{label}</p>

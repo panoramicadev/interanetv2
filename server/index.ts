@@ -265,6 +265,16 @@ export default app;
 async function initializeBackgroundServices() {
   log('🚀 Starting background services initialization...');
 
+  // Obras: completar Facturado y NVV de los productos cargados desde documentos
+  // antes de que existieran esas columnas. Solo lee las líneas ya guardadas.
+  try {
+    const { completarFacturadoNvv } = await import('./obras-cantidades');
+    const n = await completarFacturadoNvv();
+    if (n > 0) log(`🏗️ Obras: Facturado/NVV completados en ${n} obra(s)`);
+  } catch (error: any) {
+    console.error('⚠️ Error al completar Facturado/NVV de obras:', error.message);
+  }
+
   // Migrar URLs de imágenes de productos a Object Storage
   try {
     await migrateProductImageUrls();

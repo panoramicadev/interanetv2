@@ -46,8 +46,10 @@ const fmtFecha = (valor: string | Date | null | undefined) => {
 
 // Fondos de las filas de producto. Van más claras que la obra y con la línea del
 // árbol a la izquierda: se leen como hijas de la fila de arriba.
-const FONDO_FILA = "bg-orange-50/30 dark:bg-orange-950/[0.08] hover:bg-orange-50/70 dark:hover:bg-orange-950/20";
-const FONDO_STICKY = "bg-[#fff7f1] dark:bg-slate-800/95";
+// Sin color de fondo (pedido del usuario, oct-2026): los productos van en blanco
+// como el resto de la tabla.
+const FONDO_FILA = "bg-white dark:bg-slate-800/40";
+const FONDO_STICKY = "bg-white dark:bg-slate-800/95";
 
 // ---------------------------------------------------------------------------
 // Filas de producto de una obra
@@ -61,6 +63,8 @@ export function FilasProductos({
   columnas,
   /** La primera columna queda fija al hacer scroll lateral (tabla de la planilla). */
   sticky = false,
+  /** Celular: cada producto es una tarjeta en vez de una fila de tabla. */
+  tarjetas = false,
 }: {
   obraId: string;
   viviendas: number;
@@ -69,6 +73,7 @@ export function FilasProductos({
   productos: ObraProducto[];
   columnas: ColumnaDef[];
   sticky?: boolean;
+  tarjetas?: boolean;
 }) {
   const { toast } = useToast();
   const [filaAbierta, setFilaAbierta] = useState<string | null>(null);
@@ -209,6 +214,29 @@ export function FilasProductos({
 
   const colSpan = columnas.length + 2;
 
+  // Celular (pedido del usuario, oct-2026): la tabla no cabía y la columna del
+  // proyecto tapaba los números. Mismas celdas, apiladas con su nombre.
+  if (tarjetas) {
+    return (
+      <div className="space-y-2">
+        {productos.map((producto) => (
+          <TarjetaProducto
+            key={producto.id}
+            producto={producto}
+            viviendas={viviendas}
+            pintadasObra={pintadasObra}
+            columnas={columnas}
+            onGuardar={(data) => actualizar.mutate({ id: producto.id, data })}
+            onEliminar={() => eliminar.mutate(producto.id)}
+            onMovimiento={(data) => registrarMovimiento.mutate({ id: producto.id, data })}
+            registrando={registrarMovimiento.isPending}
+          />
+        ))}
+        <BuscadorCatalogo onElegir={elegirDelCatalogo} onManual={agregarAMano} guardando={agregar.isPending} />
+      </div>
+    );
+  }
+
   return (
     <>
       {productos.map((producto) => (
@@ -247,11 +275,7 @@ export function FilasProductos({
                 guardando={agregar.isPending}
               />
             </div>
-            <span className="text-[11px] text-slate-400">
-              {productos.length === 0
-                ? "Cargá los productos de la obra: la fachada, el sellador, el esmalte de rejas… Los números de la obra son la suma de ellos."
-                : "Busca por SKU, nombre o color."}
-            </span>
+            {/* Sin texto de ayuda al lado del buscador (pedido del usuario, oct-2026). */}
           </div>
         </td>
       </tr>
@@ -404,6 +428,103 @@ function FilaProducto({
         </tr>
       )}
     </>
+  );
+}
+
+/**
+ * Un producto como tarjeta (celular): nombre arriba, el avance y debajo
+ * Facturado · NVV · Por Pedir · Proyectadas. Sin rendimiento, notas ni
+ * movimientos (pedido del usuario, oct-2026).
+ */
+function TarjetaProducto({
+  producto,
+  viviendas,
+  pintadasObra,
+  columnas,
+  onGuardar,
+  onEliminar,
+  onMovimiento,
+  registrando,
+}: {
+  producto: ObraProducto;
+  viviendas: number;
+  pintadasObra: number;
+  columnas: ColumnaDef[];
+  onGuardar: (data: Record<string, unknown>) => void;
+  onEliminar: () => void;
+  onMovimiento: (data: Record<string, unknown>) => void;
+  registrando: boolean;
+}) {
+  const calc = calcularProducto(producto, pintadasObra);
+  const ctx: CeldaProducto = { producto, calc, viviendas, pintadasObra, onGuardar, onMovimiento, registrando };
+  const col = (key: string) => columnas.find((c) => c.key === key && c.renderProducto);
+  const numeros = ["facturadas", "nvv", "porPedir", "proyectadas"].map(col).filter(Boolean) as ColumnaDef[];
+
+  // Versión breve (pedido del usuario, oct-2026): nombre, una línea con
+  // formato · SKU · avance, y las cuatro cifras en una sola fila.
+  const etiquetas: Record<string, string> = { facturadas: "Fact.", nvv: "NVV", porPedir: "Por pedir", proyectadas: "Proy." };
+
+  return (
+    <div className="rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 px-3 py-2" data-testid={`card-obra-producto-${producto.id}`}>
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1 -ml-1">
+          <NombreEditable
+            valor={producto.nombre}
+            onGuardar={(v) => v && onGuardar({ nombre: v })}
+            className="text-[13px] font-medium text-slate-700 dark:text-slate-100 w-full"
+            testId={`input-nombre-${producto.id}`}
+          />
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 flex-shrink-0"
+          onClick={onEliminar}
+          aria-label="Quitar producto"
+          data-testid={`button-eliminar-obra-producto-${producto.id}`}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-1.5 text-[10px] text-slate-400 min-w-0">
+        <span className="uppercase tracking-wide flex-shrink-0">{etiquetaCortaUnidad(producto.unidad)}</span>
+        <span className="font-bold tabular-nums truncate">{producto.kopr || "sin SKU"}</span>
+        {calc.proyectada > 0 && (
+          <span className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+            <span className="h-1.5 w-16 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+              <span className="block h-full rounded-full bg-[#fd6301]" style={{ width: `${Math.round(calc.avance * 100)}%` }} />
+            </span>
+            <span className="font-bold tabular-nums text-slate-600 dark:text-slate-300">{Math.round(calc.avance * 100)}%</span>
+          </span>
+        )}
+      </div>
+
+      {producto.revisar && (
+        <button
+          onClick={() => onGuardar({ revisar: false })}
+          className="mt-1 inline-flex items-center gap-1 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 px-2 py-0.5 text-[10px] font-bold"
+          data-testid={`button-revisado-${producto.id}`}
+        >
+          <AlertTriangle className="h-2.5 w-2.5" />
+          Revisar · no proyectado
+          <Check className="h-2.5 w-2.5" />
+        </button>
+      )}
+
+      <dl className="mt-1.5 grid grid-cols-4 gap-x-2">
+        {numeros.map((c) => (
+          <div key={c.key} className="min-w-0">
+            <dt className="text-[9px] uppercase tracking-wider font-bold text-slate-400 truncate">{etiquetas[c.key] ?? c.label}</dt>
+            {/* Proyectadas es el único editable: con borde, porque en el
+                celular no hay hover que lo delate. */}
+            <dd className="text-[13px] tabular-nums text-slate-700 dark:text-slate-200 [&>div]:justify-start [&_input]:!w-full [&_input]:!h-6 [&_input]:!text-[13px] [&_input]:!text-left [&_input]:!px-1.5 [&_input]:!border-slate-200 dark:[&_input]:!border-slate-700 [&_svg]:hidden">
+              {c.renderProducto!(ctx)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 

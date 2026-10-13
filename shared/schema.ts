@@ -3587,6 +3587,10 @@ export const obraProductos = pgTable("obra_productos", {
   cantidadProyectada: numeric("cantidad_proyectada", { precision: 12, scale: 2 }).notNull().default("0"),
   cantidadPedida: numeric("cantidad_pedida", { precision: 12, scale: 2 }).notNull().default("0"),
   cantidadEntregada: numeric("cantidad_entregada", { precision: 12, scale: 2 }).notNull().default("0"),
+  // Desde los documentos asociados (ver server/obras-cantidades.ts): lo
+  // facturado, y lo comprometido en notas de venta/guías que aún no se factura.
+  cantidadFacturada: numeric("cantidad_facturada", { precision: 12, scale: 2 }).notNull().default("0"),
+  cantidadNvv: numeric("cantidad_nvv", { precision: 12, scale: 2 }).notNull().default("0"),
   cantidadUtilizada: numeric("cantidad_utilizada", { precision: 12, scale: 2 }).notNull().default("0"),
   // Rendimiento declarado del producto: cuántas unidades se van por vivienda
   // (1,5 tinetas por casa, por ejemplo). Es un dato de entrada, igual que en la
