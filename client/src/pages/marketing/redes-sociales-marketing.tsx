@@ -605,7 +605,7 @@ export default function RedesSocialesMarketing({ canEdit }: { canEdit: boolean }
     <div className="space-y-6">
       {/* El período manda en toda la pantalla: las tres secciones se guardan por mes. */}
       <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700 rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:border-orange-200 hover:shadow transition-all w-fit">
-        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 flex-shrink-0">
+        <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] flex-shrink-0">
           <CalendarDays className="h-4 w-4" />
         </div>
         <div className="flex flex-col leading-none">

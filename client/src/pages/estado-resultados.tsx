@@ -429,7 +429,7 @@ export default function EstadoResultadosPage() {
 
           {/* Selector de sección (celular) */}
           <div className="sm:hidden flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl pl-2.5 pr-3 py-2 shadow-sm">
-            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-orange-50 text-[#fd6301] dark:bg-orange-950/40 flex-shrink-0">
+            <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] flex-shrink-0">
               <Scale className="h-4 w-4" />
             </div>
             <div className="flex flex-col leading-none w-full">

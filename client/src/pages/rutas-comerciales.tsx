@@ -135,8 +135,11 @@ export const RutasComercialesContent = forwardRef<RutasComercialesHandle, { embe
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+      {/* Header. Dentro del Panel de Trabajo no se muestra (pedido del usuario, oct-2026):
+          repetía el nombre de la pestaña activa y el botón ya está arriba. El diálogo de
+          "Nueva ruta" se abre en una capa aparte, así que sigue funcionando aunque esta
+          fila esté oculta. */}
+      <div className={embebido ? "hidden" : "flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"}>
         <div className="space-y-0.5">
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
             {/* Naranjo de marca y del mismo porte que el resto de los encabezados
