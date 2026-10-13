@@ -26,9 +26,11 @@ import {
   calcularProducto,
   calcularTotales,
   fmtDesviacion,
+  textoMaterial,
   type EstadoObra,
   type ObraCalculada,
 } from "@/components/obras/calculos";
+import { CeldaMaterial } from "@/components/obras/columnas";
 import { fmt, fmtDec, fmtPct, normalizar } from "@/components/obras/formato";
 import type { ObraConCliente, ObraProducto } from "@shared/schema";
 import {
@@ -310,8 +312,8 @@ export function SeguimientoObrasContent({ onIrAObras }: { onIrAObras?: () => voi
           icono={<ShoppingCart className="h-3.5 w-3.5" />}
           tono="amber"
           label="Próximo pedido"
-          valor={fmtDec(totales.sugerido)}
-          sufijo="unidades"
+          valor={textoMaterial(totales.material, "sugerido")}
+          sufijo="entre todas las obras"
         />
       </div>
 
@@ -406,10 +408,10 @@ function FilaObraSeguimiento({ fila, onAbrir }: { fila: FilaSeguimiento; onAbrir
           <BarraAvance avance={calc.avance} hayDato={calc.viviendas > 0} />
         </div>
 
-        <div className="w-24 text-right">
+        <div className="min-w-[6rem] text-right">
           <div className="lg:hidden text-[9px] uppercase tracking-wider font-bold text-slate-400">Próx. pedido</div>
-          <div className={`text-sm font-bold tabular-nums ${calc.sugerido > 0 ? "text-orange-600 dark:text-orange-400" : "text-slate-400"}`}>
-            {fmtDec(calc.sugerido)}
+          <div className="text-sm font-bold">
+            <CeldaMaterial material={calc.material} campo="sugerido" />
           </div>
         </div>
 
@@ -516,15 +518,15 @@ function DetalleObra({
           <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
             <BannerDato label={esEdificio ? "Departamentos" : "Viviendas"} valor={fmt(calc.viviendas)} />
             <BannerDato label="Pintadas" valor={fmt(calc.pintadas)} sufijo={fmtPct(calc.avance)} />
-            <BannerDato label="Saldo en obra" valor={fmtDec(calc.saldo)} />
+            {/* El material va una cifra por formato: no se suman tinetas con galones. */}
+            <BannerDato label="Saldo en obra" valor={textoMaterial(calc.material, "saldo")} />
             <div className="rounded-xl bg-white/15 px-3 py-1.5">
               <div className="text-[9px] uppercase tracking-wider font-bold text-white/70 flex items-center gap-1.5">
                 <ShoppingCart className="h-3 w-3" />
                 Próximo pedido
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-xl font-bold tabular-nums">{fmtDec(calc.sugerido)}</span>
-                <span className="text-[10px] font-semibold text-white/80">unidades</span>
+                <span className="text-xl font-bold tabular-nums">{textoMaterial(calc.material, "sugerido")}</span>
               </div>
             </div>
           </div>
@@ -545,21 +547,26 @@ function DetalleObra({
           icono={<Package className="h-3.5 w-3.5" />}
           tono="sky"
           label="Pedido / entregado"
-          valor={`${fmtDec(calc.pedidas)} / ${fmtDec(calc.entregadas)}`}
-          sufijo={`de ${fmtDec(calc.proyectadas)} proyectadas`}
+          valor={`${textoMaterial(calc.material, "pedidas")} / ${textoMaterial(calc.material, "entregadas")}`}
+          sufijo={`de ${textoMaterial(calc.material, "proyectadas")} proyectadas`}
         />
         <Indicador
           icono={<ShoppingCart className="h-3.5 w-3.5" />}
           tono="amber"
           label="Falta por pedir"
-          valor={fmtDec(calc.faltantePorPedir)}
-          sufijo={`${fmtDec(calc.saldo)} en bodega de obra`}
+          valor={textoMaterial(calc.material, "faltante")}
+          sufijo={`${textoMaterial(calc.material, "saldo")} en bodega de obra`}
         />
+        {/* Por formato y por vivienda: cuánto de cada uno se va en cada casa. */}
         <Indicador
           icono={<Layers className="h-3.5 w-3.5" />}
           tono="slate"
           label="Rendimiento real"
-          valor={calc.rendimientoReal > 0 ? `${fmtDec(calc.rendimientoReal)}/${esEdificio ? "depto" : "viv"}` : "—"}
+          valor={
+            calc.rendimientoReal > 0
+              ? `${textoMaterial(calc.material, "usadas", calc.pintadas)} /${esEdificio ? "depto" : "viv"}`
+              : "—"
+          }
           sufijo={
             calc.consumoTeorico > 0
               ? `${fmtDesviacion(calc.desviacion)} vs lo declarado`
@@ -663,7 +670,8 @@ function DetalleObra({
                       <Mini label="Entregado" valor={fmtDec(p.entregada)} />
                       <Mini label="Usado" valor={fmtDec(p.utilizada)} />
                       <Mini label="Saldo" valor={fmtDec(p.saldo)} alerta={p.saldo < 0} />
-                      <Mini label={esEdificio ? "Deptos pintados" : "Viviendas pintadas"} valor={fmt(p.pintadas)} />
+                      <Mini label="Avance" valor={p.proyectada > 0 ? fmtPct(p.avance) : "—"} />
+                      {p.alertaPedido && <Mini label="Pedido sobre lo proyectado" valor="!" alerta />}
                     </div>
                   </div>
                 ))}

@@ -56,7 +56,9 @@ import {
   calcularObra,
   calcularProducto,
   calcularTotales,
+  algunNegativo,
   fmtDesviacion,
+  textoMaterial,
   type EstadoObra,
   type ObraCalculada,
   type Totales,
@@ -64,6 +66,7 @@ import {
 import {
   CLAVES_CARTERA,
   COLUMNAS,
+  CeldaMaterial,
   columnaConstructora,
   prepararColumnas,
   type ColumnaDef,
@@ -1182,7 +1185,9 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                       valor={fmt(totales.viviendas)}
                       sufijo={`en ${fmt(filas.length)} ${filas.length === 1 ? "obra" : "obras"}`}
                     />
-                    <BannerStat label="Proyectadas" valor={fmtDec(totales.proyectadas)} />
+                    {/* El material va una cifra por formato: sumar tinetas con
+                        galones daba un número que no era ninguna de las dos cosas. */}
+                    <BannerStat label="Proyectadas" valor={textoMaterial(totales.material, "proyectadas")} />
                     <BannerStat
                       label="Pintadas"
                       valor={fmt(totales.pintadas)}
@@ -1195,8 +1200,9 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                         Próximo pedido
                       </div>
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-xl font-bold tabular-nums" data-testid="text-obras-sugerido">{fmtDec(totales.sugerido)}</span>
-                        <span className="text-[10px] font-semibold text-white/80">unidades</span>
+                        <span className="text-xl font-bold tabular-nums" data-testid="text-obras-sugerido">
+                          {textoMaterial(totales.material, "sugerido")}
+                        </span>
                       </div>
                     </div>
 
@@ -1214,7 +1220,7 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                 {detalleAbierto && (
                   <div className="bg-white dark:bg-slate-900 border border-t-0 border-slate-200/70 dark:border-slate-700/60 p-4 space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
-                      <span>Faltan {fmt(totales.faltante)} tinetas por pedir del total proyectado</span>
+                      <span>Faltan {textoMaterial(totales.material, "faltante")} por pedir del total proyectado</span>
                       <span>
                         <span className="uppercase tracking-wider font-bold">Última actualización</span>{" "}
                         <span className="font-semibold text-slate-500 dark:text-slate-300">
@@ -1225,13 +1231,13 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
 
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
                       <div className="xl:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        <MiniStat icon={<ShoppingCart className="h-3.5 w-3.5" />} tono="sky" label="Pedidas" valor={fmtDec(totales.pedidas)} />
-                        <MiniStat icon={<Truck className="h-3.5 w-3.5" />} tono="violet" label="Entregadas" valor={fmtDec(totales.entregadas)} />
+                        <MiniStat icon={<ShoppingCart className="h-3.5 w-3.5" />} tono="sky" label="Pedidas" valor={textoMaterial(totales.material, "pedidas")} />
+                        <MiniStat icon={<Truck className="h-3.5 w-3.5" />} tono="violet" label="Entregadas" valor={textoMaterial(totales.material, "entregadas")} />
                         <MiniStat
                           icon={<Paintbrush className="h-3.5 w-3.5" />}
                           tono="slate"
                           label="Utilizadas en obra"
-                          valor={fmtDec(totales.usadas)}
+                          valor={textoMaterial(totales.material, "usadas")}
                         />
                         {/* Reemplaza al "teórico vs real": lo que se mira es si
                             el producto rinde lo que se prometió. */}
@@ -1243,11 +1249,11 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                         />
                         <MiniStat
                           icon={<Package className="h-3.5 w-3.5" />}
-                          tono={totales.saldo < 0 ? "red" : "emerald"}
+                          tono={algunNegativo(totales.material, "saldo") ? "red" : "emerald"}
                           label="Saldo en obra"
-                          valor={fmtDec(totales.saldo)}
+                          valor={textoMaterial(totales.material, "saldo")}
                         />
-                        <MiniStat icon={<AlertTriangle className="h-3.5 w-3.5" />} tono="amber" label="Faltante por pedir" valor={fmt(totales.faltante)} />
+                        <MiniStat icon={<AlertTriangle className="h-3.5 w-3.5" />} tono="amber" label="Faltante por pedir" valor={textoMaterial(totales.material, "faltante")} />
                       </div>
 
                       {/* Resumen por estado */}
@@ -1392,7 +1398,7 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
               <div>
                 <DialogTitle className="text-lg font-bold text-foreground">Qué hay que pedir</DialogTitle>
                 <DialogDescription className="text-sm text-muted-foreground">
-                  {fmtDec(totalesCartera.sugerido)} unidades en {fmt(pedidoPendiente.length)}{" "}
+                  {textoMaterial(totalesCartera.material, "sugerido")} en {fmt(pedidoPendiente.length)}{" "}
                   {pedidoPendiente.length === 1 ? "producto" : "productos"}
                   {criticos > 0 && ` · ${fmt(criticos)} sin stock en obra`}
                 </DialogDescription>
@@ -1446,7 +1452,7 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                           {fmtDec(calc.sugerido)}
                         </div>
                         <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">
-                          a pedir
+                          {etiquetaCortaUnidad(producto.unidad)} a pedir
                         </div>
                       </div>
                     </div>
@@ -1465,7 +1471,7 @@ export const ControlObrasContent = forwardRef<ControlObrasHandle, {
                         </span>
                       )}
                       <span className="text-slate-400">
-                        Saldo en obra {fmtDec(calc.saldo)} · quedan {fmt(pendientes)}{" "}
+                        Saldo en obra {fmtDec(calc.saldo)} {etiquetaCortaUnidad(producto.unidad)} · quedan {fmt(pendientes)}{" "}
                         {pendientes === 1 ? "vivienda" : "viviendas"} por pintar
                       </span>
                     </div>
@@ -2140,17 +2146,18 @@ function FilaConstructora({ constructora, onAbrir }: { constructora: Constructor
           </span>
         </div>
 
-        <div className="w-20 text-right">
+        {/* Una cifra por formato, apiladas: no se suman tinetas con galones. */}
+        <div className="min-w-[5rem] text-right">
           <div className="lg:hidden text-[9px] uppercase tracking-wider font-bold text-slate-400">Saldo</div>
-          <div className={`text-sm font-bold tabular-nums ${totales.saldo < 0 ? "text-red-600 dark:text-red-400" : "text-slate-700 dark:text-slate-200"}`}>
-            {fmtDec(totales.saldo)}
+          <div className="text-sm font-bold text-slate-700 dark:text-slate-200">
+            <CeldaMaterial material={totales.material} campo="saldo" />
           </div>
         </div>
 
-        <div className="w-24 text-right">
+        <div className="min-w-[6rem] text-right">
           <div className="lg:hidden text-[9px] uppercase tracking-wider font-bold text-slate-400">Próx. pedido</div>
-          <div className={`text-sm font-bold tabular-nums ${totales.sugerido > 0 ? "text-orange-600 dark:text-orange-400" : "text-slate-400"}`}>
-            {fmtDec(totales.sugerido)}
+          <div className="text-sm font-bold">
+            <CeldaMaterial material={totales.material} campo="sugerido" />
           </div>
         </div>
 

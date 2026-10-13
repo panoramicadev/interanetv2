@@ -10,7 +10,8 @@
  * (panel-productos.tsx) tienen que calcular exactamente lo mismo.
  */
 import type { ObraConCliente, ObraProducto } from "@shared/schema";
-import { toInt, toNum } from "./formato";
+import { fmtDec, toInt, toNum } from "./formato";
+import { UNIDADES_OBRA, UNIDAD_POR_DEFECTO, normalizarUnidad, type UnidadObra } from "./unidades";
 
 export interface ProductoCalculado {
   producto: ObraProducto;
@@ -22,8 +23,19 @@ export interface ProductoCalculado {
   porPedir: number;
   /** Entregado − utilizado: lo que debería estar hoy en la bodega de la obra. */
   saldo: number;
+  /**
+   * Avance del producto = utilizado ÷ proyectado: cuánto del material previsto
+   * ya se aplicó. Las viviendas pintadas se cargan por obra, así que no dicen
+   * nada de cuánto lleva cada producto.
+   */
+  avance: number;
+  /** Se consumió más de lo que llegó a la obra (saldo negativo). */
+  alertaSaldo: boolean;
+  /** Se pidió más de lo proyectado. */
+  alertaPedido: boolean;
   /** Rendimiento declarado: unidades por vivienda (1,5 tinetas por casa). */
   rendimiento: number;
+  /** Viviendas pintadas de la obra: el avance de viviendas se cuenta por obra. */
   pintadas: number;
   /** Consumo esperado según lo declarado = pintadas × rendimiento. */
   teorico: number;
@@ -43,9 +55,9 @@ export interface ProductoCalculado {
 
 /**
  * `pintadasObra` son las viviendas pintadas que se cargaron en la fila de la
- * obra. El producto las hereda mientras no tenga un número propio: en terreno
- * el avance se cuenta por obra, y solo se ajusta por producto cuando alguno va
- * a otro ritmo (el sellador adelantado, el esmalte de rejas rezagado).
+ * obra: en terreno el avance de viviendas se cuenta por obra. El producto las
+ * usa solo para el rendimiento (consumo por vivienda); su avance propio es lo
+ * utilizado sobre lo proyectado.
  */
 export function calcularProducto(producto: ObraProducto, pintadasObra = 0): ProductoCalculado {
   const proyectada = toNum(producto.cantidadProyectada);
@@ -56,10 +68,13 @@ export function calcularProducto(producto: ObraProducto, pintadasObra = 0): Prod
   // las proyectadas van redondeadas hacia arriba y la división desviaría el
   // consumo esperado (1,502 en vez de 1,5).
   const rendimiento = toNum(producto.rendimientoPorVivienda);
-  const pintadas = toInt(producto.viviendasPintadas) || pintadasObra;
+  const pintadas = pintadasObra;
 
   const porPedir = Math.max(0, proyectada - pedida);
   const saldo = entregada - utilizada;
+  const avance = proyectada > 0 ? Math.min(1, utilizada / proyectada) : 0;
+  const alertaSaldo = saldo < 0;
+  const alertaPedido = pedida > proyectada;
   const teorico = pintadas * rendimiento;
   const rendimientoReal = pintadas > 0 ? utilizada / pintadas : 0;
   const desviacion = rendimiento > 0 && rendimientoReal > 0 ? rendimientoReal / rendimiento - 1 : 0;
@@ -68,9 +83,73 @@ export function calcularProducto(producto: ObraProducto, pintadasObra = 0): Prod
 
   return {
     producto, proyectada, pedida, entregada, utilizada, porPedir, saldo,
+    avance, alertaSaldo, alertaPedido,
     rendimiento, pintadas, teorico, rendimientoReal, desviacion, cobertura, sugerido,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Material por formato
+// ---------------------------------------------------------------------------
+
+/**
+ * Cantidades de material de una obra (o de varias), separadas por formato.
+ *
+ * Sumar 10 tinetas de 4 galones con 6 galones daba "16" y no significaba nada.
+ * El total se lleva en las mismas unidades en que se cargan los productos, una
+ * cifra por formato.
+ */
+export interface MaterialPorUnidad {
+  proyectadas: number;
+  pedidas: number;
+  entregadas: number;
+  usadas: number;
+  saldo: number;
+  faltante: number;
+  sugerido: number;
+}
+
+export type CampoMaterial = keyof MaterialPorUnidad;
+
+export type Material = Record<string, MaterialPorUnidad>;
+
+const materialVacio = (): MaterialPorUnidad => ({
+  proyectadas: 0, pedidas: 0, entregadas: 0, usadas: 0, saldo: 0, faltante: 0, sugerido: 0,
+});
+
+function sumarMaterial(destino: Material, unidad: string, m: MaterialPorUnidad) {
+  const acc = destino[unidad] ?? (destino[unidad] = materialVacio());
+  for (const k of Object.keys(m) as CampoMaterial[]) acc[k] += m[k];
+}
+
+/** Junta el material de varias obras. */
+export function juntarMaterial(materiales: Material[]): Material {
+  const total: Material = {};
+  for (const m of materiales) for (const [unidad, valores] of Object.entries(m)) sumarMaterial(total, unidad, valores);
+  return total;
+}
+
+/** Un campo del material, una entrada por formato y en el orden del selector. */
+export function porFormato(material: Material, campo: CampoMaterial): Array<{ unidad: UnidadObra; valor: number }> {
+  return UNIDADES_OBRA.filter((u) => material[u.valor]).map((u) => ({ unidad: u, valor: material[u.valor][campo] }));
+}
+
+/**
+ * "120 Tineta 4 gl · 30 Galón": para los recuadros de resumen, donde va texto.
+ * `dividir` sirve para los "por vivienda".
+ */
+export function textoMaterial(material: Material, campo: CampoMaterial, dividir = 1): string {
+  const partes = porFormato(material, campo);
+  if (partes.length === 0) return "0";
+  return partes.map(({ unidad, valor }) => `${fmtDec(valor / (dividir || 1))} ${unidad.corto}`).join(" · ");
+}
+
+/** Si algún formato tiene el campo bajo cero (saldo) o sobre cero (próximo pedido). */
+export const algunNegativo = (material: Material, campo: CampoMaterial) =>
+  porFormato(material, campo).some((p) => p.valor < 0);
+
+export const algunPositivo = (material: Material, campo: CampoMaterial) =>
+  porFormato(material, campo).some((p) => p.valor > 0);
 
 /** Desviación con signo, para el badge: "+18%" gasta de más, "−7%" rinde mejor. */
 export const fmtDesviacion = (d: number) =>
@@ -131,6 +210,10 @@ export interface ObraCalculada {
    */
   rendimientoReal: number;
   productos: number;
+  /** Material separado por formato: es lo que se muestra en la fila de la obra. */
+  material: Material;
+  /** Productos con saldo negativo o pedidos por sobre lo proyectado. */
+  alertas: number;
   estado: EstadoObra;
 }
 
@@ -148,8 +231,9 @@ export interface ObraCalculada {
  *                         más adelantado (así venían las obras anteriores)
  *  - desviación         = consumo real / consumo esperado − 1: es el "¿está
  *                         rindiendo lo que dijimos?" que se revisa en terreno
- *  - estado = Terminado si está todo pintado; Revisar saldo si algún producto
- *             consumió más de lo entregado; Crítico si no queda nada en obra y
+ *  - estado = Terminado si está todo pintado; Revisar si algún producto
+ *             consumió más de lo entregado o se pidió por sobre lo
+ *             proyectado; Crítico si no queda nada en obra y
  *             falta pintar; Pedir si el saldo cubre menos del 20% de lo que falta.
  *
  * Las obras cargadas antes de este cambio todavía no tienen productos: mientras
@@ -188,7 +272,24 @@ export function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[]
       desviacion: teorico > 0 ? real / teorico - 1 : 0,
       rendimientoReal: pintadas > 0 ? usadas / pintadas : 0,
       productos: 0,
-      estado: vacia ? "sindatos" : viviendas > 0 && pintadas >= viviendas ? "terminado" : saldo < 0 ? "revisar" : "ok",
+      // La planilla vieja se llevaba en tinetas, sin distinguir capacidad.
+      material: vacia
+        ? {}
+        : {
+            [UNIDAD_POR_DEFECTO]: {
+              proyectadas, pedidas, entregadas, usadas, saldo,
+              faltante: Math.max(0, proyectadas - pedidas),
+              sugerido: Math.max(0, proyectadas - pedidas - Math.max(0, saldo)),
+            },
+          },
+      alertas: (saldo < 0 ? 1 : 0) + (pedidas > proyectadas ? 1 : 0),
+      estado: vacia
+        ? "sindatos"
+        : viviendas > 0 && pintadas >= viviendas
+          ? "terminado"
+          : saldo < 0 || pedidas > proyectadas
+            ? "revisar"
+            : "ok",
     };
   }
 
@@ -211,7 +312,9 @@ export function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[]
   // Manda lo que se cargó en la fila de la obra. Las obras que venían con el
   // avance cargado solo por producto siguen leyendo el más adelantado (la
   // fachada, casi siempre) hasta que alguien escriba el número de la obra.
-  const pintadas = pintadasObra > 0 ? pintadasObra : calculados.reduce((max, p) => Math.max(max, p.pintadas), 0);
+  const pintadas = pintadasObra > 0
+    ? pintadasObra
+    : productosObra.reduce((max, p) => Math.max(max, toInt(p.viviendasPintadas)), 0);
   const pendientes = Math.max(0, viviendas - pintadas);
   const avance = viviendas > 0 ? Math.min(1, pintadas / viviendas) : 0;
 
@@ -219,9 +322,23 @@ export function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[]
   const coberturas = calculados.filter((p) => p.rendimiento > 0).map((p) => p.cobertura);
   const cobertura = coberturas.length > 0 ? Math.min(...coberturas) : Infinity;
 
+  const material: Material = {};
+  for (const p of calculados) {
+    sumarMaterial(material, normalizarUnidad(p.producto.unidad), {
+      proyectadas: p.proyectada,
+      pedidas: p.pedida,
+      entregadas: p.entregada,
+      usadas: p.utilizada,
+      saldo: p.saldo,
+      faltante: p.porPedir,
+      sugerido: p.sugerido,
+    });
+  }
+  const alertas = calculados.filter((p) => p.alertaSaldo || p.alertaPedido).length;
+
   let estado: EstadoObra;
   if (viviendas > 0 && pintadas >= viviendas) estado = "terminado";
-  else if (calculados.some((p) => p.saldo < 0)) estado = "revisar";
+  else if (alertas > 0) estado = "revisar";
   else if (viviendas === 0) estado = "ok";
   else if (cobertura <= 0) estado = "critico";
   else if (cobertura < pendientes * 0.2) estado = "pedir";
@@ -235,6 +352,8 @@ export function calcularObra(obra: ObraConCliente, productosObra: ObraProducto[]
     // casas que efectivamente se pintaron.
     rendimientoReal: pintadas > 0 ? usadas / pintadas : 0,
     productos: calculados.length,
+    material,
+    alertas,
     estado,
   };
 }
@@ -274,6 +393,7 @@ export function calcularTotales(filas: ObraCalculada[]) {
   }, null);
   return {
     ...t,
+    material: juntarMaterial(filas.map((f) => f.material)),
     avance: t.viviendas > 0 ? t.pintadas / t.viviendas : 0,
     desviacion: t.consumoTeorico > 0 ? t.consumoReal / t.consumoTeorico - 1 : 0,
     rendimientoReal: t.pintadas > 0 ? t.usadas / t.pintadas : 0,
