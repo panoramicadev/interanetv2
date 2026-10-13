@@ -276,6 +276,28 @@ export const PERMISSIONS: PermissionDef[] = [
     group: "finanzas",
     href: "/nuevo-cliente",
   },
+  {
+    key: "solicitud_muestra",
+    label: "Solicitud de Muestra",
+    description: "Pedir una muestra de producto, color o material de exhibición para un cliente, y seguirla",
+    group: "comercial",
+    href: "/solicitud-muestra",
+  },
+  {
+    // Sin href: es la vista "todas" de la misma pantalla. Laboratorio y
+    // logística preparan la muestra y conversan en el hilo con el vendedor.
+    key: "solicitud_muestra.bandeja",
+    label: "Muestras: preparar y conversar",
+    description: "Ver todas las muestras aprobadas y escribir en su conversación (laboratorio, logística)",
+    group: "comercial",
+  },
+  {
+    // Sin href: lo que hace Administración (Franco) dentro de la misma pantalla.
+    key: "solicitud_muestra.gestion",
+    label: "Muestras: NVV y cierre",
+    description: "Ver todas las muestras, registrar la NVV y cerrarlas cuando se entregaron",
+    group: "comercial",
+  },
 
   // ── Post-Venta ───────────────────────────────────────────────
   {
@@ -631,6 +653,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   // Permisos sin tocar código.
   supervisor: [
     "nuevo_cliente",
+    "solicitud_muestra",
     "dashboard",
     "solicitud_credito",
     ...MARKET_ALL,
@@ -655,6 +678,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   encargado_area: [
     "nuevo_cliente",
+    "solicitud_muestra",
     "dashboard",
     "solicitud_credito",
     ...MARKET_ALL,
@@ -682,6 +706,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   // client/src/lib/sidebar-permissions.ts (EXTRAS_OCULTOS_POR_ROL).
   salesperson: [
     "nuevo_cliente",
+    "solicitud_muestra",
     "dashboard",
     "solicitud_credito",
     "clientes",
@@ -705,8 +730,12 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   // Recepción administra la lista de precios: crea SKU, edita precios y arma
   // ofertas por cliente (las que después ve ese cliente en su tienda). Por eso
   // lleva "precios.editar" y ve costos y márgenes como un supervisor.
+  // Y gestiona las muestras: Franco Parra (Administración) tiene este rol, y es
+  // quien crea la NVV de cada muestra aprobada y la cierra cuando se entregó.
   reception: [
     "nuevo_cliente",
+    "solicitud_muestra",
+    "solicitud_muestra.gestion",
     "dashboard",
     ...MARKET_ALL,
     "productos",
@@ -721,6 +750,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   jefe_planta: [
     "nuevo_cliente",
+    "solicitud_muestra",
+    "solicitud_muestra.bandeja",
     "dashboard",
     "postventa.visitas",
     "postventa.reclamos",
@@ -741,6 +772,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   laboratorio: [
     "nuevo_cliente",
+    "solicitud_muestra",
+    "solicitud_muestra.bandeja",
     "postventa.reclamos",
     "postventa.visitas",
     "productos",
@@ -758,6 +791,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   logistica_bodega: [
     "nuevo_cliente",
+    "solicitud_muestra",
+    "solicitud_muestra.bandeja",
     "dashboard",
     "finanzas",
     "productos",
@@ -773,7 +808,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   recursos_humanos: ["nuevo_cliente", "rrhh.comisiones", "gastos", "solicitud_credito"],
   marketing: ["nuevo_cliente", "marketing", "market.campanas", "gastos"],
   area_produccion: ["nuevo_cliente", "postventa.reclamos", "gastos"],
-  area_logistica: ["nuevo_cliente", "postventa.reclamos", "gastos"],
+  area_logistica: ["nuevo_cliente", "postventa.reclamos", "gastos", "solicitud_muestra", "solicitud_muestra.bandeja"],
   area_aplicacion: ["nuevo_cliente", "postventa.reclamos", "gastos"],
   area_materia_prima: ["nuevo_cliente", "postventa.reclamos", "gastos"],
   // El área de colores tiñe: ve la carta con sus fórmulas.

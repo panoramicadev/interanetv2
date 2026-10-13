@@ -106,6 +106,34 @@ export const marketingSidebarItem = (extra: Partial<SidebarItem> = {}): SidebarI
 });
 
 /**
+ * Las solicitudes que se le hacen a otra área, juntas en un solo grupo
+ * (oct-2026): a laboratorio, de crédito, de alta de cliente y de muestra.
+ * Antes laboratorio colgaba de Tintometría y las otras andaban sueltas en
+ * Finanzas, y había que saber dónde estaba cada una para encontrarla.
+ *
+ * Todos los roles montan el grupo completo: `buildSidebarItems` lo recorta a lo
+ * que cada uno tiene permiso de ver. Si no le queda ninguna, lo esconde; si le
+ * queda una sola, la muestra suelta (un desplegable de un ítem es un clic de más,
+ * y en el menú de Marketing chocaba con su bandeja, que también se llama
+ * "Solicitudes").
+ */
+const SOLICITUDES_CHILDREN: SidebarItem[] = [
+  { href: "/tintometria/solicitudes", label: "Solicitudes a laboratorio", icon: FlaskConical },
+  { href: "/solicitud-credito", label: "Solicitud de Crédito", icon: FileCheck },
+  { href: "/nuevo-cliente", label: "Nuevo Cliente", icon: UserPlus },
+  { href: "/solicitud-muestra", label: "Solicitud de Muestra", icon: PaintBucket },
+];
+
+/** Grupo "Solicitudes" completo, con sus sub-secciones. */
+export const solicitudesSidebarItem = (extra: Partial<SidebarItem> = {}): SidebarItem => ({
+  href: "/solicitudes",
+  label: "Solicitudes",
+  icon: Inbox,
+  children: SOLICITUDES_CHILDREN.map((c) => ({ ...c })),
+  ...extra,
+});
+
+/**
  * Mantención (CMMS) salió del sidebar de TODOS los roles.
  *
  * El módulo está marcado para eliminarse: se oculta primero el acceso —el ítem
@@ -211,6 +239,9 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
     label: "Rendición de Gastos",
     icon: Banknote,
   },
+  // Solicitudes a otras áreas (crédito y alta de cliente las resuelve Finanzas;
+  // laboratorio, el laboratorio): ver `solicitudesSidebarItem`.
+  solicitudesSidebarItem(),
   {
     href: "/tintometria",
     label: "Tintometría",
@@ -220,11 +251,6 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
         href: "/tintometria/carta",
         label: "Pantonera Digital",
         icon: Palette,
-      },
-      {
-        href: "/tintometria/solicitudes",
-        label: "Solicitudes a laboratorio",
-        icon: FlaskConical,
       },
       {
         href: "/tintometria/admin",
@@ -270,19 +296,6 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
     href: "/estado-resultados",
     label: "Estado de Resultado",
     icon: Scale,
-  },
-  // Cierra Finanzas: es Finanzas quien resuelve las solicitudes de crédito
-  // (la misma pantalla vive además como pestaña del Panel de Trabajo) y quien
-  // recibe las de alta de cliente nuevo. El separador va en la última de las dos.
-  {
-    href: "/solicitud-credito",
-    label: "Solicitud de Crédito",
-    icon: FileCheck,
-  },
-  {
-    href: "/nuevo-cliente",
-    label: "Nuevo Cliente",
-    icon: UserPlus,
     separator: true,
   },
   // ── Post-venta ──
@@ -405,11 +418,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Palette,
         },
         {
-          href: "/tintometria/solicitudes",
-          label: "Solicitudes a laboratorio",
-          icon: FlaskConical,
-        },
-        {
           href: "/tintometria/admin",
           label: "Administrar Datos",
           icon: Settings,
@@ -418,6 +426,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         // rutas /tintometria/calculadora y /tintometria/selector siguen activas.
       ],
     },
+    solicitudesSidebarItem(),
 
   ],
 
@@ -562,16 +571,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Rendición de Gastos",
       icon: Banknote,
     },
-    {
-      href: "/solicitud-credito",
-      label: "Solicitud de Crédito",
-      icon: FileCheck,
-    },
-    {
-      href: "/nuevo-cliente",
-      label: "Nuevo Cliente",
-      icon: UserPlus,
-    },
+    solicitudesSidebarItem(),
     {
       href: "/visitas-tecnicas",
       label: "Visitas Técnicas",
@@ -641,11 +641,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Palette,
         },
         {
-          href: "/tintometria/solicitudes",
-          label: "Solicitudes a laboratorio",
-          icon: FlaskConical,
-        },
-        {
           href: "/tintometria/admin",
           label: "Administrar Datos",
           icon: Settings,
@@ -654,6 +649,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         // rutas /tintometria/calculadora y /tintometria/selector siguen activas.
       ],
     },
+    solicitudesSidebarItem(),
 
   ],
 
@@ -779,11 +775,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Palette,
         },
         {
-          href: "/tintometria/solicitudes",
-          label: "Solicitudes a laboratorio",
-          icon: FlaskConical,
-        },
-        {
           href: "/tintometria/admin",
           label: "Administrar Datos",
           icon: Settings,
@@ -792,6 +783,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         // rutas /tintometria/calculadora y /tintometria/selector siguen activas.
       ],
     },
+    solicitudesSidebarItem(),
   ],
 
   // Roles organizacionales - Acceso a Reclamos Generales
@@ -932,16 +924,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Remuneraciones",
       icon: Wallet,
     },
-    {
-      href: "/solicitud-credito",
-      label: "Solicitud de Crédito",
-      icon: FileCheck,
-    },
-    {
-      href: "/nuevo-cliente",
-      label: "Nuevo Cliente",
-      icon: UserPlus,
-    },
+    solicitudesSidebarItem(),
     {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",

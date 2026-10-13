@@ -37,6 +37,7 @@ import {
   Wallet,
   Scale,
   FlaskConical,
+  Inbox,
 } from "lucide-react";
 import {
   SIDEBAR_CONFIG,
@@ -141,12 +142,24 @@ const EXTRA_GROUPS: ExtraGroupTemplate[] = [
     icon: Palette,
     children: [
       { key: "tintometria.carta", href: "/tintometria/carta", label: "Pantonera Digital", icon: Palette },
-      { key: "tintometria.solicitudes", href: "/tintometria/solicitudes", label: "Solicitudes a laboratorio", icon: FlaskConical },
       { key: "tintometria.admin", href: "/tintometria/admin", label: "Administrar Datos", icon: Settings },
       // Ocultos por ahora (oct-2026), igual que en sidebar-config: si quedan
       // acá, los "extras" los reponen a quien tenga el permiso.
       // { key: "tintometria.calculadora", href: "/tintometria/calculadora", label: "Calcular Costos", icon: DollarSign },
       // { key: "tintometria.selector", href: "/tintometria/selector", label: "Selector Visual", icon: PaintBucket },
+    ],
+  },
+  // Mismo grupo "Solicitudes" que en sidebar-config (`solicitudesSidebarItem`):
+  // si el rol ya lo trae, lo que le falte se suma adentro y no suelto al final.
+  {
+    href: "/solicitudes",
+    label: "Solicitudes",
+    icon: Inbox,
+    children: [
+      { key: "tintometria.solicitudes", href: "/tintometria/solicitudes", label: "Solicitudes a laboratorio", icon: FlaskConical },
+      { key: "solicitud_credito", href: "/solicitud-credito", label: "Solicitud de Crédito", icon: FileCheck },
+      { key: "nuevo_cliente", href: "/nuevo-cliente", label: "Nuevo Cliente", icon: UserPlus },
+      { key: "solicitud_muestra", href: "/solicitud-muestra", label: "Solicitud de Muestra", icon: PaintBucket },
     ],
   },
   // Mantención (CMMS) oculto del sidebar para todos los roles: el módulo está
@@ -198,11 +211,7 @@ const EXTRA_TOP_LEVEL: { key: string; item: SidebarItem }[] = [
   { key: "rrhh.comisiones", item: { href: "/comisiones", label: "Comisiones", icon: DollarSign } },
   { key: "rrhh.remuneraciones", item: { href: "/remuneraciones", label: "Remuneraciones", icon: Wallet } },
   { key: "finanzas.balance", item: { href: "/estado-resultados", label: "Estado de Resultado", icon: Scale } },
-  // Solicitud de Crédito va pegada a Comisiones: las dos son Finanzas, y así el
-  // orden del menú es el mismo para el rol que la recibe como extra y para el
-  // que ya la trae en su sidebar base.
-  { key: "solicitud_credito", item: { href: "/solicitud-credito", label: "Solicitud de Crédito", icon: FileCheck } },
-  { key: "nuevo_cliente", item: { href: "/nuevo-cliente", label: "Nuevo Cliente", icon: UserPlus } },
+  // Solicitud de Crédito y Nuevo Cliente pasaron al grupo "Solicitudes" (EXTRA_GROUPS).
   { key: "gastos", item: { href: "/gastos-empresariales", label: "Rendición de Gastos", icon: Banknote } },
   // Visitas Técnicas va sobre Reclamos: volvió al sidebar (sep-2026) y dejó de ser
   // pestaña del Panel de Trabajo. El permiso postventa.visitas gobierna el acceso.
@@ -264,7 +273,7 @@ export function buildSidebarItems(
   // admin, así que tampoco se le agregan "extras" al final —si no, cualquier
   // permiso suyo que el menú curado deja fuera volvería a aparecer y los dos
   // menús dejarían de ser iguales.
-  if (role === "admin" || role === "supervisor") return filterMarketingByRole(items, role);
+  if (role === "admin" || role === "supervisor") return soltarSolicitudesSueltas(filterMarketingByRole(items, role));
 
   const covered = collectCoveredKeys(base);
   const ocultos = EXTRAS_OCULTOS_POR_ROL[role || ""] ?? new Set<string>();
@@ -301,5 +310,17 @@ export function buildSidebarItems(
     items.push({ ...item, ...(item.children ? { children: item.children.map((c) => ({ ...c })) } : {}) });
   }
 
-  return filterMarketingByRole(items, role);
+  return soltarSolicitudesSueltas(filterMarketingByRole(items, role));
+}
+
+/**
+ * El grupo "Solicitudes" con una sola opción visible se muestra como esa opción
+ * suelta: un desplegable de un ítem es un clic de más (ver `solicitudesSidebarItem`).
+ */
+function soltarSolicitudesSueltas(items: SidebarItem[]): SidebarItem[] {
+  return items.map((item) =>
+    item.href === "/solicitudes" && item.children?.length === 1
+      ? { ...item.children[0], separator: item.separator }
+      : item,
+  );
 }
