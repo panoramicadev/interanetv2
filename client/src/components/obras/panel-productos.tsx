@@ -2,10 +2,13 @@
  * Los productos de una obra, como filas de la MISMA tabla de obras.
  *
  * Acá vive TODO el control de la obra: por SKU se sigue cuánto se proyectó, se
- * pidió, se entregó y se usó, más el rendimiento declarado y las viviendas que
- * se pintaron con ese producto. Los números de la obra son la suma de estas
- * filas — la tineta de fachada, el sellador y el esmalte de rejas avanzan a
- * ritmos distintos y por eso ya no se controlan como un solo número.
+ * pidió, se entregó y se usó, más el rendimiento declarado. El avance de cada
+ * producto es lo utilizado sobre lo proyectado — la tineta de fachada, el
+ * sellador y el esmalte de rejas avanzan a ritmos distintos.
+ *
+ * Pedidas y Entregadas salen solas de los documentos asociados a la obra
+ * cuando el producto tiene alguno (ver server/obras-cantidades.ts); si no, se
+ * siguen cargando a mano.
  *
  * Antes esto era un panel con su propia tabla adentro de la fila: dos grillas
  * que no calzaban y las mismas magnitudes con otro nombre. Ahora cada producto
@@ -27,7 +30,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import type { CatalogoObraItem, ObraProducto, ObraProductoMovimiento } from "@shared/schema";
-import { ChevronDown, ChevronRight, Clock, Loader2, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronRight, Clock, Loader2, Trash2 } from "lucide-react";
 import { fmtDec, toNum } from "./formato";
 import { calcularProducto } from "./calculos";
 import type { CeldaProducto, ColumnaDef } from "./columnas";
@@ -350,6 +353,20 @@ function FilaProducto({
                   <span className="italic truncate">sin SKU</span>
                 )}
               </div>
+              {/* Entró solo, desde un documento asociado, sin estar proyectado.
+                  Se apaga al cargarle la proyección, o a mano si no lleva. */}
+              {producto.revisar && (
+                <button
+                  onClick={() => onGuardar({ revisar: false })}
+                  className="mt-1 inline-flex items-center gap-1 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 px-2 py-0.5 text-[10px] font-bold hover:bg-violet-200 dark:hover:bg-violet-500/25 transition-colors"
+                  title="Llegó en un documento de la obra y no estaba proyectado. Cárgale la proyección, o haz clic para marcarlo como revisado."
+                  data-testid={`button-revisado-${producto.id}`}
+                >
+                  <AlertTriangle className="h-2.5 w-2.5" />
+                  Revisar · no proyectado
+                  <Check className="h-2.5 w-2.5" />
+                </button>
+              )}
             </div>
           </div>
         </td>

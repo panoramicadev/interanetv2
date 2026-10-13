@@ -1,10 +1,10 @@
 /**
  * Compras de la obra — lo que la obra le compró de verdad a Panorámica.
  *
- * La planilla lleva a mano lo pedido y lo entregado; esto trae lo que dice el
- * sistema de la empresa. Se asocian los documentos (facturas, notas de venta y
- * guías de despacho) a la obra y de ahí sale, producto por producto, cuánto se
- * compró contra lo que se proyectó al empezar.
+ * Se asocian los documentos (facturas, notas de venta y guías de despacho) a la
+ * obra y de ahí sale, producto por producto, cuánto se compró contra lo que se
+ * proyectó al empezar. Al asociar o sacar uno, Pedidas y Entregadas de los
+ * productos se recalculan solas (ver server/obras-cantidades.ts).
  *
  * Los tres orígenes van SEPARADOS y no se suman: una nota de venta que después
  * se factura y se despacha es la misma compra apareciendo tres veces. Por eso
@@ -166,7 +166,8 @@ export function ComprasObra({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/obras", obraId, "ventas"] });
-      toast({ title: "Documento sacado de la obra" });
+      queryClient.invalidateQueries({ queryKey: ["/api/obra-productos"] });
+      toast({ title: "Documento sacado de la obra", description: "Sus cantidades se descontaron de los productos." });
     },
     onError: (error: any) => {
       toast({ title: "No se pudo sacar el documento", description: error?.message, variant: "destructive" });
@@ -211,6 +212,7 @@ export function ComprasObra({
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/obras", obraId, "ventas"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/obra-productos"] });
     },
   });
 
@@ -614,10 +616,20 @@ function DialogBuscarDocumentos({
     onSuccess: (resultado: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/obras", obraId, "ventas"] });
       queryClient.invalidateQueries({ queryKey: ["/api/obras/ventas/buscar"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/obra-productos"] });
       setElegidos(new Set());
       onCerrar();
       const n = resultado?.asociados?.length ?? 0;
-      toast({ title: n === 1 ? "Documento asociado a la obra" : `${n} documentos asociados a la obra` });
+      const repetidos: string[] = resultado?.repetidos ?? [];
+      toast({
+        title: n === 1 ? "Documento asociado a la obra" : `${n} documentos asociados a la obra`,
+        description: [
+          repetidos.length > 0 ? `Ya estaban en la obra y no se sumaron de nuevo: ${repetidos.join(", ")}.` : "",
+          resultado?.erpRespondio === false
+            ? "El sistema de la empresa no respondió: las cantidades se actualizan en la próxima sincronización."
+            : "Pedidas y Entregadas ya se actualizaron en los productos.",
+        ].filter(Boolean).join(" "),
+      });
     },
     onError: (error: any) => {
       toast({ title: "No se pudieron asociar", description: error?.message, variant: "destructive" });

@@ -13,6 +13,11 @@ import {
   observacionesDeDocumentos as observacionesDeVenta,
 } from "./obras-ventas";
 import { autoAsociarVentasDeCotizacion, sugerirDocumentosParaObra } from "./obras-ventas-auto";
+import {
+  actualizarCantidadesObra,
+  lineasGuardadas as lineasGuardadasDeObra,
+  recalcularCantidadesObra,
+} from "./obras-cantidades";
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, isIndustrialSegment, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { rutContainsCondition } from "./utils/rut-sql";
 import { invalidateSessionUser } from "./auth";
@@ -25100,7 +25105,17 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/obras/:id/ventas', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const vinculos = await storage.getObraVentas(req.params.id);
-      const lineas = vinculos.length > 0 ? await lineasDeDocumentosDeVenta(vinculos) : [];
+      // Primero la copia propia de las líneas (no desaparece cuando la nota de
+      // venta o la guía se cierran); los documentos que todavía no la tienen se
+      // leen del espejo, como antes.
+      const guardadas = await lineasGuardadasDeObra(vinculos.map((v) => v.id));
+      const conCopia = new Set(guardadas.map((l) => l.vinculoId));
+      const origenDe = new Map(vinculos.map((v) => [v.id, v.origen]));
+      const sinCopia = vinculos.filter((v) => !conCopia.has(v.id));
+      const lineas = [
+        ...guardadas.map((l) => ({ ...l, origen: origenDe.get(l.vinculoId) ?? 'facturado' })),
+        ...(sinCopia.length > 0 ? await lineasDeDocumentosDeVenta(sinCopia) : []),
+      ];
 
       // Una fila por (origen, SKU): es lo que se compara contra lo proyectado.
       const porProducto = new Map<string, any>();
@@ -25158,6 +25173,13 @@ export function registerRoutes(app: Express): Server {
       const usuario = req.user;
       const creados: any[] = [];
       const ignorados: string[] = [];
+      const repetidos: string[] = [];
+
+      // Un mismo documento no se asocia dos veces a la misma obra: sus
+      // cantidades ya están sumadas en los productos.
+      const yaEnLaObra = new Set(
+        (await storage.getObraVentas(obra.id)).map((v) => String(v.idmaeedo)),
+      );
 
       for (const p of pedidos) {
         if (!ORIGENES_VENTA.includes(p.origen as any)) { ignorados.push(String(p.idmaeedo)); continue; }
@@ -25165,6 +25187,11 @@ export function registerRoutes(app: Express): Server {
         // pantalla: el monto y el cliente que quedan guardados son los de verdad.
         const doc = await obtenerDocumentoDeVenta(p.origen as any, p.idmaeedo);
         if (!doc) { ignorados.push(String(p.idmaeedo)); continue; }
+        if (yaEnLaObra.has(doc.idmaeedo)) {
+          repetidos.push(`${doc.tido ?? ''} ${doc.nudo ?? doc.idmaeedo}`.trim());
+          continue;
+        }
+        yaEnLaObra.add(doc.idmaeedo);
         creados.push(await storage.asociarObraVenta({
           obraId: obra.id,
           origen: doc.origen,
@@ -25181,7 +25208,22 @@ export function registerRoutes(app: Express): Server {
         }));
       }
 
-      res.status(201).json({ asociados: creados, ignorados });
+      if (creados.length === 0 && repetidos.length > 0) {
+        return res.status(409).json({
+          message: repetidos.length === 1
+            ? `El documento ${repetidos[0]} ya está asociado a esta obra`
+            : `Esos documentos ya están asociados a esta obra (${repetidos.join(', ')})`,
+          repetidos,
+        });
+      }
+
+      // Las cantidades de los documentos caen en los productos de la obra.
+      let erpRespondio = true;
+      if (creados.length > 0) {
+        ({ erpRespondio } = await actualizarCantidadesObra(obra.id));
+      }
+
+      res.status(201).json({ asociados: creados, ignorados, repetidos, erpRespondio });
     } catch (error: any) {
       console.error('❌ Error al asociar ventas a la obra:', error);
       res.status(500).json({ message: 'Error al asociar los documentos', error: error.message });
@@ -25230,6 +25272,8 @@ export function registerRoutes(app: Express): Server {
         desasociadoPorNombre: usuario?.salespersonName || usuario?.email || null,
       });
       if (!actualizado) return res.status(404).json({ message: 'Vínculo no encontrado' });
+      // Sin el documento, sus cantidades salen de los productos.
+      await recalcularCantidadesObra(actualizado.obraId);
       res.json(actualizado);
     } catch (error: any) {
       console.error('❌ Error al desasociar la venta de la obra:', error);
@@ -25574,6 +25618,11 @@ export function registerRoutes(app: Express): Server {
       const parsed = insertObraProductoSchema.partial().safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: 'Datos de producto inválidos', errors: parsed.error.errors });
+      }
+      // Un producto que entró solo desde un documento queda "por revisar" hasta
+      // que alguien le carga la proyección.
+      if (parsed.data.cantidadProyectada != null && Number(parsed.data.cantidadProyectada) > 0) {
+        parsed.data.revisar = false;
       }
       const actualizado = await storage.updateObraProducto(req.params.id, parsed.data);
       res.json(actualizado);

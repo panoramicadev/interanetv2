@@ -3599,6 +3599,13 @@ export const obraProductos = pgTable("obra_productos", {
   // Tipo de vivienda al que aplica, cuando el producto solo va en un modelo.
   // NULL = aplica a toda la obra.
   tipoViviendaId: varchar("tipo_vivienda_id"), // FK to obra_tipos_vivienda.id
+  // Pedidas y Entregadas las escribe el sistema a partir de los documentos
+  // asociados a la obra (ver server/obras-cantidades.ts); en pantalla quedan
+  // de solo lectura.
+  desdeDocumentos: boolean("desde_documentos").notNull().default(false),
+  // Entró solo, desde un documento, sin estar proyectado: hay que cargarle la
+  // proyección. Se apaga al hacerlo.
+  revisar: boolean("revisar").notNull().default(false),
   notas: text("notas"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),

@@ -36,6 +36,7 @@ import { db } from "./db";
 import { storage } from "./storage";
 import { computeDv, rutMatchKey } from "@shared/rut";
 import { FILTRO_TIPO, type DocumentoVenta, type OrigenVenta } from "./obras-ventas";
+import { actualizarCantidadesObra, actualizarCantidadesObrasActivas } from "./obras-cantidades";
 
 export type ReglaAuto = "nvv_recepcion" | "oc_cotizacion" | "obra_unica" | "sku_exclusivo";
 
@@ -335,7 +336,12 @@ async function vincularPorProductos(): Promise<number> {
   return vinculados;
 }
 
-/** Corre todas las reglas. Devuelve cuántos documentos vinculó. */
+/**
+ * Corre todas las reglas y después refresca Pedidas y Entregadas de las obras
+ * activas: además de lo recién vinculado, una factura pudo haber recibido su
+ * guía o una nota de venta haberse cerrado desde la última pasada.
+ * Devuelve cuántos documentos vinculó.
+ */
 export async function autoAsociarVentasObras(): Promise<number> {
   const porCotizacion = await vincularPorCotizaciones();
   const porProductos = await vincularPorProductos();
@@ -343,12 +349,22 @@ export async function autoAsociarVentasObras(): Promise<number> {
   if (total > 0) {
     console.log(`🏗️ Obras: ${total} documento(s) vinculados solos (${porCotizacion} por cotización, ${porProductos} por productos)`);
   }
+  try {
+    await actualizarCantidadesObrasActivas();
+  } catch (error: any) {
+    console.error("❌ [Obras] No se pudieron refrescar las cantidades desde los documentos:", error?.message);
+  }
   return total;
 }
 
 /** Lo mismo, pero solo para una cotización: recepción la acaba de ingresar. */
 export async function autoAsociarVentasDeCotizacion(cotizacionId: string): Promise<number> {
-  return vincularPorCotizaciones(cotizacionId);
+  const vinculados = await vincularPorCotizaciones(cotizacionId);
+  if (vinculados > 0) {
+    const [cotizacion] = filasDe(await db.execute(sql`SELECT obra_id FROM quotes WHERE id = ${cotizacionId}`));
+    if (cotizacion?.obra_id) await actualizarCantidadesObra(String(cotizacion.obra_id));
+  }
+  return vinculados;
 }
 
 /**

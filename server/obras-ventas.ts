@@ -53,7 +53,7 @@ function contieneTexto(columna: SQL, termino: string): SQL {
  */
 let poolErp: Promise<mssql.ConnectionPool> | null = null;
 
-function erp(): Promise<mssql.ConnectionPool> {
+export function erp(): Promise<mssql.ConnectionPool> {
   if (!process.env.SQL_SERVER_HOST || !process.env.SQL_SERVER_USER) {
     return Promise.reject(new Error("Sin conexión al ERP configurada"));
   }

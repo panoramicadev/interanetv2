@@ -120,9 +120,18 @@ export function SinDato({ title }: { title?: string }) {
   );
 }
 
-/** Barra de avance. Sin viviendas cargadas no hay porcentaje que mostrar. */
-export function BarraAvance({ avance, hayDato }: { avance: number; hayDato: boolean }) {
-  if (!hayDato) return <SinDato title="Falta el total de viviendas de la obra" />;
+/** Barra de avance. Sin el total (viviendas o proyección) no hay porcentaje que mostrar. */
+export function BarraAvance({
+  avance,
+  hayDato,
+  faltante = "Falta el total de viviendas de la obra",
+}: {
+  avance: number;
+  hayDato: boolean;
+  /** Qué falta cargar para tener porcentaje. */
+  faltante?: string;
+}) {
+  if (!hayDato) return <SinDato title={faltante} />;
   return (
     <div className="flex items-center gap-2">
       <div className="h-1.5 flex-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden min-w-[52px]">
@@ -197,6 +206,7 @@ export function CeldaRendimiento({
   desviacion,
   hayDesviacion,
   detalle,
+  formatos,
 }: {
   real: number;
   /** Unidad del producto; en la fila de la obra se omite (mezcla productos). */
@@ -204,20 +214,50 @@ export function CeldaRendimiento({
   desviacion: number;
   hayDesviacion: boolean;
   detalle?: string;
+  /**
+   * Fila de la obra: el consumo por vivienda de cada formato. Con más de uno se
+   * muestran apilados en vez de un solo número que sumaba tinetas con galones.
+   */
+  formatos?: Array<{ corto: string; plural: string; valor: number }>;
 }) {
   if (real <= 0) {
     return <SinDato title="Faltan viviendas pintadas o consumo cargado para calcularlo" />;
   }
+  const varios = (formatos ?? []).filter((f) => f.valor > 0);
+  if (varios.length > 1) {
+    return (
+      <div className="flex items-center justify-center gap-1.5">
+        <div className="inline-flex flex-col items-end leading-tight">
+          {varios.map((f) => (
+            <span
+              key={f.corto}
+              className="whitespace-nowrap"
+              title={`Se están usando ${fmtDec(f.valor)} ${f.plural} por vivienda pintada`}
+            >
+              <span className="font-bold tabular-nums text-slate-700 dark:text-slate-200">{fmtDec(f.valor)}</span>
+              <span className="ml-1 text-[9px] uppercase tracking-wide text-slate-400">{f.corto}</span>
+            </span>
+          ))}
+        </div>
+        <span className="text-[10px] text-slate-400">/viv</span>
+        {hayDesviacion && <BadgeDesviacion desviacion={desviacion} hayDato detalle={detalle} />}
+      </div>
+    );
+  }
+  // Un solo formato: el número de siempre, con su unidad al pasar el mouse.
+  const solo = varios[0];
   return (
     <div className="flex items-center justify-center gap-1.5">
       <span
         className="font-bold tabular-nums text-slate-700 dark:text-slate-200"
         title={
           detalle ??
-          `Se está usando ${fmtDec(real)}${unidad ? ` ${unidad}` : ""} por vivienda pintada`
+          (solo
+            ? `Se están usando ${fmtDec(solo.valor)} ${solo.plural} por vivienda pintada`
+            : `Se está usando ${fmtDec(real)}${unidad ? ` ${unidad}` : ""} por vivienda pintada`)
         }
       >
-        {fmtDec(real)}
+        {fmtDec(solo ? solo.valor : real)}
       </span>
       <span className="text-[10px] text-slate-400">/viv</span>
       {hayDesviacion && <BadgeDesviacion desviacion={desviacion} hayDato detalle={detalle} />}

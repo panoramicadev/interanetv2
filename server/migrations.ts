@@ -1414,6 +1414,29 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE obra_ventas ADD COLUMN IF NOT EXISTS regla VARCHAR(30)`);
     await db.execute(sql`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS erp_nvv_number VARCHAR(30)`);
 
+    // Pedidas y Entregadas desde los documentos (migración 096): copia propia de
+    // las líneas de cada documento asociado y las marcas del producto.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS obra_venta_lineas (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        obra_venta_id VARCHAR NOT NULL REFERENCES obra_ventas(id) ON DELETE CASCADE,
+        idmaeedo VARCHAR(30) NOT NULL,
+        idmaeddo VARCHAR(30) NOT NULL,
+        tido VARCHAR(10),
+        kopr VARCHAR(60),
+        nombre TEXT,
+        cantidad NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        monto NUMERIC(18, 2) NOT NULL DEFAULT 0,
+        raiz VARCHAR(30),
+        con_guia BOOLEAN,
+        vigente BOOLEAN NOT NULL DEFAULT true,
+        actualizado_en TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "UQ_obra_venta_lineas_linea" ON obra_venta_lineas (obra_venta_id, idmaeddo)`);
+    await db.execute(sql`ALTER TABLE obra_productos ADD COLUMN IF NOT EXISTS desde_documentos BOOLEAN NOT NULL DEFAULT false`);
+    await db.execute(sql`ALTER TABLE obra_productos ADD COLUMN IF NOT EXISTS revisar BOOLEAN NOT NULL DEFAULT false`);
+
     // Solicitud de crédito (migración 077). Ver migrations/077_solicitudes_credito.sql
     // — se replica acá porque el runner de .sql corre DESPUÉS del bootstrap y las
     // rutas del módulo consultan la tabla apenas arranca el server.

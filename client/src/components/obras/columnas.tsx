@@ -19,9 +19,10 @@
  */
 import type { ObraProducto } from "@shared/schema";
 import { fmt, fmtDec, fmtPct, toInt, toNum } from "./formato";
-import type { ObraCalculada, ProductoCalculado, Totales } from "./calculos";
+import { porFormato, textoMaterial, type CampoMaterial, type Material, type ObraCalculada, type ProductoCalculado, type Totales } from "./calculos";
 import { BORDE_GRUPO, BadgeEstado, BarraAvance, CeldaRendimiento, InputCantidad, Numero, SinDato } from "./celdas";
 import { etiquetaCortaUnidad } from "./unidades";
+import { AlertTriangle, FileText } from "lucide-react";
 
 /** Todo lo que una celda de producto necesita para dibujarse y guardarse. */
 export interface CeldaProducto {
@@ -140,17 +141,7 @@ export const COLUMNAS: ColumnaDef[] = [
       ) : (
         <Numero valor={f.pintadas} entero />
       ),
-    // Vacío = sigue a la obra (se lee en gris); con número propio, el producto
-    // lleva su ritmo aparte.
-    renderProducto: (c) => (
-      <InputCantidad
-        valor={c.producto.viviendasPintadas}
-        max={c.viviendas > 0 ? c.viviendas : undefined}
-        placeholder={c.pintadasObra > 0 ? fmt(c.pintadasObra) : "0"}
-        onGuardar={(v) => c.onGuardar({ viviendasPintadas: Math.round(toNum(v)) })}
-        testId={`input-pintadas-${c.producto.id}`}
-      />
-    ),
+    // Las viviendas pintadas son de la obra: el producto no lleva las suyas.
     total: (t) => fmt(t.pintadas),
   },
   {
@@ -160,19 +151,23 @@ export const COLUMNAS: ColumnaDef[] = [
     grupo: AVANCE,
     soloCompleta: true,
     render: (f) => <Numero valor={f.pendientes} entero />,
-    renderProducto: (c) => <Numero valor={Math.max(0, c.viviendas - c.calc.pintadas)} entero />,
     total: (t) => fmt(t.pendientes),
   },
   {
+    // Dos avances distintos en la misma columna: en la obra, viviendas pintadas
+    // sobre viviendas; en el producto, material utilizado sobre proyectado.
+    // Que se pintaran 40 casas no dice cuánto esmalte de rejas se aplicó.
     key: "avance",
     label: "% avance",
+    title: "Obra: viviendas pintadas ÷ viviendas · Producto: utilizado ÷ proyectado",
     grupo: AVANCE,
     thClassName: "min-w-[92px]",
     render: (f) => <BarraAvance avance={f.avance} hayDato={f.viviendas > 0} />,
     renderProducto: (c) => (
       <BarraAvance
-        avance={c.viviendas > 0 ? Math.min(1, c.calc.pintadas / c.viviendas) : 0}
-        hayDato={c.viviendas > 0}
+        avance={c.calc.avance}
+        hayDato={c.calc.proyectada > 0}
+        faltante="Falta la proyección del producto"
       />
     ),
     total: (t) => fmtPct(t.avance),
@@ -184,7 +179,7 @@ export const COLUMNAS: ColumnaDef[] = [
     label: "Proyectadas",
     title: "Lo que la obra necesita en total",
     grupo: MATERIAL,
-    render: (f) => <Numero valor={f.proyectadas} />,
+    render: (f) => <CeldaMaterial material={f.material} campo="proyectadas" />,
     renderProducto: (c) => (
       <InputCantidad
         valor={c.producto.cantidadProyectada}
@@ -192,23 +187,32 @@ export const COLUMNAS: ColumnaDef[] = [
         testId={`input-proyectada-${c.producto.id}`}
       />
     ),
-    total: (t) => fmtDec(t.proyectadas),
+    total: (t) => <CeldaMaterial material={t.material} campo="proyectadas" />,
   },
   {
     key: "pedidas",
     label: "Pedidas",
-    title: "Lo que ya se le compró a la obra",
+    title: "Lo que ya se le compró a la obra (notas de venta, guías y facturas asociadas, cada unidad una vez)",
     grupo: MATERIAL,
-    render: (f) => <Numero valor={f.pedidas} />,
+    render: (f) => <CeldaMaterial material={f.material} campo="pedidas" />,
     renderProducto: (c) => (
-      <InputCantidad
-        valor={c.producto.cantidadPedida}
-        onGuardar={(v) => c.onGuardar({ cantidadPedida: v })}
-        testId={`input-pedida-${c.producto.id}`}
-        movimiento={{ tipo: "pedido", sugerido: c.calc.porPedir, onRegistrar: c.onMovimiento, registrando: c.registrando }}
-      />
+      <ConAlerta
+        alerta={c.calc.alertaPedido}
+        motivo={`Se pidió ${fmtDec(c.calc.pedida)} y se proyectó ${fmtDec(c.calc.proyectada)}`}
+      >
+        {c.producto.desdeDocumentos ? (
+          <DesdeDocumentos valor={c.calc.pedida} que="Suma de lo comprometido en los documentos asociados" />
+        ) : (
+          <InputCantidad
+            valor={c.producto.cantidadPedida}
+            onGuardar={(v) => c.onGuardar({ cantidadPedida: v })}
+            testId={`input-pedida-${c.producto.id}`}
+            movimiento={{ tipo: "pedido", sugerido: c.calc.porPedir, onRegistrar: c.onMovimiento, registrando: c.registrando }}
+          />
+        )}
+      </ConAlerta>
     ),
-    total: (t) => fmtDec(t.pedidas),
+    total: (t) => <CeldaMaterial material={t.material} campo="pedidas" />,
   },
   {
     // Proyectado − pedido, sin descontar nada más: es el "todavía no se le
@@ -219,37 +223,40 @@ export const COLUMNAS: ColumnaDef[] = [
     label: "Por pedir",
     title: "Proyectado − pedido: lo que falta comprarle a la obra",
     grupo: MATERIAL,
-    render: (f) => <Numero valor={f.faltantePorPedir} />,
+    render: (f) => <CeldaMaterial material={f.material} campo="faltante" />,
     renderProducto: (c) => <Numero valor={c.calc.porPedir} />,
-    total: (t) => fmtDec(t.faltante),
+    total: (t) => <CeldaMaterial material={t.material} campo="faltante" />,
   },
   {
     key: "entregadas",
     label: "Entregadas",
-    title: "Lo que llegó a la obra",
+    title: "Lo que llegó a la obra (guías de despacho, o la factura cuando no hubo guía)",
     grupo: MATERIAL,
-    render: (f) => <Numero valor={f.entregadas} />,
-    renderProducto: (c) => (
-      <InputCantidad
-        valor={c.producto.cantidadEntregada}
-        onGuardar={(v) => c.onGuardar({ cantidadEntregada: v })}
-        testId={`input-entregada-${c.producto.id}`}
-        movimiento={{
-          tipo: "entrega",
-          sugerido: Math.max(0, c.calc.pedida - c.calc.entregada),
-          onRegistrar: c.onMovimiento,
-          registrando: c.registrando,
-        }}
-      />
-    ),
-    total: (t) => fmtDec(t.entregadas),
+    render: (f) => <CeldaMaterial material={f.material} campo="entregadas" />,
+    renderProducto: (c) =>
+      c.producto.desdeDocumentos ? (
+        <DesdeDocumentos valor={c.calc.entregada} que="Lo despachado según los documentos asociados" />
+      ) : (
+        <InputCantidad
+          valor={c.producto.cantidadEntregada}
+          onGuardar={(v) => c.onGuardar({ cantidadEntregada: v })}
+          testId={`input-entregada-${c.producto.id}`}
+          movimiento={{
+            tipo: "entrega",
+            sugerido: Math.max(0, c.calc.pedida - c.calc.entregada),
+            onRegistrar: c.onMovimiento,
+            registrando: c.registrando,
+          }}
+        />
+      ),
+    total: (t) => <CeldaMaterial material={t.material} campo="entregadas" />,
   },
   {
     key: "usadas",
     label: "Utilizadas",
-    title: "Lo que se consumió pintando",
+    title: "Lo que se aplicó en obra de lo entregado: da el saldo y el avance del producto",
     grupo: MATERIAL,
-    render: (f) => <Numero valor={f.usadas} />,
+    render: (f) => <CeldaMaterial material={f.material} campo="usadas" />,
     renderProducto: (c) => (
       <InputCantidad
         valor={c.producto.cantidadUtilizada}
@@ -258,16 +265,16 @@ export const COLUMNAS: ColumnaDef[] = [
         movimiento={{ tipo: "consumo", sugerido: 0, onRegistrar: c.onMovimiento, registrando: c.registrando }}
       />
     ),
-    total: (t) => fmtDec(t.usadas),
+    total: (t) => <CeldaMaterial material={t.material} campo="usadas" />,
   },
   {
     key: "saldo",
     label: "Saldo en obra",
     title: "Entregado − utilizado: lo que debería estar hoy en la bodega de la obra",
     grupo: MATERIAL,
-    render: (f) => <SaldoObra saldo={f.saldo} />,
+    render: (f) => <CeldaMaterial material={f.material} campo="saldo" />,
     renderProducto: (c) => <SaldoObra saldo={c.calc.saldo} />,
-    total: (t) => fmtDec(t.saldo),
+    total: (t) => <CeldaMaterial material={t.material} campo="saldo" />,
   },
 
   // ---- Qué hago ----------------------------------------------------------
@@ -279,12 +286,15 @@ export const COLUMNAS: ColumnaDef[] = [
     label: "Rendimiento",
     title: "Consumo real por vivienda pintada (y su desviación vs lo declarado)",
     grupo: DECISION,
+    // En la obra va una cifra por formato: sumar tinetas con galones por
+    // vivienda no era ninguna de las dos cosas.
     render: (f) => (
       <CeldaRendimiento
         real={f.rendimientoReal}
+        formatos={rendimientoPorFormato(f.material, f.pintadas)}
         desviacion={f.desviacion}
         hayDesviacion={f.consumoTeorico > 0}
-        detalle={`La obra está usando ${fmtDec(f.rendimientoReal)} por vivienda (${fmtDec(f.usadas)} entre todos sus productos, en ${fmt(f.pintadas)} pintadas)`}
+        detalle={`La obra está usando ${textoMaterial(f.material, "usadas", f.pintadas)} por vivienda (${textoMaterial(f.material, "usadas")} en ${fmt(f.pintadas)} pintadas)`}
       />
     ),
     renderProducto: (c) => (
@@ -303,6 +313,7 @@ export const COLUMNAS: ColumnaDef[] = [
     total: (t) => (
       <CeldaRendimiento
         real={t.rendimientoReal}
+        formatos={rendimientoPorFormato(t.material, t.pintadas)}
         desviacion={t.desviacion}
         hayDesviacion={t.consumoTeorico > 0}
       />
@@ -313,9 +324,9 @@ export const COLUMNAS: ColumnaDef[] = [
     label: "Próx. pedido",
     title: "Proyectado − pedido − saldo en obra: lo que hay que comprar ahora",
     grupo: DECISION,
-    render: (f) => <ProximoPedido valor={f.sugerido} />,
+    render: (f) => <CeldaMaterial material={f.material} campo="sugerido" />,
     renderProducto: (c) => <ProximoPedido valor={c.calc.sugerido} />,
-    total: (t) => fmtDec(t.sugerido),
+    total: (t) => <CeldaMaterial material={t.material} campo="sugerido" />,
   },
   {
     key: "estado",
@@ -330,7 +341,11 @@ function SaldoObra({ saldo }: { saldo: number }) {
   // apagado, es algo que hay que ir a revisar.
   if (saldo < 0) {
     return (
-      <span className="font-bold tabular-nums text-red-600 dark:text-red-400" title="Se consumió más de lo entregado">
+      <span
+        className="inline-flex items-center gap-1 font-bold tabular-nums text-red-600 dark:text-red-400"
+        title="Se utilizó más de lo entregado: revisar las entregas o lo informado como utilizado"
+      >
+        <AlertTriangle className="h-3 w-3" />
         {fmtDec(saldo)}
       </span>
     );
@@ -341,6 +356,78 @@ function SaldoObra({ saldo }: { saldo: number }) {
 function ProximoPedido({ valor }: { valor: number }) {
   if (valor <= 0) return <Numero valor={0} />;
   return <span className="font-bold tabular-nums text-orange-600 dark:text-orange-400">{fmtDec(valor)}</span>;
+}
+
+/** Consumo por vivienda pintada de cada formato. */
+const rendimientoPorFormato = (material: Material, pintadas: number) =>
+  pintadas > 0
+    ? porFormato(material, "usadas").map(({ unidad, valor }) => ({
+        corto: unidad.corto,
+        plural: unidad.plural,
+        valor: valor / pintadas,
+      }))
+    : [];
+
+/** La celda con un aviso al lado cuando el número no cuadra. */
+function ConAlerta({ alerta, motivo, children }: { alerta: boolean; motivo: string; children: React.ReactNode }) {
+  if (!alerta) return <>{children}</>;
+  return (
+    <span className="inline-flex items-center gap-1">
+      {children}
+      <span title={motivo} aria-label={motivo} className="text-amber-500 dark:text-amber-400">
+        <AlertTriangle className="h-3.5 w-3.5" />
+      </span>
+    </span>
+  );
+}
+
+/** Cantidad que viene de los documentos asociados: se lee, no se escribe. */
+function DesdeDocumentos({ valor, que }: { valor: number; que: string }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 tabular-nums font-semibold text-slate-700 dark:text-slate-200"
+      title={`${que}. Para cambiarla, asocia o saca documentos en "Compras de la obra".`}
+    >
+      {fmtDec(valor)}
+      <FileText className="h-3 w-3 text-slate-400" aria-label="Desde documentos" />
+    </span>
+  );
+}
+
+/**
+ * Material de la obra en las unidades en que se cargan los productos: una
+ * cifra por formato, no una suma de tinetas con galones.
+ */
+export function CeldaMaterial({ material, campo }: { material: Material; campo: CampoMaterial }) {
+  const filas = porFormato(material, campo);
+  if (filas.length === 0) return <Numero valor={0} />;
+
+  const pinta = (valor: number) => {
+    if (campo === "saldo" && valor < 0) return "font-bold text-red-600 dark:text-red-400";
+    if (campo === "sugerido" && valor > 0) return "font-bold text-orange-600 dark:text-orange-400";
+    return valor === 0 ? "text-slate-300 dark:text-slate-600" : "";
+  };
+
+  // Un solo formato: el número como siempre, con su unidad al pasar el mouse.
+  if (filas.length === 1) {
+    const { unidad, valor } = filas[0];
+    return (
+      <span className={`tabular-nums ${pinta(valor)}`} title={`${fmtDec(valor)} ${unidad.plural}`}>
+        {fmtDec(valor)}
+      </span>
+    );
+  }
+
+  return (
+    <div className="inline-flex flex-col items-end leading-tight">
+      {filas.map(({ unidad, valor }) => (
+        <span key={unidad.valor} className="whitespace-nowrap" title={`${fmtDec(valor)} ${unidad.plural}`}>
+          <span className={`tabular-nums ${pinta(valor)}`}>{fmtDec(valor)}</span>
+          <span className="ml-1 text-[9px] uppercase tracking-wide text-slate-400">{unidad.corto}</span>
+        </span>
+      ))}
+    </div>
+  );
 }
 
 /**
