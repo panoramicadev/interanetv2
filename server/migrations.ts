@@ -2338,6 +2338,11 @@ export async function ensureTintometriaTablas(): Promise<void> {
   `);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_tinto_solicitudes_solicitante" ON tinto_solicitudes (solicitante_id)`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_tinto_solicitudes_estado" ON tinto_solicitudes (estado)`);
+  // Costo en dos pasos (migración 097): la fórmula en gramos y quién la cargó.
+  await db.execute(sql`ALTER TABLE tinto_solicitudes ADD COLUMN IF NOT EXISTS formula_gramos JSONB`);
+  await db.execute(sql`ALTER TABLE tinto_solicitudes ADD COLUMN IF NOT EXISTS formulada_por_id VARCHAR`);
+  await db.execute(sql`ALTER TABLE tinto_solicitudes ADD COLUMN IF NOT EXISTS formulada_por_nombre TEXT`);
+  await db.execute(sql`ALTER TABLE tinto_solicitudes ADD COLUMN IF NOT EXISTS formulada_at TIMESTAMPTZ`);
   await db.execute(sql`
       CREATE TABLE IF NOT EXISTS tinto_solicitud_mensajes (
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),

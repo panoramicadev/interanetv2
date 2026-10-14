@@ -10,6 +10,10 @@
  * pide ve las suyas, y su supervisor las del equipo. La fórmula que responde
  * laboratorio queda en la carta de colores y solo la ve quien tiene "Ver
  * fórmulas" (el operador); el vendedor ve que está lista y el precio.
+ *
+ * El costo va en dos pasos: un químico de laboratorio carga la fórmula en
+ * gramos (queda "por costear") y otro de laboratorio le pone el costo. La
+ * fórmula en gramos la ve solo laboratorio.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useSearch } from "wouter";
@@ -39,7 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { dosisEnMl, leerDosis, nombreCartilla, nombreFormato, type ItemFormula } from "@shared/tintometria";
-import type { TintoFormula, TintoSolicitud, TintoSolicitudMensaje } from "@shared/schema";
+import type { FormulaGramos, TintoFormula, TintoSolicitud, TintoSolicitudMensaje } from "@shared/schema";
 
 type Tipo = "formula" | "precio" | "formula_precio";
 
@@ -68,22 +72,23 @@ interface ColorCarta {
 
 const TIPOS: { valor: Tipo; texto: string }[] = [
   { valor: "formula", texto: "Fórmula" },
-  { valor: "precio", texto: "Precio" },
-  { valor: "formula_precio", texto: "Fórmula y precio" },
+  { valor: "precio", texto: "Costo" },
 ];
-const TIPO_TEXTO: Record<string, string> = { formula: "Fórmula", precio: "Precio", formula_precio: "Fórmula y precio" };
+const TIPO_TEXTO: Record<string, string> = { formula: "Fórmula", precio: "Costo", formula_precio: "Fórmula y costo" };
 
 const ESTADO: Record<string, { texto: string; clase: string }> = {
   enviada: { texto: "ENVIADA", clase: "bg-amber-100 text-amber-800 border-amber-200" },
   en_desarrollo: { texto: "EN DESARROLLO", clase: "bg-sky-100 text-sky-800 border-sky-200" },
+  por_costear: { texto: "POR COSTEAR", clase: "bg-violet-100 text-violet-800 border-violet-200" },
   respondida: { texto: "APROBADA", clase: "bg-emerald-100 text-emerald-700 border-emerald-200" },
   rechazada: { texto: "RECHAZADA", clase: "bg-red-100 text-red-700 border-red-200" },
 };
-const ABIERTAS = ["enviada", "en_desarrollo"];
+const ABIERTAS = ["enviada", "en_desarrollo", "por_costear"];
 
 const EVENTO: Record<string, string> = {
   creada: "envió la solicitud",
   en_desarrollo: "la tomó: está en desarrollo",
+  formulada: "cargó la fórmula en gramos: falta el costo",
   respondida: "aprobó la solicitud",
   rechazada: "rechazó la solicitud",
 };
@@ -275,7 +280,7 @@ function Lista({
 // ── Nueva solicitud ────────────────────────────────────────────────────────
 
 const FORM_VACIO = {
-  tipo: "formula" as Tipo,
+  tipo: "" as Tipo | "",
   clienteId: null as string | null,
   clienteNombre: "",
   ciudad: "",
@@ -322,7 +327,7 @@ function NuevaSolicitud({ colorInicial, onEnviada }: { colorInicial: string | nu
           cartilla: form.cartilla || null,
           base: form.base || null,
           formato: form.formato || null,
-          cantidad: form.tipo === "formula" ? null : form.cantidad || null,
+          cantidad: form.tipo !== "precio" ? null : form.cantidad || null,
           patron: continuacion ? form.patron || null : null,
           lote: continuacion ? form.lote || null : null,
           observaciones: form.observaciones || null,
@@ -342,7 +347,7 @@ function NuevaSolicitud({ colorInicial, onEnviada }: { colorInicial: string | nu
     onError: (error: any) => toast({ title: "No se pudo enviar", description: error?.message, variant: "destructive" }),
   });
 
-  const faltan = !form.clienteNombre.trim() || !form.colorCodigo.trim() || !form.linea.trim();
+  const faltan = !form.tipo || !form.clienteNombre.trim() || !form.colorCodigo.trim() || !form.linea.trim();
 
   const adjuntar = async (file: File) => {
     setSubiendo(true);
@@ -359,7 +364,7 @@ function NuevaSolicitud({ colorInicial, onEnviada }: { colorInicial: string | nu
 
   return (
     <div className="space-y-3">
-      <Bloque numero={1} titulo="Qué necesitas">
+      <Bloque numero={1} titulo="Qué necesitas" obligatorio>
         <div className="flex flex-wrap gap-1.5">
           {TIPOS.map((t) => (
             <button
@@ -475,7 +480,7 @@ function NuevaSolicitud({ colorInicial, onEnviada }: { colorInicial: string | nu
               })}
             </div>
           </div>
-          {form.tipo !== "formula" && (
+          {form.tipo === "precio" && (
             <div>
               <div className={ETIQUETA}>Cantidad estimada</div>
               <Input value={form.cantidad} onChange={(e) => set("cantidad", e.target.value)} className={CAMPO} placeholder="Ej.: 20 tinetas" />
@@ -562,7 +567,7 @@ function NuevaSolicitud({ colorInicial, onEnviada }: { colorInicial: string | nu
   );
 }
 
-function Bloque({ numero, titulo, children }: { numero: number; titulo: string; children: React.ReactNode }) {
+function Bloque({ numero, titulo, obligatorio, children }: { numero: number; titulo: string; obligatorio?: boolean; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 p-4 space-y-3">
       <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
@@ -570,6 +575,7 @@ function Bloque({ numero, titulo, children }: { numero: number; titulo: string; 
           {numero}
         </span>
         {titulo}
+        {obligatorio && <span className="text-[10px] font-bold uppercase tracking-wider text-[#fd6301]">obligatorio</span>}
       </div>
       {children}
     </div>
@@ -822,18 +828,22 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
                   </Button>
                 )}
                 <RechazarBoton onRechazar={(motivo) => cambiarEstado.mutate({ estado: "rechazada", motivo })} />
-                {s.estado === "en_desarrollo" && !aprobando && (
+                {(s.estado === "en_desarrollo" || s.estado === "por_costear") && !aprobando && (
                   <Button
                     className="rounded-2xl h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white"
                     onClick={() => setAprobando(true)}
                     data-testid="button-lab-aprobar"
                   >
-                    <Check className="h-4 w-4 mr-1.5" /> Aprobar
+                    <Check className="h-4 w-4 mr-1.5" /> {s.estado === "por_costear" ? "Ingresar costo" : "Aprobar"}
                   </Button>
                 )}
               </div>
             )}
-            {s.puedeResponder && s.estado === "en_desarrollo" && aprobando && (
+            {!!s.formulaGramos && <TablaGramos s={s} />}
+            {s.puedeResponder && aprobando && s.tipo === "precio" && s.estado === "en_desarrollo" && (
+              <FormularioGramos s={s} onGuardada={() => { setAprobando(false); refrescar(); }} onCancelar={() => setAprobando(false)} />
+            )}
+            {s.puedeResponder && aprobando && (s.tipo === "precio" ? s.estado === "por_costear" : s.estado === "en_desarrollo") && (
               <FormularioRespuesta s={s} onRespondida={refrescar} onCancelar={() => setAprobando(false)} />
             )}
 
@@ -879,7 +889,7 @@ function Respuesta({ s }: { s: Detalle }) {
       </div>
       {s.precio != null && (
         <div className="text-sm text-slate-800 dark:text-slate-100">
-          Precio: <span className="font-bold tabular-nums">{money(s.precio)}</span>
+          Costo: <span className="font-bold tabular-nums">{money(s.precio)}</span>
           {s.precioUnidad ? ` ${s.precioUnidad}` : ""}
         </div>
       )}
@@ -965,6 +975,187 @@ function galonesDelFormato(formato: string | null | undefined): string {
   return "";
 }
 
+const gramosTexto = (n: number) => n.toLocaleString("es-CL", { maximumFractionDigits: 2 });
+
+/** La fórmula en gramos con que se costea. Solo llega a laboratorio. */
+function TablaGramos({ s }: { s: Detalle }) {
+  const f = s.formulaGramos as FormulaGramos | null;
+  if (!f) return null;
+  const total = f.items.reduce((t, i) => t + Number(i.gramos || 0), 0);
+  return (
+    <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-3 space-y-2 dark:border-violet-500/30 dark:bg-violet-500/10">
+      <div className="flex flex-wrap items-center gap-x-2 text-sm font-bold text-violet-800 dark:text-violet-300">
+        <FlaskConical className="h-4 w-4" /> Fórmula en gramos
+        <span className="font-normal text-violet-700/80">
+          {s.formuladaPorNombre ? `· ${s.formuladaPorNombre} ` : ""}· {fmtFecha(s.formuladaAt, true)}
+        </span>
+      </div>
+      {(f.para || f.base) && (
+        <div className="text-xs text-slate-600 dark:text-slate-300">
+          {f.para ? `Fórmula: ${f.para}` : ""}
+          {f.para && f.base ? " · " : ""}
+          {f.base ? `Base: ${f.base}` : ""}
+        </div>
+      )}
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-[10px] uppercase tracking-wider text-slate-500">
+            <th className="text-left font-bold pb-1">Componente</th>
+            <th className="text-right font-bold pb-1">Gramos</th>
+          </tr>
+        </thead>
+        <tbody>
+          {f.items.map((it, i) => (
+            <tr key={i} className="border-t border-violet-100 dark:border-violet-500/20">
+              <td className="py-1 font-bold">{it.componente}</td>
+              <td className="py-1 text-right font-semibold tabular-nums">{gramosTexto(Number(it.gramos))}</td>
+            </tr>
+          ))}
+          <tr className="border-t border-violet-200 dark:border-violet-500/30">
+            <td className="py-1 text-xs font-bold uppercase text-slate-500">Total</td>
+            <td className="py-1 text-right font-bold tabular-nums">{gramosTexto(total)}</td>
+          </tr>
+        </tbody>
+      </table>
+      {f.observaciones && <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-line">{f.observaciones}</p>}
+    </div>
+  );
+}
+
+/** Primer paso del costo: el químico carga la fórmula en gramos y pasa a costeo. */
+function FormularioGramos({ s, onGuardada, onCancelar }: { s: Detalle; onGuardada: () => void; onCancelar: () => void }) {
+  const { toast } = useToast();
+  const [para, setPara] = useState("");
+  const [base, setBase] = useState(s.base ?? "");
+  const [items, setItems] = useState<{ componente: string; gramos: string }[]>([{ componente: "", gramos: "" }]);
+  const [observaciones, setObservaciones] = useState("");
+
+  const numero = (v: string) => Number(v.replace(",", "."));
+  const validos = items.filter((i) => i.componente.trim() && numero(i.gramos) > 0);
+  const gramosMalos = items.some((i) => i.gramos.trim() && !(numero(i.gramos) > 0));
+  const total = validos.reduce((t, i) => t + numero(i.gramos), 0);
+
+  const guardar = useMutation({
+    mutationFn: async () =>
+      (
+        await apiRequest(`/api/tintometria/solicitudes/${s.id}/formula-gramos`, {
+          method: "POST",
+          data: {
+            para: para.trim() || null,
+            base: base || null,
+            items: validos.map((i) => ({ componente: i.componente.trim(), gramos: numero(i.gramos) })),
+            observaciones: observaciones || null,
+          },
+        })
+      ).json(),
+    onSuccess: () => {
+      onGuardada();
+      toast({ title: "Fórmula guardada", description: "Pasó a costeo: laboratorio recibió el aviso para ingresar el costo." });
+    },
+    onError: (error: any) => toast({ title: "No se pudo guardar la fórmula", description: error?.message, variant: "destructive" }),
+  });
+
+  const setItem = (i: number, campo: "componente" | "gramos", v: string) =>
+    setItems((l) => l.map((it, j) => (j === i ? { ...it, [campo]: v } : it)));
+
+  return (
+    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 p-3 space-y-3">
+      <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
+        <FlaskConical className="h-4 w-4 text-[#fd6301]" /> Fórmula en gramos para costear
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className={ETIQUETA}>Fórmula</div>
+          <Input
+            value={para}
+            onChange={(e) => setPara(e.target.value)}
+            className={CAMPO}
+            placeholder="Ej.: 100 g"
+            data-testid="input-lab-gramos-formula"
+          />
+        </div>
+        <div>
+          <div className={ETIQUETA}>Base</div>
+          <Input value={base} onChange={(e) => setBase(e.target.value)} className={CAMPO} placeholder="Ej.: Base oscura" />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <div className={ETIQUETA}>Componentes y gramos</div>
+        {items.map((it, i) => (
+          <div key={i} className="flex gap-2">
+            <Input
+              value={it.componente}
+              onChange={(e) => setItem(i, "componente", e.target.value.toUpperCase())}
+              className={`${CAMPO} flex-1`}
+              placeholder="Colorante o materia prima"
+              data-testid={`input-lab-componente-${i}`}
+            />
+            <div className="relative w-32">
+              <Input
+                value={it.gramos}
+                onChange={(e) => setItem(i, "gramos", e.target.value.replace(/[^\d.,]/g, ""))}
+                inputMode="decimal"
+                className={`${CAMPO} pr-7 text-right tabular-nums ${
+                  it.gramos.trim() && !(numero(it.gramos) > 0) ? "border-red-300 focus-visible:border-red-400" : ""
+                }`}
+                placeholder="0"
+                data-testid={`input-lab-gramos-${i}`}
+              />
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">g</span>
+            </div>
+            {items.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setItems((l) => l.filter((_, j) => j !== i))}
+                className="px-2 text-slate-400 hover:text-red-600"
+                aria-label="Quitar componente"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        ))}
+        <div className="flex items-center justify-between">
+          {items.length < 20 ? (
+            <button
+              type="button"
+              onClick={() => setItems((l) => [...l, { componente: "", gramos: "" }])}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-[#fd6301] hover:text-[#e35400]"
+            >
+              <Plus className="h-3.5 w-3.5" /> Agregar componente
+            </button>
+          ) : (
+            <span />
+          )}
+          {total > 0 && <span className="text-xs text-slate-500 tabular-nums">Total: {gramosTexto(total)} g</span>}
+        </div>
+      </div>
+      <div>
+        <div className={ETIQUETA}>Observaciones para quien costea</div>
+        <Textarea
+          value={observaciones}
+          onChange={(e) => setObservaciones(e.target.value)}
+          className="rounded-xl text-sm min-h-[64px] bg-slate-50/60"
+        />
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" className="rounded-2xl h-9" onClick={onCancelar} disabled={guardar.isPending}>
+          Cancelar
+        </Button>
+        <Button
+          onClick={() => guardar.mutate()}
+          disabled={validos.length === 0 || gramosMalos || guardar.isPending}
+          className={`h-9 ${BOTON_MARCA}`}
+          data-testid="button-lab-guardar-gramos"
+        >
+          {guardar.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+          Guardar y pasar a costeo
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function FormularioRespuesta({ s, onRespondida, onCancelar }: { s: Detalle; onRespondida: () => void; onCancelar: () => void }) {
   const { toast } = useToast();
   const pideFormula = s.tipo === "formula" || s.tipo === "formula_precio";
@@ -1008,7 +1199,7 @@ function FormularioRespuesta({ s, onRespondida, onCancelar }: { s: Detalle; onRe
   return (
     <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 p-3 space-y-3">
       <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
-        <FlaskConical className="h-4 w-4 text-[#fd6301]" /> Aprobar: carga la respuesta
+        <FlaskConical className="h-4 w-4 text-[#fd6301]" /> {s.tipo === "precio" ? "Ingresa el costo" : "Aprobar: carga la respuesta"}
       </div>
       {pideFormula && (
         <>
@@ -1077,7 +1268,7 @@ function FormularioRespuesta({ s, onRespondida, onCancelar }: { s: Detalle; onRe
       {pidePrecio && (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <div className={ETIQUETA}>Precio</div>
+            <div className={ETIQUETA}>Costo</div>
             <Input
               value={precio ? `$${Number(precio.replace(/\D/g, "") || 0).toLocaleString("es-CL")}` : ""}
               onChange={(e) => setPrecio(e.target.value.replace(/\D/g, ""))}
