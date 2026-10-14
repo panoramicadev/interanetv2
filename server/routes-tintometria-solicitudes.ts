@@ -9,6 +9,9 @@
  * Quién ve qué:
  *  - quien pide ve las suyas; su supervisor, las de su equipo;
  *  - laboratorio ("Bandeja de laboratorio") ve todas y responde;
+ *  - el costo va en dos pasos: un químico carga la fórmula en gramos (queda
+ *    "por costear") y otro de laboratorio le pone el costo. La fórmula en gramos
+ *    la ve solo laboratorio; quien pide recibe el costo;
  *  - la fórmula que responde laboratorio queda en la carta de colores, ligada al
  *    cliente y la obra, y la ve solo quien tiene "Ver fórmulas": el vendedor se
  *    entera de que está lista y del precio, no de las dosis (decisión de
@@ -24,6 +27,7 @@ import { requirePermission, userHasPermission } from './permissions';
 import { emailService } from './services/email';
 import {
   emailNotificationSettings,
+  formulaGramosSchema,
   insertTintoSolicitudSchema,
   responderTintoSolicitudSchema,
   salespeopleUsers,
@@ -39,8 +43,8 @@ type Lado = 'solicitante' | 'laboratorio';
 
 const TIPO_TEXTO: Record<string, string> = {
   formula: 'fórmula',
-  precio: 'precio',
-  formula_precio: 'fórmula y precio',
+  precio: 'costo',
+  formula_precio: 'fórmula y costo',
 };
 
 const nombreDe = (u: any): string =>
@@ -242,10 +246,12 @@ export function registerTintometriaSolicitudesRoutes(app: Express) {
         filas.map(({ solicitud: s, hex, mensajes }) => {
           const lado: Lado = s.solicitanteId === usuario.id || s.supervisorId === usuario.id ? 'solicitante' : 'laboratorio';
           const vista = lado === 'solicitante' ? s.vistaSolicitanteAt : s.vistaLaboratorioAt;
+          // "Por costear" espera a laboratorio aunque el último movimiento sea suyo.
           const nueva =
-            s.ultimoMovimientoDe !== lado &&
-            (!vista || (s.ultimoMovimientoAt != null && new Date(s.ultimoMovimientoAt) > new Date(vista)));
-          return { ...s, hex, mensajes, lado, nueva };
+            (lab && lado === 'laboratorio' && s.estado === 'por_costear') ||
+            (s.ultimoMovimientoDe !== lado &&
+              (!vista || (s.ultimoMovimientoAt != null && new Date(s.ultimoMovimientoAt) > new Date(vista))));
+          return { ...s, formulaGramos: lab ? s.formulaGramos : null, hex, mensajes, lado, nueva };
         }),
       );
     } catch (error: any) {
@@ -265,10 +271,12 @@ export function registerTintometriaSolicitudesRoutes(app: Express) {
         OR ${tintoSolicitudes.supervisorId} IS NOT DISTINCT FROM ${usuario.id})`;
       const nuevasPropias = sql`(${propias} AND ${tintoSolicitudes.ultimoMovimientoDe} = 'laboratorio'
         AND (${tintoSolicitudes.vistaSolicitanteAt} IS NULL OR ${tintoSolicitudes.ultimoMovimientoAt} > ${tintoSolicitudes.vistaSolicitanteAt}))`;
-      // Para laboratorio cuenta lo que está abierto y trae algo sin mirar.
-      const nuevasLab = sql`(NOT ${propias} AND ${tintoSolicitudes.estado} IN ('enviada', 'en_desarrollo')
+      // Para laboratorio cuenta lo que está abierto y trae algo sin mirar, y lo
+      // que espera el costo (lo dejó otro de laboratorio, así que no es "nuevo").
+      const nuevasLab = sql`(NOT ${propias} AND ((${tintoSolicitudes.estado} IN ('enviada', 'en_desarrollo')
         AND ${tintoSolicitudes.ultimoMovimientoDe} = 'solicitante'
-        AND (${tintoSolicitudes.vistaLaboratorioAt} IS NULL OR ${tintoSolicitudes.ultimoMovimientoAt} > ${tintoSolicitudes.vistaLaboratorioAt}))`;
+        AND (${tintoSolicitudes.vistaLaboratorioAt} IS NULL OR ${tintoSolicitudes.ultimoMovimientoAt} > ${tintoSolicitudes.vistaLaboratorioAt}))
+        OR ${tintoSolicitudes.estado} = 'por_costear'))`;
       const [fila] = await db
         .select({ n: sql<number>`count(*)::int` })
         .from(tintoSolicitudes)
@@ -304,10 +312,12 @@ export function registerTintometriaSolicitudesRoutes(app: Express) {
         formula = f ?? null;
       }
 
+      const lab = await esLaboratorio(req.user);
       res.json({
         ...s,
+        formulaGramos: lab ? s.formulaGramos : null,
         lado: await ladoDe(req.user, s),
-        puedeResponder: await esLaboratorio(req.user),
+        puedeResponder: lab,
         color: color ?? null,
         formula,
         mensajes,
@@ -447,6 +457,9 @@ export function registerTintometriaSolicitudesRoutes(app: Express) {
         if (s.estado === 'respondida' || s.estado === 'rechazada') {
           return res.status(409).json({ message: 'La solicitud ya está cerrada.' });
         }
+        if (estado === 'en_desarrollo' && s.estado !== 'enviada') {
+          return res.status(409).json({ message: 'La solicitud ya está tomada.' });
+        }
 
         await db
           .update(tintoSolicitudes)
@@ -484,6 +497,62 @@ export function registerTintometriaSolicitudesRoutes(app: Express) {
     },
   );
 
+  // ── Laboratorio: fórmula en gramos (primer paso del costo) ──────────────
+  app.post(
+    '/api/tintometria/solicitudes/:id/formula-gramos',
+    requireAuth,
+    requirePermission('tintometria.laboratorio'),
+    async (req: any, res) => {
+      try {
+        const parsed = formulaGramosSchema.safeParse(req.body);
+        if (!parsed.success) {
+          return res.status(400).json({ message: parsed.error.errors[0]?.message || 'Fórmula inválida' });
+        }
+        const s = await buscar(req.user, req.params.id);
+        if (!s) return res.status(404).json({ message: 'Solicitud no encontrada' });
+        if (s.tipo !== 'precio') {
+          return res.status(400).json({ message: 'La fórmula en gramos es solo para las solicitudes de costo.' });
+        }
+        if (s.estado !== 'en_desarrollo') {
+          return res.status(409).json({ message: 'La solicitud tiene que estar en desarrollo para cargar la fórmula.' });
+        }
+        const d = parsed.data;
+        const formula = {
+          para: d.para || null,
+          base: d.base || null,
+          observaciones: d.observaciones || null,
+          items: d.items.map((i) => ({ componente: i.componente.toUpperCase(), gramos: i.gramos })),
+        };
+        await db
+          .update(tintoSolicitudes)
+          .set({
+            estado: 'por_costear',
+            formulaGramos: formula,
+            formuladaPorId: req.user.id,
+            formuladaPorNombre: nombreDe(req.user),
+            formuladaAt: sql`now()`,
+          })
+          .where(eq(tintoSolicitudes.id, s.id));
+        await registrarEvento(s.id, req.user, 'laboratorio', 'formulada', null);
+
+        // El aviso es para laboratorio, que es quien pone el costo.
+        enviar({
+          to: await correosLaboratorio(),
+          subject: `Por costear: solicitud #${s.numero} · ${s.colorCodigo} · ${s.clienteNombre}`,
+          html: `
+            <p style="font-size:15px;color:#0f172a"><strong>${escapar(nombreDe(req.user))}</strong> cargó la fórmula en gramos
+              de la solicitud #${s.numero} (${escapar(s.colorCodigo)} para ${escapar(s.clienteNombre)}). Falta el costo.</p>
+            ${fichaHtml(s)}
+            ${boton(`${urlBase(req)}/tintometria/solicitudes?id=${s.id}`, 'Ingresar el costo')}`,
+        });
+        res.json({ ok: true });
+      } catch (error: any) {
+        console.error('[laboratorio] no se pudo guardar la fórmula en gramos:', error);
+        res.status(500).json({ message: 'No se pudo guardar la fórmula' });
+      }
+    },
+  );
+
   // ── Laboratorio: responder ───────────────────────────────────────────────
   app.post(
     '/api/tintometria/solicitudes/:id/respuesta',
@@ -504,6 +573,9 @@ export function registerTintometriaSolicitudesRoutes(app: Express) {
 
         const pideFormula = s.tipo === 'formula' || s.tipo === 'formula_precio';
         const pidePrecio = s.tipo === 'precio' || s.tipo === 'formula_precio';
+        if (s.tipo === 'precio' && s.estado !== 'por_costear') {
+          return res.status(409).json({ message: 'Primero hay que cargar la fórmula en gramos.' });
+        }
         const items = (d.items ?? []).filter((i) => i.colorante && i.dosis);
         if (pideFormula && items.length === 0) {
           return res.status(400).json({ message: 'Carga al menos un colorante con su dosis.' });
@@ -518,7 +590,7 @@ export function registerTintometriaSolicitudesRoutes(app: Express) {
           });
         }
         if (pidePrecio && (d.precio === null || d.precio === undefined)) {
-          return res.status(400).json({ message: 'Indica el precio.' });
+          return res.status(400).json({ message: 'Indica el costo.' });
         }
 
         let formulaId: string | null = null;
@@ -590,7 +662,7 @@ export function registerTintometriaSolicitudesRoutes(app: Express) {
 
         const partes = [
           formulaId ? 'la fórmula ya está en la Pantonera Digital para el operador' : null,
-          pidePrecio ? `el precio es ${money(d.precio)}${d.precioUnidad ? ` ${escapar(d.precioUnidad)}` : ''}` : null,
+          pidePrecio ? `el costo es ${money(d.precio)}${d.precioUnidad ? ` ${escapar(d.precioUnidad)}` : ''}` : null,
         ].filter(Boolean);
         enviar({
           to: await correosDe([s.solicitanteId]),

@@ -4285,7 +4285,7 @@ export const tintoSolicitudes = pgTable("tinto_solicitudes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   numero: integer("numero").generatedByDefaultAsIdentity(),
   tipo: varchar("tipo", { length: 20 }).notNull(), // formula | precio | formula_precio
-  estado: varchar("estado", { length: 20 }).notNull().default("enviada"), // enviada | en_desarrollo | respondida | rechazada
+  estado: varchar("estado", { length: 20 }).notNull().default("enviada"), // enviada | en_desarrollo | por_costear | respondida | rechazada
 
   // Antecedentes del solicitante
   clienteId: varchar("cliente_id"),
@@ -4307,6 +4307,14 @@ export const tintoSolicitudes = pgTable("tinto_solicitudes", {
   lote: text("lote"),
   observaciones: text("observaciones"),
   adjuntos: jsonb("adjuntos").notNull().default(sql`'[]'::jsonb`), // [{ url, nombre }]
+
+  // Costo en dos pasos (oct-2026): un químico de laboratorio carga la fórmula en
+  // gramos (queda "por costear") y otro le pone el costo. La fórmula en gramos
+  // es interna de laboratorio: quien pide recibe solo el costo.
+  formulaGramos: jsonb("formula_gramos"), // { para, base, observaciones, items: [{ componente, gramos }] }
+  formuladaPorId: varchar("formulada_por_id"),
+  formuladaPorNombre: text("formulada_por_nombre"),
+  formuladaAt: timestamp("formulada_at", { withTimezone: true }),
 
   // Respuesta de laboratorio
   formulaId: varchar("formula_id"),
@@ -4386,6 +4394,18 @@ export const responderTintoSolicitudSchema = z.object({
   precioUnidad: z.string().trim().max(60).optional().nullable(),
   respuesta: z.string().trim().max(4000).optional().nullable(),
 });
+
+// Primer paso de una solicitud de costo: la fórmula en gramos con que se costea.
+export const formulaGramosSchema = z.object({
+  para: z.string().trim().max(60).optional().nullable(), // para cuánto es la fórmula: "100 g", "1 galón"
+  base: z.string().trim().max(60).optional().nullable(),
+  items: z
+    .array(z.object({ componente: z.string().trim().min(1).max(60), gramos: z.coerce.number().positive().max(1_000_000) }))
+    .min(1, "Carga al menos un componente con sus gramos")
+    .max(20),
+  observaciones: z.string().trim().max(4000).optional().nullable(),
+});
+export type FormulaGramos = z.infer<typeof formulaGramosSchema>;
 
 export type TintoSolicitud = typeof tintoSolicitudes.$inferSelect;
 export type TintoSolicitudMensaje = typeof tintoSolicitudMensajes.$inferSelect;
