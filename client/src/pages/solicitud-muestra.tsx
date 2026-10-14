@@ -216,7 +216,7 @@ function Lista({
                 {s.puedeAprobar && <span className="h-2 w-2 shrink-0 rounded-full bg-[#fd6301]" title="Espera tu aprobación" />}
               </div>
               <div className="truncate text-xs text-slate-500">
-                {TIPO_TEXTO[s.tipo] ?? s.tipo} · {items.map((i) => `${i.producto} (${i.formato})`).join(", ") || "—"}
+                {TIPO_TEXTO[s.tipo] ?? s.tipo} · {items.map((i) => `${i.cantidad ? `${i.cantidad} × ` : ""}${i.producto} (${i.formato})`).join(", ") || "—"}
               </div>
               <div className="truncate text-[11px] text-slate-400">
                 {s.solicitanteNombre ?? "—"} · {fmtFecha(s.createdAt)}
@@ -235,8 +235,10 @@ function Lista({
 // ── Nueva solicitud ────────────────────────────────────────────────────────
 
 // En Producto de Línea el producto se elige de la lista de precios: `sku` y `formato`
-// (su unidad) vienen de ahí y no se escriben.
-const ITEM_VACIO = { producto: "", sku: "", color: "", formato: "" };
+// (su unidad) vienen de ahí y no se escriben. En Producto de Línea y Desarrollo se
+// indica además cuántas unidades (`cantidad`); en material la cantidad es el `formato`.
+const ITEM_VACIO = { producto: "", sku: "", color: "", formato: "", cantidad: "" };
+const cantidadValida = (c: string) => /^\d+$/.test(c.trim()) && Number(c) > 0 && Number(c) <= 9999;
 // Los formatos que se pueden pedir, los mismos de Solicitudes a laboratorio. Se
 // guardan juntos, en este orden: "Galón, Balde 4 gl". Material de exhibición no
 // va en envase: ahí se escribe la cantidad.
@@ -280,23 +282,27 @@ function NuevaSolicitud({ onEnviada }: { onEnviada: (id: string) => void }) {
               sku: form.tipo === "producto" ? i.sku || null : null,
               color: form.tipo === "color" ? i.color || null : null,
               formato: i.formato,
+              cantidad: form.tipo !== "material" && cantidadValida(i.cantidad) ? Number(i.cantidad) : null,
             })),
         },
       });
       return res.json();
     },
-    onSuccess: (nueva: SolicitudMuestra) => {
+    onSuccess: (nueva: SolicitudMuestra & { aprobadorNombre?: string | null }) => {
       setForm(FORM_VACIO);
       setItems([{ ...ITEM_VACIO }]);
       queryClient.invalidateQueries({ queryKey: ["/api/solicitudes-muestra"] });
-      toast({ title: `Muestra #${nueva.numero} enviada`, description: "Tu supervisor la recibió por correo para aprobarla." });
+      toast({ title: `Muestra #${nueva.numero} enviada`, description: `${nueva.aprobadorNombre ?? "Tu supervisor"} la recibió por correo para aprobarla.` });
       onEnviada(nueva.id);
     },
     onError: (error: any) => toast({ title: "No se pudo enviar", description: error?.message, variant: "destructive" }),
   });
 
-  const lineasListas = items.filter((i) => i.producto.trim() && i.formato.trim());
-  const lineaAMedias = items.some((i) => (i.producto.trim() || i.formato.trim()) && !(i.producto.trim() && i.formato.trim()));
+  const conCantidad = form.tipo !== "material";
+  const completa = (i: typeof ITEM_VACIO) => !!(i.producto.trim() && i.formato.trim() && (!conCantidad || cantidadValida(i.cantidad)));
+  const empezada = (i: typeof ITEM_VACIO) => !!(i.producto.trim() || i.formato.trim() || (conCantidad && i.cantidad.trim()));
+  const lineasListas = items.filter(completa);
+  const lineaAMedias = items.some((i) => empezada(i) && !completa(i));
   const faltan = !form.clienteId || lineasListas.length === 0 || lineaAMedias;
   const pista = PISTAS[form.tipo];
 
@@ -314,7 +320,7 @@ function NuevaSolicitud({ onEnviada }: { onEnviada: (id: string) => void }) {
                   setItems([{ ...ITEM_VACIO }]);
                 } else if ((form.tipo === "material") !== (t.valor === "material")) {
                   // Entre envase y cantidad tampoco: "Galón" no es una cantidad de cartillas.
-                  setItems((l) => l.map((it) => ({ ...it, formato: "" })));
+                  setItems((l) => l.map((it) => ({ ...it, formato: "", cantidad: "" })));
                 }
                 set("tipo", t.valor);
               }}
@@ -368,8 +374,11 @@ function NuevaSolicitud({ onEnviada }: { onEnviada: (id: string) => void }) {
                         l.map((x, j) => (j === i ? { ...x, producto: p.producto, sku: p.codigo, formato: p.unidad || "—", color: "" } : x)),
                       )
                     }
-                    onQuitar={() => setItems((l) => l.map((x, j) => (j === i ? { ...ITEM_VACIO } : x)))}
+                    onQuitar={() => setItems((l) => l.map((x, j) => (j === i ? { ...ITEM_VACIO, cantidad: x.cantidad } : x)))}
                   />
+                  <div className="w-36 shrink-0">
+                    <CampoCantidad valor={it.cantidad} onChange={(v) => setItem(i, "cantidad", v)} indice={i} />
+                  </div>
                   <button type="button" onClick={quitar} className="h-10 px-2 text-slate-400 hover:text-red-600" aria-label="Quitar línea">
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -423,6 +432,10 @@ function NuevaSolicitud({ onEnviada }: { onEnviada: (id: string) => void }) {
                     />
                   </div>
                 ) : (
+                  <div className="flex flex-wrap items-end gap-3">
+                  <div className="w-36 shrink-0">
+                    <CampoCantidad valor={it.cantidad} onChange={(v) => setItem(i, "cantidad", v)} indice={i} />
+                  </div>
                   <div>
                     <div className={ETIQUETA}>
                       Formato <span className="text-[#fd6301]">obligatorio</span>
@@ -450,6 +463,7 @@ function NuevaSolicitud({ onEnviada }: { onEnviada: (id: string) => void }) {
                         );
                       })}
                     </div>
+                  </div>
                   </div>
                 )}
               </div>
@@ -487,6 +501,25 @@ function NuevaSolicitud({ onEnviada }: { onEnviada: (id: string) => void }) {
           Enviar a aprobación
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** Cuántas unidades de cada producto (Producto de Línea y Desarrollo). */
+function CampoCantidad({ valor, onChange, indice }: { valor: string; onChange: (v: string) => void; indice: number }) {
+  return (
+    <div>
+      <div className={ETIQUETA}>
+        Cantidad <span className="text-[#fd6301]">obligatorio</span>
+      </div>
+      <Input
+        value={valor}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 4))}
+        inputMode="numeric"
+        className={CAMPO}
+        placeholder="Ej.: 2"
+        data-testid={`input-muestra-unidades-${indice}`}
+      />
     </div>
   );
 }
@@ -767,6 +800,7 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
                   <tr className="text-[10px] uppercase tracking-wider text-slate-500">
                     <th className="text-left font-bold px-3 py-1.5">Producto</th>
                     <th className="text-left font-bold px-3 py-1.5">Color</th>
+                    {s.tipo !== "material" && <th className="text-right font-bold px-3 py-1.5">Cantidad</th>}
                     <th className="text-right font-bold px-3 py-1.5">{s.tipo === "material" ? "Cantidad" : "Formato"}</th>
                   </tr>
                 </thead>
@@ -778,6 +812,9 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
                         {it.sku && <div className="text-xs text-slate-400">{it.sku}</div>}
                       </td>
                       <td className="px-3 py-1.5 text-slate-600 dark:text-slate-300">{it.color || "—"}</td>
+                      {s.tipo !== "material" && (
+                        <td className="px-3 py-1.5 text-right font-semibold text-slate-800 dark:text-slate-100">{it.cantidad ?? "—"}</td>
+                      )}
                       <td className="px-3 py-1.5 text-right font-semibold text-slate-800 dark:text-slate-100">{it.formato}</td>
                     </tr>
                   ))}

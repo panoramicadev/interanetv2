@@ -55,9 +55,14 @@ const nombreDe = (u: any): string =>
 const escapar = (v: unknown) =>
   String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
-const gestiona = (u: any) => userHasPermission(u, 'solicitud_muestra.gestion');
+// Quienes no participan en las muestras aunque su rol les dé todos los permisos
+// (yoel paredes es admin, oct-2026): no las ven, no las aprueban ni las gestionan.
+const FUERA_DE_MUESTRAS = new Set(['yparedes@pinturaspanoramica.cl']);
+const fueraDeMuestras = (u: any) => FUERA_DE_MUESTRAS.has(String(u?.email ?? '').trim().toLowerCase());
+
+const gestiona = async (u: any) => !fueraDeMuestras(u) && (await userHasPermission(u, 'solicitud_muestra.gestion'));
 const veBandeja = async (u: any) =>
-  (await gestiona(u)) || (await userHasPermission(u, 'solicitud_muestra.bandeja'));
+  !fueraDeMuestras(u) && ((await gestiona(u)) || (await userHasPermission(u, 'solicitud_muestra.bandeja')));
 
 /** Base de los enlaces de los correos: la del despliegue o la del propio request. */
 function urlBase(req: any): string {
@@ -74,6 +79,25 @@ async function supervisorDe(usuarioId: string): Promise<string | null> {
     .from(salespeopleUsers)
     .where(eq(salespeopleUsers.id, usuarioId));
   return fila?.supervisorId ?? null;
+}
+
+// Quien no aprueba a su supervisor del maestro sino a otra persona: las muestras
+// de Patricio Ghisellini (supervisor) las aprueba Paolo Chaparro (oct-2026).
+const APROBADOR_ESPECIAL: Record<string, string> = {
+  'pghisellini@pinturaspanoramica.cl': 'pandreschaparro@pinturaspanoramica.cl',
+};
+
+/** Quien aprueba las muestras de este usuario: el aprobador especial o su supervisor. */
+async function aprobadorDe(usuario: any): Promise<string | null> {
+  const especial = APROBADOR_ESPECIAL[String(usuario?.email ?? '').trim().toLowerCase()];
+  if (especial) {
+    const [fila] = await db
+      .select({ id: salespeopleUsers.id })
+      .from(salespeopleUsers)
+      .where(and(eq(salespeopleUsers.email, especial), eq(salespeopleUsers.isActive, true)));
+    if (fila) return fila.id;
+  }
+  return supervisorDe(usuario.id);
 }
 
 async function correosDe(ids: (string | null | undefined)[]): Promise<string[]> {
@@ -123,7 +147,7 @@ function fichaHtml(s: SolicitudMuestra): string {
   const items = itemsDe(s)
     .map(
       (i) =>
-        `<li style="font-size:13px;color:#0f172a;margin:2px 0"><strong>${escapar(i.formato)}</strong> · ${escapar(i.producto)}${i.sku ? ` (${escapar(i.sku)})` : ''}${
+        `<li style="font-size:13px;color:#0f172a;margin:2px 0"><strong>${i.cantidad ? `${i.cantidad} × ` : ''}${escapar(i.formato)}</strong> · ${escapar(i.producto)}${i.sku ? ` (${escapar(i.sku)})` : ''}${
           i.color ? ` · ${escapar(i.color)}` : ''
         }</li>`,
     )
@@ -175,7 +199,7 @@ async function alcance(usuario: any): Promise<SQL | undefined> {
 }
 
 function puedeAprobar(usuario: any, s: SolicitudMuestra): boolean {
-  if (s.estado !== 'pendiente') return false;
+  if (s.estado !== 'pendiente' || fueraDeMuestras(usuario)) return false;
   if (usuario.role === 'admin') return true;
   if (s.supervisorId) return s.supervisorId === usuario.id;
   return usuario.role === 'supervisor';
@@ -304,11 +328,17 @@ export function registerSolicitudesMuestraRoutes(app: Express) {
           clienteRut: d.clienteRut || null,
           obra: d.obra || null,
           motivo: d.motivo || null,
-          items: d.items.map((i) => ({ producto: i.producto, sku: i.sku || null, color: i.color || null, formato: i.formato })),
+          items: d.items.map((i) => ({
+            producto: i.producto,
+            sku: i.sku || null,
+            color: i.color || null,
+            formato: i.formato,
+            cantidad: d.tipo === 'material' ? null : i.cantidad ?? null,
+          })),
           estado: 'pendiente',
           solicitanteId: usuario.id,
           solicitanteNombre: nombreDe(usuario),
-          supervisorId: await supervisorDe(usuario.id),
+          supervisorId: await aprobadorDe(usuario),
         })
         .returning();
       await registrarEvento(nueva, usuario, 'creada', null);
@@ -327,7 +357,10 @@ export function registerSolicitudesMuestraRoutes(app: Express) {
           ${boton(enlace(req, nueva.id), 'Aprobar o rechazar')}`,
       });
 
-      res.status(201).json(nueva);
+      const [aprobador] = nueva.supervisorId
+        ? await db.select({ nombre: salespeopleUsers.salespersonName }).from(salespeopleUsers).where(eq(salespeopleUsers.id, nueva.supervisorId))
+        : [];
+      res.status(201).json({ ...nueva, aprobadorNombre: aprobador?.nombre ?? null });
     } catch (error: any) {
       console.error('[muestras] no se pudo crear la solicitud:', error);
       res.status(500).json({ message: 'No se pudo enviar la solicitud' });
