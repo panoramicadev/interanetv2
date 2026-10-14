@@ -4950,7 +4950,7 @@ export const solicitudesMuestra = pgTable("solicitudes_muestra", {
   clienteRut: varchar("cliente_rut", { length: 20 }),
   obra: text("obra"), // en pantalla "Obra / Sucursal" (producto y color) o "Sucursal" (material), oct-2026
 
-  // Qué se pide: [{ producto, sku, color, formato }]. En Producto de Línea se elige
+  // Qué se pide: [{ producto, sku, color, formato, cantidad }]. En Producto de Línea se elige
   // de la lista de precios (sku y formato vienen de ahí, sin color). El formato es el envase
   // ("1/4 de Galón, Galón"); en material de exhibición, la cantidad ("20 unidades").
   items: jsonb("items").notNull().default(sql`'[]'::jsonb`),
@@ -5017,6 +5017,8 @@ export const insertSolicitudMuestraSchema = z.object({
         sku: z.string().trim().max(60).optional().nullable(),
         color: z.string().trim().max(120).optional().nullable(),
         formato: z.string().trim().min(1, "Indica el formato de cada línea").max(120),
+        // Producto de Línea y Desarrollo: cuántas unidades (en material, la cantidad va en `formato`).
+        cantidad: z.coerce.number().int("La cantidad va en unidades enteras").positive("La cantidad tiene que ser mayor que cero").max(9999).optional().nullable(),
       }),
     )
     .min(1, "Agrega al menos un producto")
