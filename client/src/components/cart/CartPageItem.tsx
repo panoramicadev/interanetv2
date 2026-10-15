@@ -9,6 +9,7 @@ import { Minus, Plus, Trash2 } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { useToast } from "@/hooks/use-toast";
 import { CartItem } from "@shared/schema";
+import { VENTA_POR_UNIDAD } from "@shared/venta-por-unidad";
 
 interface CartPageItemProps {
   item: CartItem;
@@ -182,6 +183,8 @@ export default function CartPageItem({ item, showDivider = true }: CartPageItemP
   const handlePackagingChange = (packaging: string) => {
     // Define packaging quantity rules
     const getPackagingRules = (packaging: string): { minQuantity: number; quantityStep: number } => {
+      // Venta al detalle: ningún formato exige bulto (ver shared/venta-por-unidad.ts).
+      if (VENTA_POR_UNIDAD) return { minQuantity: 1, quantityStep: 1 };
       const normalizedPackaging = packaging.toLowerCase();
       
       if (normalizedPackaging.includes('galón') && !normalizedPackaging.includes('balde')) {

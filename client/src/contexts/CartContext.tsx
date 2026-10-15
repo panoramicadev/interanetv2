@@ -520,7 +520,15 @@ const loadCartFromStorage = (userId?: number | string | null, branchId?: string 
       
       // Validate with Zod schema
       const validated = cartStateSchema.parse(parsed);
-      return validated;
+      // Las reglas de cantidad se guardan con cada ítem: se recalculan al cargar para que
+      // un carrito armado con otro modo de venta (bulto o unidad) quede con las reglas vigentes.
+      return {
+        ...validated,
+        items: validated.items.map(item => {
+          const rules = getQuantityRules(item.unit);
+          return { ...item, minQuantity: rules.minQuantity, quantityStep: rules.stepQuantity };
+        }),
+      };
     }
   } catch (error) {
     console.warn('Error loading cart from localStorage:', error);

@@ -3015,7 +3015,8 @@ export const CART_CONFIG = {
   MAX_ITEMS: 50, // Maximum number of different items in cart
   MAX_QUANTITY_PER_ITEM: 99999,
 
-  // Quantity rules by unit type
+  // Quantity rules by unit type (venta por bulto). Con VENTA_POR_UNIDAD activo
+  // (shared/venta-por-unidad.ts) no se aplican: todo se vende desde 1 y de a 1.
   QUANTITY_RULES: {
     // Baldes - individual units
     BD4: { minQuantity: 1, stepQuantity: 1, displayName: 'Balde 4 Galones', description: 'Mínimo 1 unidad' },

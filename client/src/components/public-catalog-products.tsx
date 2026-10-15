@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/useCart";
+import { VENTA_POR_UNIDAD } from "@shared/venta-por-unidad";
 import {
     Search, ChevronDown, ChevronRight, Package, Palette,
     ShoppingCart, Plus, Minus, Loader2, Box, Info, X, HelpCircle,
@@ -58,7 +59,24 @@ function QuantitySelector({ value, onChange, min = 1, step = 1, onTypingAttempt 
             >
                 <Minus className="w-4 h-4" />
             </button>
-            {/* Display-only: el usuario no puede tipear cantidades — debe usar +/- (múltiplos del formato) */}
+            {VENTA_POR_UNIDAD ? (
+                // Venta por unidad: la cantidad se escribe libre (mínimo 1).
+                <input
+                    type="number"
+                    inputMode="numeric"
+                    min={min}
+                    step={1}
+                    value={value}
+                    onChange={(e) => {
+                        const n = parseInt(e.target.value, 10);
+                        if (Number.isFinite(n)) onChange(Math.max(min, n));
+                    }}
+                    onFocus={(e) => e.target.select()}
+                    className="w-14 h-10 text-center text-base font-bold border-x-2 border-slate-200 outline-none focus:bg-orange-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    aria-label="Cantidad"
+                />
+            ) : (
+            /* Display-only: el usuario no puede tipear cantidades — debe usar +/- (múltiplos del formato) */
             <div
                 role="button"
                 tabIndex={0}
@@ -71,6 +89,7 @@ function QuantitySelector({ value, onChange, min = 1, step = 1, onTypingAttempt 
             >
                 {value}
             </div>
+            )}
             <button
                 onClick={() => onChange(value + step)}
                 className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 text-slate-500 transition-colors active:bg-slate-200"

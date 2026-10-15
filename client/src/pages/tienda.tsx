@@ -66,6 +66,7 @@ import ProductCardExpandable from "@/components/shared/ProductCardExpandable";
 import CustomColorButton from "@/components/shared/CustomColorButton";
 import type { CustomColorVariantPublic } from "@shared/schema";
 import { getFormatQuantityRules } from "@shared/format-utils";
+import { VENTA_POR_UNIDAD } from "@shared/venta-por-unidad";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -3563,7 +3564,9 @@ export default function TiendaPage() {
             },
             {
               pregunta: "¿Cuál es el monto mínimo de compra?",
-              respuesta: "El monto mínimo de compra varía según el tipo de producto y formato. Los galones se venden en unidades individuales, mientras que los formatos de 1/4 de galón tienen un mínimo de 6 unidades. Consulte las especificaciones de cada producto para más detalles."
+              respuesta: VENTA_POR_UNIDAD
+                ? "Todos los formatos (1/4 de galón, galón y baldes) se venden por unidad, desde 1. Consulte las especificaciones de cada producto para más detalles."
+                : "El monto mínimo de compra varía según el tipo de producto y formato. Los galones se venden en unidades individuales, mientras que los formatos de 1/4 de galón tienen un mínimo de 6 unidades. Consulte las especificaciones de cada producto para más detalles."
             },
             {
               pregunta: "¿Cuáles son los costos de envío?",

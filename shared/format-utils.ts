@@ -6,6 +6,8 @@
  * maintaining their own format mapping tables or regex patterns.
  */
 
+import { VENTA_POR_UNIDAD } from './venta-por-unidad';
+
 // ================================
 // CANONICAL FORMAT DEFINITIONS
 // ================================
@@ -262,6 +264,10 @@ export function getFormatQuantityRules(format: string | null | undefined): {
     return { minQuantity: 1, stepQuantity: 1, displayName: format };
   }
   const def = PRODUCT_FORMATS[canonical];
+  // Venta al detalle: el bulto del formato no se exige (ver shared/venta-por-unidad.ts).
+  if (VENTA_POR_UNIDAD) {
+    return { minQuantity: 1, stepQuantity: 1, displayName: def.quantityDisplayName };
+  }
   return {
     minQuantity: def.minQuantity,
     stepQuantity: def.stepQuantity,

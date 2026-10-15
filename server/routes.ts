@@ -461,6 +461,7 @@ import { createRateLimiter } from "./utils/rate-limit";
 import { hoyEnChile } from "./utils/fecha-chile";
 import { unirTramos, tramoAnioAnterior } from "./utils/tramos-consolidado";
 import { normalizeFormat, PRODUCT_FORMATS } from "@shared/format-utils";
+import { reglaDeVenta } from "@shared/venta-por-unidad";
 import { isValidRut, formatRut } from "@shared/rut";
 import {
   mapRowToLead, CRM_IMPORT_COLUMNS, CRM_ESTADO_LABELS, CRM_ORIGEN_LABELS,
@@ -667,7 +668,7 @@ export function registerRoutes(app: Express): Server {
       `);
       const product = (rows.rows && rows.rows[0]) || null;
       if (!product) return res.status(404).json({ message: 'Producto no encontrado' });
-      res.json(product);
+      res.json({ ...product, ...reglaDeVenta((product as any).minUnit, (product as any).stepSize) });
     } catch (error: any) {
       console.error('Error fetching product by slug:', error);
       res.status(500).json({ message: 'Error obteniendo producto' });
@@ -7823,8 +7824,7 @@ export function registerRoutes(app: Express): Server {
           format: formatUnit,
           groupName,
           stock: parseFloat(row.total_stock) || 0,
-          minUnit: row.min_unit,
-          stepSize: row.step_size,
+          ...reglaDeVenta(row.min_unit, row.step_size),
           description: row.description,
           imageUrl: (row as any).imagen_url || null,
         });
@@ -8077,7 +8077,8 @@ export function registerRoutes(app: Express): Server {
       }
 
       // ▼ Validar que cada cantidad respete min_unit y step_size del producto.
-      // Las pinturas se venden por bulto (galón = 4, 1/4 galón = 6, etc.) y no se aceptan cantidades libres.
+      // Con venta por unidad la regla es 1 y de a 1 (ver shared/venta-por-unidad.ts); con venta
+      // por bulto (galón = 4, 1/4 galón = 6, etc.) no se aceptan cantidades libres.
       const productIds = validation.data.items.map((it) => it.productId).filter(Boolean);
       if (productIds.length > 0) {
         const skuRows = await db.execute(sql`
@@ -8089,8 +8090,7 @@ export function registerRoutes(app: Express): Server {
         const rules = new Map<string, { minUnit: number; stepSize: number; format: string; color: string; name: string }>();
         for (const r of (skuRows as any).rows || []) {
           rules.set(r.sku, {
-            minUnit: Number(r.min_unit) || 1,
-            stepSize: Number(r.step_size) || 1,
+            ...reglaDeVenta(r.min_unit, r.step_size),
             format: r.format_unit || '',
             color: r.color || '',
             name: r.product_name || '',
@@ -8390,8 +8390,7 @@ export function registerRoutes(app: Express): Server {
           fisico: Number(b.fisico) || 0,
           comprometido: Number(b.comprometido) || 0,
         })),
-        minUnit: row.min_unit,
-        stepSize: row.step_size,
+        ...reglaDeVenta(row.min_unit, row.step_size),
         description: row.description,
         imageUrl: (row as any).imagen_url || null,
         hex: colorHexMap.get(color.toUpperCase()) || null,
@@ -21795,8 +21794,7 @@ export function registerRoutes(app: Express): Server {
         offerPrice: row.offer_price ? parseFloat(row.offer_price) : null,
         priceSource: row.price_source || 'LP01',
         stock: parseFloat(row.total_stock) || 0,
-        minUnit: row.min_unit || 1,
-        stepSize: row.step_size || 1,
+        ...reglaDeVenta(row.min_unit, row.step_size),
         description: row.description,
         imageUrl: (row as any).imagen_url || null,
         packaging: {
@@ -22254,8 +22252,7 @@ export function registerRoutes(app: Express): Server {
         price: discountedList,                                  // lista con convenio (base)
         offerPrice: hasOffer ? Math.round(offerNum) : null,     // oferta (gana si menor)
         originalPrice: Math.round(baseList),                    // lista sin convenio
-        minUnit: row.min_unit != null ? Number(row.min_unit) : 1,
-        stepSize: row.step_size != null ? Number(row.step_size) : 1,
+        ...reglaDeVenta(row.min_unit, row.step_size),
         imageUrl: row.imagen_url || row.imagen_destacada || null,
         hidden: row.ep_activo !== true,                         // true si no está en vitrina
         priceList: priceListCode,

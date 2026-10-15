@@ -28,6 +28,7 @@ import {
   Check,
 } from 'lucide-react';
 import { QuoteContext } from '@/contexts/QuoteContext';
+import { VENTA_POR_UNIDAD } from '@shared/venta-por-unidad';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -658,7 +659,24 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                             <Minus className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Display-only: la cantidad sólo se ajusta con +/− para respetar el formato (galón=4, ¼=6, etc.) */}
+                          {VENTA_POR_UNIDAD ? (
+                            // Venta por unidad: la cantidad se escribe libre.
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              value={variantQty || 0}
+                              onClick={e => e.stopPropagation()}
+                              onFocus={e => e.target.select()}
+                              onChange={e => {
+                                const n = parseInt(e.target.value, 10);
+                                setQty(variant.sku, Number.isFinite(n) ? n : 0);
+                              }}
+                              aria-label="Cantidad"
+                              className="w-12 h-full text-center text-sm font-bold border-x border-gray-200 outline-none focus:ring-1 focus:ring-inset focus:ring-[#FF6E23] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            />
+                          ) : (
+                          /* Display-only: la cantidad sólo se ajusta con +/− para respetar el formato (galón=4, ¼=6, etc.) */
                           <div
                             role="button"
                             tabIndex={0}
@@ -677,6 +695,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                           >
                             {variantQty || 0}
                           </div>
+                          )}
 
                           <button
                             onClick={e => {
