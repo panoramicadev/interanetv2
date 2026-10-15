@@ -5,7 +5,7 @@
  */
 
 import { createContext, useContext, useReducer, useEffect, ReactNode, useCallback } from 'react';
-import { reglaDeVenta } from '@shared/venta-por-unidad';
+import { reglaDeVentaCotizadorWeb } from '@shared/venta-por-unidad';
 
 // ── Types ──
 
@@ -49,7 +49,7 @@ function loadFromStorage(): QuoteState {
       // Una lista guardada antes de pasar a venta por unidad trae el bulto de cada ítem.
       const items: QuoteItem[] = (parsed.items || []).map((item: QuoteItem) => ({
         ...item,
-        ...reglaDeVenta(item.minUnit, item.stepSize),
+        ...reglaDeVentaCotizadorWeb(item.minUnit, item.stepSize),
       }));
       return { items, itemCount: items.length };
     }

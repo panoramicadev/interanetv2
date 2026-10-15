@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, Check, Package, Box, Minus, Eye, Palette, X, ShoppingCart } from 'lucide-react';
 import { useQuote } from '@/contexts/QuoteContext';
-import { VENTA_POR_UNIDAD } from '@shared/venta-por-unidad';
+import { VENTA_POR_UNIDAD_COTIZADOR_WEB } from '@shared/venta-por-unidad';
 
 interface Variant {
   sku: string;
@@ -329,7 +329,7 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
                             inputMode="numeric"
                             min={0}
                             value={qty}
-                            readOnly={!VENTA_POR_UNIDAD}
+                            readOnly={!VENTA_POR_UNIDAD_COTIZADOR_WEB}
                             onChange={(e) => setQty(variant.sku, e.target.value)}
                             onFocus={(e) => e.target.select()}
                             aria-label="Cantidad"
