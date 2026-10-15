@@ -28,7 +28,7 @@ import {
   Check,
 } from 'lucide-react';
 import { QuoteContext } from '@/contexts/QuoteContext';
-import { VENTA_POR_UNIDAD } from '@shared/venta-por-unidad';
+import { VENTA_POR_UNIDAD, VENTA_POR_UNIDAD_COTIZADOR_WEB } from '@shared/venta-por-unidad';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -659,7 +659,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                             <Minus className="w-3.5 h-3.5" />
                           </button>
 
-                          {VENTA_POR_UNIDAD ? (
+                          {(isCotizador ? VENTA_POR_UNIDAD_COTIZADOR_WEB : VENTA_POR_UNIDAD) ? (
                             // Venta por unidad: la cantidad se escribe libre.
                             <input
                               type="number"

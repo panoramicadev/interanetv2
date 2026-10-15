@@ -1,6 +1,6 @@
 import { X, Trash2, FileText, Send, Minus, Plus, Package } from 'lucide-react';
 import { useQuote } from '@/contexts/QuoteContext';
-import { VENTA_POR_UNIDAD } from '@shared/venta-por-unidad';
+import { VENTA_POR_UNIDAD_COTIZADOR_WEB } from '@shared/venta-por-unidad';
 
 interface Props {
   open: boolean;
@@ -87,7 +87,7 @@ export default function CotizadorQuotePanel({ open, onClose, onSubmit }: Props) 
                         inputMode="numeric"
                         min={1}
                         value={item.quantity}
-                        readOnly={!VENTA_POR_UNIDAD}
+                        readOnly={!VENTA_POR_UNIDAD_COTIZADOR_WEB}
                         onChange={(e) => {
                           // Vaciar el campo no borra el ítem: para eso está el basurero.
                           const n = parseInt(e.target.value, 10);

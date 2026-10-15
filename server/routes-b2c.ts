@@ -7,7 +7,7 @@
 
 import type { Express } from 'express';
 import { getPublicCatalog, getPublicCategories } from './services/catalog.service';
-import { reglaDeVenta } from '@shared/venta-por-unidad';
+import { reglaDeVentaCotizadorWeb } from '@shared/venta-por-unidad';
 import {
   createQuoteRequest,
   getQuoteRequests,
@@ -134,7 +134,7 @@ export function registerB2CRoutes(app: Express) {
       }
 
       // ▼ Validar cantidades respetan min_unit / step_size del producto (galón = 4, ¼ galón = 6, etc.).
-      // Con venta por unidad la regla es 1 y de a 1 (ver shared/venta-por-unidad.ts).
+      // En el cotizador web se vende por unidad: 1 y de a 1 (ver shared/venta-por-unidad.ts).
       const items = validationResult.data.items || [];
       const skuList = items.map((i: any) => i.sku).filter(Boolean);
       if (skuList.length > 0) {
@@ -147,7 +147,7 @@ export function registerB2CRoutes(app: Express) {
         const rules = new Map<string, { minUnit: number; stepSize: number; format: string; color: string; name: string }>();
         for (const r of (skuRows as any).rows || []) {
           rules.set(r.sku, {
-            ...reglaDeVenta(r.min_unit, r.step_size),
+            ...reglaDeVentaCotizadorWeb(r.min_unit, r.step_size),
             format: r.format_unit || '',
             color: r.color || '',
             name: r.product_name || '',
