@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Check, Package, Box, Minus, Eye, Palette, X, ShoppingCart } from 'lucide-react';
 import { useQuote } from '@/contexts/QuoteContext';
+import { VENTA_POR_UNIDAD } from '@shared/venta-por-unidad';
 
 interface Variant {
   sku: string;
@@ -62,6 +63,12 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
       if (current === 0 && delta > 0) return { ...prev, [sku]: min };
       return { ...prev, [sku]: Math.max(min, next) };
     });
+  };
+
+  // Venta por unidad: la cantidad también se puede escribir.
+  const setQty = (sku: string, value: string) => {
+    const n = parseInt(value, 10);
+    setQuantities(prev => ({ ...prev, [sku]: Number.isFinite(n) && n > 0 ? n : 0 }));
   };
 
   const handleAddToQuote = (variant: Variant) => {
@@ -317,11 +324,19 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
                           >
                             <Minus className="w-3.5 h-3.5" />
                           </button>
-                          <span className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center text-xs sm:text-sm font-bold rounded-lg border ${
-                            qty > 0 ? 'bg-[#FF6E23]/10 border-[#FF6E23]/30 text-[#FF6E23]' : 'bg-white border-gray-200 text-gray-400'
-                          }`}>
-                            {qty}
-                          </span>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            value={qty}
+                            readOnly={!VENTA_POR_UNIDAD}
+                            onChange={(e) => setQty(variant.sku, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            aria-label="Cantidad"
+                            className={`w-8 h-8 sm:w-9 sm:h-9 text-xs sm:text-sm text-center font-bold rounded-lg border outline-none focus:ring-1 focus:ring-[#FF6E23] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${
+                              qty > 0 ? 'bg-[#FF6E23]/10 border-[#FF6E23]/30 text-[#FF6E23]' : 'bg-white border-gray-200 text-gray-400'
+                            }`}
+                          />
                           <button
                             onClick={() => updateQty(variant.sku, variant.stepSize || 1, variant.minUnit, variant.stepSize)}
                             className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-gray-100 active:bg-gray-200 text-gray-600"

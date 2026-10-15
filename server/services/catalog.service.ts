@@ -6,6 +6,7 @@
 
 import { db } from '../db';
 import { sql } from 'drizzle-orm';
+import { reglaDeVenta } from '@shared/venta-por-unidad';
 
 // ── Cache ──
 let _publicCatalogCache: { catalog: any[]; totalProducts: number; builtAt: number } | null = null;
@@ -150,8 +151,7 @@ export async function getPublicCatalog(options?: { search?: string; category?: s
       groupName,
       // Stock as simple availability indicator
       available: parseFloat(row.total_stock) > 0,
-      minUnit: row.min_unit || 1,
-      stepSize: row.step_size || 1,
+      ...reglaDeVenta(row.min_unit, row.step_size),
       description: row.description,
       imageUrl: row.imagen_url || null,
     });

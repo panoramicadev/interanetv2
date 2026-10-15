@@ -400,6 +400,7 @@ import { condicionNombreCliente, condicionBusquedaConCadenas } from './utils/suc
 import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
 import { db } from "./db";
 import { LINE_COST_EXPR } from "./costo-linea";
+import { reglaDeVenta } from "@shared/venta-por-unidad";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns, type AnyColumn } from "drizzle-orm";
 import { accentInsensitiveContains } from "./utils/sql-search";
 import { parseScopeEntry, ocPrefixPattern } from "./utils/sucursal-scope";
@@ -19205,8 +19206,7 @@ export class DatabaseStorage implements IStorage {
       imagenUrl: p.imagenUrl,
       productFamily: p.productFamily,
       color: p.color,
-      minUnit: p.minUnit ?? 1,
-      stepSize: p.stepSize ?? 1,
+      ...reglaDeVenta(p.minUnit, p.stepSize),
       formatUnit: p.formatUnit,
     }));
   }
@@ -19264,8 +19264,7 @@ export class DatabaseStorage implements IStorage {
         unidad: product.unidad,
         precio: product.precio,
         imagenUrl: product.imagenUrl,
-        minUnit: product.minUnit,
-        stepSize: product.stepSize,
+        ...reglaDeVenta(product.minUnit, product.stepSize),
         formatUnit: product.formatUnit,
       });
 

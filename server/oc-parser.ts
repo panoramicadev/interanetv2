@@ -11,6 +11,7 @@
 
 import { db } from './db';
 import { sql } from 'drizzle-orm';
+import { reglaDeVenta } from '@shared/venta-por-unidad';
 
 export interface ParsedOcItem {
   sku: string;
@@ -222,8 +223,7 @@ export async function matchSkusToCatalog(items: ParsedOcItem[]): Promise<{ match
       unmatched.push(item);
       continue;
     }
-    const minUnit = Number(c.min_unit) || 1;
-    const stepSize = Number(c.step_size) || 1;
+    const { minUnit, stepSize } = reglaDeVenta(c.min_unit, c.step_size);
     const requested = Math.max(1, Math.round(item.quantity));
 
     let validQty = Math.max(requested, minUnit);

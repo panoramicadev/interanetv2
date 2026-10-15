@@ -1,5 +1,6 @@
 import { X, Trash2, FileText, Send, Minus, Plus, Package } from 'lucide-react';
 import { useQuote } from '@/contexts/QuoteContext';
+import { VENTA_POR_UNIDAD } from '@shared/venta-por-unidad';
 
 interface Props {
   open: boolean;
@@ -81,7 +82,21 @@ export default function CotizadorQuotePanel({ open, onClose, onSubmit }: Props) 
                       >
                         <Minus className="w-3 h-3" />
                       </button>
-                      <span className="text-sm font-semibold text-slate-700 w-8 text-center">{item.quantity}</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        value={item.quantity}
+                        readOnly={!VENTA_POR_UNIDAD}
+                        onChange={(e) => {
+                          // Vaciar el campo no borra el ítem: para eso está el basurero.
+                          const n = parseInt(e.target.value, 10);
+                          if (Number.isFinite(n) && n >= 1) updateQuantity(item.id, n);
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        aria-label="Cantidad"
+                        className="text-sm font-semibold text-slate-700 w-10 text-center bg-transparent rounded outline-none focus:ring-1 focus:ring-[#FF6E23] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      />
                       <button
                         onClick={() => updateQuantity(item.id, item.quantity + (item.stepSize || 1))}
                         className="w-6 h-6 flex items-center justify-center rounded bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors"
