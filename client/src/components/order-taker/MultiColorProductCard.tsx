@@ -81,6 +81,9 @@ const isDarkHex = (bg: string): boolean => {
   const b = parseInt(m[1].slice(4, 6), 16);
   return (0.299 * r + 0.587 * g + 0.114 * b) < 140;
 };
+// Bodegas cuyo stock y comprometido se muestran siempre en el tomador.
+const BODEGAS_FIJAS = ["BODEGA CONCEPCION", "PRODUCTOS TERMINADOS"];
+
 const clp = (n: number) => "$" + Math.round(n).toLocaleString("es-CL");
 
 // Fallback de tramos — SOLO si no se pasa getAvailableTiers.
@@ -331,18 +334,32 @@ export function MultiColorProductCard({
               );
               // Desglose del stock: disponible por bodega y cuánto hay comprometido
               // en notas de venta (ya descontado del número de arriba).
-              const bodegas = (v?.stockBodegas ?? []).filter((b) => b.fisico > 0 || b.comprometido > 0);
+              // Concepción y Productos Terminados se muestran siempre, aunque estén en
+              // cero, con su comprometido; el resto solo si tiene algo.
+              const todas = v?.stockBodegas ?? [];
+              const fijas = BODEGAS_FIJAS.map((nombre) =>
+                todas.find((b) => b.nombre.trim().toUpperCase() === nombre) ?? { nombre, disponible: 0, fisico: 0, comprometido: 0 });
+              const bodegas = [
+                ...fijas.map((b) => ({ ...b, fija: true })),
+                ...todas
+                  .filter((b) => !BODEGAS_FIJAS.includes(b.nombre.trim().toUpperCase()) && (b.fisico > 0 || b.comprometido > 0))
+                  .map((b) => ({ ...b, fija: false })),
+              ];
+              // Suma de lo comprometido en notas de venta, todas las bodegas.
               const comprometido = Math.floor(Number(v?.stockComprometido ?? 0));
-              const stockDetalle = bodegas.length > 0 && (
-                <div data-testid={`stock-bodegas-${sku}`} style={{ display: "flex", alignItems: "center", gap: "2px 10px", flexWrap: "wrap", fontSize: 10, fontWeight: 600, color: "#64748b" }}>
+              const stockDetalle = (
+                <div data-testid={`stock-bodegas-${sku}`} style={{ display: "flex", alignItems: "center", gap: "4px 14px", flexWrap: "wrap", fontSize: 12.5, fontWeight: 600, color: "#64748b" }}>
                   {bodegas.map((b) => (
                     <span key={b.nombre} style={{ whiteSpace: "nowrap" }}>
-                      {b.nombre}: <span style={{ fontWeight: 800, color: b.disponible > 0 ? "#0f172a" : "#dc2626" }}>{Math.floor(b.disponible)}</span>
+                      {b.nombre}: <span style={{ fontSize: 14, fontWeight: 800, color: b.disponible > 0 ? "#0f172a" : "#dc2626" }}>{Math.floor(b.disponible)}</span>
+                      {(b.fija || b.comprometido > 0) && (
+                        <span style={{ color: b.comprometido > 0 ? "#b45309" : "#94a3b8" }}> · {Math.floor(b.comprometido)} comprometido{Math.floor(b.comprometido) === 1 ? "" : "s"}</span>
+                      )}
                     </span>
                   ))}
-                  {comprometido > 0 && (
-                    <span style={{ whiteSpace: "nowrap", color: "#b45309" }}>{comprometido} comprometido{comprometido === 1 ? "" : "s"} en notas de venta</span>
-                  )}
+                  <span data-testid={`stock-comprometido-${sku}`} style={{ whiteSpace: "nowrap", color: comprometido > 0 ? "#b45309" : "#94a3b8" }}>
+                    TOTAL COMPROMETIDO: {comprometido}
+                  </span>
                 </div>
               );
               const tierSelect = (
