@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -30,6 +30,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { ICONO_CHIP, ICONO_CHIP_ICONO } from "@/lib/icono-chip";
+
+// Columna "$" (añadir a Lista de Precios) oculta en la tabla de inventario.
+const MOSTRAR_AGREGAR_A_LISTA = false;
 
 // Helper function to determine if user has inventory access with prices (all authenticated users)
 function hasInventoryAccess(role: string): boolean {
@@ -695,6 +698,17 @@ function InventoryTable({
     return <Badge className="bg-green-500">Disponible</Badge>;
   };
 
+  // Comprometido en notas de venta, sumado por SKU en todas las bodegas cargadas.
+  const comprometidoPorSku = useMemo(() => {
+    const totales = new Map<string, number>();
+    for (const item of inventory || []) {
+      const sku = item.productSku?.toUpperCase();
+      if (!sku) continue;
+      totales.set(sku, (totales.get(sku) || 0) + (Number(item.reservedQuantity) || 0));
+    }
+    return totales;
+  }, [inventory]);
+
   // Apply client-side filters
   const filteredInventory = inventory?.filter((item) => {
     // Filter out products with no stock if hideNoStock is enabled
@@ -712,13 +726,7 @@ function InventoryTable({
 
   return (
     <Card className="rounded-3xl border-0 bg-white dark:bg-slate-900 shadow-sm">
-      <CardHeader>
-        <div>
-          <CardTitle className="text-xl font-bold text-gray-900 dark:text-gray-100">Inventario de Productos</CardTitle>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Listado detallado por sucursal y bodega</p>
-        </div>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         {isLoading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
@@ -729,27 +737,30 @@ function InventoryTable({
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50 dark:bg-gray-800/50">
-                    <TableHead className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-8 px-2">•</TableHead>
-                    <TableHead className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-12 px-2">Suc</TableHead>
-                    <TableHead className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">SKU</TableHead>
-                    <TableHead className="text-xs font-semibold text-gray-700 dark:text-gray-300 px-2">Producto</TableHead>
-                    <TableHead className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">Bod</TableHead>
-                    <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">UD1</TableHead>
-                    <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">UD2</TableHead>
+                    <TableHead className="text-xs font-semibold text-black dark:text-white w-8 px-2">•</TableHead>
+                    <TableHead className="text-xs font-semibold text-black dark:text-white w-12 px-2">Suc</TableHead>
+                    <TableHead className="text-xs font-semibold text-black dark:text-white w-20 px-2">SKU</TableHead>
+                    <TableHead className="text-xs font-semibold text-black dark:text-white px-2">Producto</TableHead>
+                    <TableHead className="text-xs font-semibold text-black dark:text-white w-20 px-2">Bodega</TableHead>
+                    <TableHead className="text-xs text-right font-semibold text-black dark:text-white w-20 px-2">Unidad</TableHead>
+                    <TableHead className="text-xs text-right font-semibold text-black dark:text-white w-28 pl-2 pr-0 whitespace-nowrap">Comprometido</TableHead>
                     {showValueColumns && (
                       <>
-                        <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-24 px-2">Precio</TableHead>
-                        <TableHead className="text-xs text-right font-semibold text-amber-700 dark:text-amber-300 w-24 px-2">Costo GRI</TableHead>
-                        <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-24 px-2">Valor</TableHead>
+                        <TableHead className="text-xs text-right font-semibold text-black dark:text-white w-24 px-2">Precio</TableHead>
+                        <TableHead className="text-xs text-right font-semibold text-black dark:text-white w-24 px-2">Costo GRI</TableHead>
+                        <TableHead className="text-xs text-right font-semibold text-black dark:text-white w-24 pl-2 pr-6">Valor</TableHead>
                       </>
                     )}
-                    <TableHead className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-10 px-2"></TableHead>
+                    {MOSTRAR_AGREGAR_A_LISTA && (
+                      <TableHead className="text-xs font-semibold text-black dark:text-white w-10 px-2"></TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredInventory.map((item, index) => {
                     const available = item.availableQuantity || 0;
                     const reserved = item.reservedQuantity || 0;
+                    const comprometidoTotal = comprometidoPorSku.get(item.productSku?.toUpperCase()) || 0;
                     let statusColor = 'bg-green-500';
                     if (available === 0) statusColor = 'bg-red-500';
                     else if (available < 10) statusColor = 'bg-orange-500';
@@ -778,11 +789,11 @@ function InventoryTable({
                         <TableCell className="text-xs text-gray-600 dark:text-gray-400 py-1 px-2">
                           <div className="truncate">{item.warehouseName || item.warehouseCode}</div>
                         </TableCell>
-                        <TableCell className="text-xs text-right text-gray-700 dark:text-gray-300 py-1 px-2 whitespace-nowrap">
-                          {item.stock1?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'} <span className="text-[10px] text-gray-500">{item.unit1 || ''}</span>
-                        </TableCell>
                         <TableCell className="text-xs text-right font-semibold text-blue-700 dark:text-blue-400 py-1 px-2 whitespace-nowrap">
                           {item.stock2?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'} <span className="text-[10px] text-gray-500">{item.unit2 || ''}</span>
+                        </TableCell>
+                        <TableCell className={`text-xs text-right py-1 px-2 whitespace-nowrap ${comprometidoTotal > 0 ? 'font-semibold text-amber-700 dark:text-amber-400' : 'text-gray-400'}`}>
+                          {comprometidoTotal.toLocaleString('es-CL', { maximumFractionDigits: 2 })} <span className="text-[10px] text-gray-500">{item.unit2 || ''}</span>
                         </TableCell>
                         {showValueColumns && (
                           <>
@@ -805,11 +816,12 @@ function InventoryTable({
                                 );
                               })()}
                             </TableCell>
-                            <TableCell className="text-xs text-right font-bold text-indigo-700 dark:text-indigo-400 py-1 px-2 whitespace-nowrap">
+                            <TableCell className="text-xs text-right font-bold text-[#fd6301] py-1 px-2 whitespace-nowrap">
                               {item.totalValue ? `$${item.totalValue.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
                             </TableCell>
                           </>
                         )}
+                        {MOSTRAR_AGREGAR_A_LISTA && (
                         <TableCell className="py-1 px-2">
                           {userRole === 'salesperson' ? null : existingSkus.has(item.productSku?.toUpperCase()) ? (
                             <Tooltip>
@@ -841,6 +853,7 @@ function InventoryTable({
                             </Tooltip>
                           )}
                         </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
