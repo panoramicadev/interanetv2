@@ -244,9 +244,11 @@ type TareasFiltrosPersistidos = {
 // Cuentas admin que NO se suman solas a las tareas y citas nuevas (ver
 // `asignacionesPorDefecto`). Van por nombre, sin mayúsculas ni tildes, porque son las
 // mismas cuentas en todas las copias del sistema y el id cambia entre ellas.
+// La cuenta genérica del sistema se renombró a "PCA" (oct-2026); se deja también el
+// nombre anterior por las copias donde todavía no se renombra.
 const normalizarNombre = (s?: string | null) =>
   (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
-const ADMINS_SIN_TAREAS = new Set(['administrador sistema', 'yoel paredes']);
+const ADMINS_SIN_TAREAS = new Set(['pca', 'administrador sistema', 'yoel paredes']);
 
 function loadTareasFiltros(): Partial<TareasFiltrosPersistidos> {
   try {
@@ -366,18 +368,11 @@ export default function TareasPage() {
   // Marketing ya no es pestaña acá: el área completa vive en el módulo Marketing.
   // Visitas Técnicas tampoco: volvió a ser un módulo del sidebar (/visitas-tecnicas).
   const showExtraSegmentTabs = user?.role !== 'tecnico_obra' && !isMarketing;
-  // La pestaña Tareas se fundió con el Calendario (pedido del usuario, oct-2026): las
-  // tareas, reuniones, eventos y visitas a cliente viven en una sola agenda. Quedan
-  // afuera Industrial, donde la pestaña es "Proyectos" (otra unidad de trabajo), y
-  // Marketing, que tiene ahí su triage de solicitudes.
-  const tareasEnCalendario = !isMarketing && !(esUsuarioIndustrial(user) && showExtraSegmentTabs);
   // El Calendario como agenda del equipo ("Agendar", reuniones, eventos y visitas) es
   // para todas las áreas menos Marketing, Industrial incluida (pedido del usuario,
   // oct-2026): Industrial conserva su pestaña Proyectos, pero su calendario funciona
   // igual que el del resto.
   const agendaEnCalendario = !isMarketing;
-  // Pestaña donde aterriza lo que antes caía en "Tareas".
-  const tabTareas = tareasEnCalendario ? 'calendario' : 'tareas';
   // Solicitud de Crédito salió del Panel de Trabajo: se pide desde su módulo
   // propio en el sidebar (/solicitud-credito).
   // Clases compartidas de las pestañas del panel: flex para centrar ícono + texto
@@ -410,6 +405,18 @@ export default function TareasPage() {
   const [segmentoFilter, setSegmentoFilter] = useState<string>(
     () => loadTareasFiltros().segmento ?? (isSalesperson ? "all" : isMarketing ? "marketing" : "ferreterias")
   );
+
+  // Vista de Industrial (pestaña "Proyectos", sin Rutas Comerciales): la tiene quien
+  // trabaja el área (ver USUARIOS_INDUSTRIAL) y también quien la elige en el selector
+  // de Área —el admin ve Industrial igual que Patricio (pedido del usuario, oct-2026)—.
+  const esIndustrial = esUsuarioIndustrial(user) || (!isSalesperson && segmentoFilter === 'digital');
+  // La pestaña Tareas se fundió con el Calendario (pedido del usuario, oct-2026): las
+  // tareas, reuniones, eventos y visitas a cliente viven en una sola agenda. Quedan
+  // afuera Industrial, donde la pestaña es "Proyectos" (otra unidad de trabajo), y
+  // Marketing, que tiene ahí su triage de solicitudes.
+  const tareasEnCalendario = !isMarketing && !(esIndustrial && showExtraSegmentTabs);
+  // Pestaña donde aterriza lo que antes caía en "Tareas".
+  const tabTareas = tareasEnCalendario ? 'calendario' : 'tareas';
 
   // Supervisor: solo puede ver la pestaña de su segmento asignado
   // (ej: Patricio "Industrial" → assignedSegment "digital"). Los demás roles con acceso
@@ -1088,12 +1095,7 @@ export default function TareasPage() {
 
   // Industrial trabaja por proyectos: su primera pestaña deja de llamarse
   // "Tareas" y pasa a ser "Proyectos", donde cada ficha tiene sus tareas dentro
-  // (ver esTareaProyecto). A diferencia de Ferreterías y Construcción esto NO se
-  // deduce del área elegida ni del segmento del usuario: es la vista de quien
-  // trabaja el área (ver USUARIOS_INDUSTRIAL), y para el resto del panel —
-  // vendedores, supervisores y el selector de Área del admin — todo sigue
-  // funcionando como antes.
-  const esIndustrial = esUsuarioIndustrial(user);
+  // (ver esTareaProyecto). Quién la ve: ver `esIndustrial` más arriba.
   // Marketing tiene su propio módulo y el técnico de obra no crea proyectos:
   // la pestaña solo cambia de nombre para el resto del panel.
   const modoProyectos = esIndustrial && showExtraSegmentTabs;
