@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useRef, useDeferredValue } from "react";
+import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -2279,35 +2280,15 @@ export default function TareasPage() {
   // saber al entrar —en qué sección estás— y abajo del botón de acción quedaba escondido.
   const selectorSeccionMovil = (
     <div className={`sm:hidden ${isMarketing ? 'hidden' : ''}`}>
-      <Select value={activeTab} onValueChange={setActiveTab}>
-        <SelectTrigger
-          className="w-full h-auto gap-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700 rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm focus:ring-0 focus:ring-offset-0 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:opacity-60"
-          data-testid="select-tab-movil"
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            {/* Ícono naranjo suelto, igual que el del Área: las dos tarjetas van una
-                sobre la otra y cualquier fondo las hacía competir con el botón. */}
-            <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] shrink-0">
-              <tabActiva.Icon className="h-4 w-4" />
-            </div>
-            <div className="flex flex-col items-start leading-none min-w-0">
-              <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Sección</span>
-              <span className="font-normal text-sm text-slate-700 dark:text-slate-100 truncate">{tabActiva.label}</span>
-            </div>
-          </div>
-        </SelectTrigger>
-        <SelectContent className="rounded-2xl">
-          {tabsVisibles.map(({ value, label, Icon }) => (
-            <SelectItem key={value} value={value} className="rounded-lg" data-testid={`select-tab-${value}`}>
-              <span className="flex items-center gap-2.5">
-                <Icon className="h-4 w-4 text-[#fd6301]" />
-                {label}
-                {tabChangeBadge(value)}
-              </span>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {/* Misma lista desde abajo que el detalle del cliente (ver
+          SelectorSeccionMovil): el desplegable flotante, en el celular, a veces
+          elegía la opción que quedaba bajo el dedo al abrirse. */}
+      <SelectorSeccionMovil
+        value={tabActiva.value}
+        opciones={tabsVisibles.map((t) => ({ ...t, extra: tabChangeBadge(t.value) }))}
+        onChange={(v) => { if (v === activeTab) handleTabTriggerClick(v); else setActiveTab(v); }}
+        testId="select-tab-movil"
+      />
     </div>
   );
 
@@ -2347,7 +2328,7 @@ export default function TareasPage() {
         {taskSearch && (
           <button
             onClick={() => { setTaskSearch(""); setShowSearchSuggestions(false); }}
-            className="text-slate-300 hover:text-slate-500 transition-colors flex-shrink-0"
+            className="-mr-2 p-2 sm:mr-0 sm:p-0 touch-manipulation text-slate-300 hover:text-slate-500 transition-colors flex-shrink-0"
             data-testid="button-clear-task-search"
             aria-label="Limpiar búsqueda"
           >
@@ -2405,7 +2386,7 @@ export default function TareasPage() {
         {seguimientoSearch && (
           <button
             onClick={() => { setSeguimientoSearch(""); setShowSeguimientoSuggestions(false); }}
-            className="text-slate-300 hover:text-slate-500 transition-colors flex-shrink-0"
+            className="-mr-2 p-2 sm:mr-0 sm:p-0 touch-manipulation text-slate-300 hover:text-slate-500 transition-colors flex-shrink-0"
             data-testid="button-clear-seguimiento-search"
             aria-label="Limpiar búsqueda"
           >
@@ -3589,7 +3570,7 @@ export default function TareasPage() {
                 <div className="pointer-events-none absolute -right-8 -top-10 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
                 <button
                   onClick={dismissGroupsTutorial}
-                  className="absolute top-3 right-3 p-1 rounded-lg text-white/70 hover:text-white hover:bg-white/15 transition-colors"
+                  className="absolute top-1.5 right-1.5 sm:top-3 sm:right-3 p-2.5 sm:p-1 touch-manipulation rounded-lg text-white/70 hover:text-white hover:bg-white/15 transition-colors"
                   title="Cerrar"
                   aria-label="Cerrar tutorial"
                 >
@@ -6345,6 +6326,93 @@ function EditPromesaDialog({
 }
 
 // ==================================================================================
+// SelectorSeccionMovil - elegir sección en el celular
+// ==================================================================================
+// Tarjeta "Sección" que al tocarla sube una lista desde abajo. Reemplaza dos
+// intentos anteriores que fallaban en el teléfono (oct-2026):
+//  - el desplegable de Radix dejaba la pantalla "pegada" si no se cerraba bien;
+//  - el selector nativo invisible encima de la tarjeta se abría al tocar cerca
+//    (el botón volver abría la lista de secciones en el iPhone).
+// Esta lista se abre con un toque completo (click, no al apoyar el dedo), así la
+// opción que aparece bajo el dedo no se elige sola, y no toca el `body`.
+type OpcionSeccion = { value: string; label: string; Icon: any; extra?: React.ReactNode };
+
+function SelectorSeccionMovil({ value, opciones, onChange, testId, className = "" }: {
+  value: string;
+  opciones: OpcionSeccion[];
+  onChange: (v: string) => void;
+  testId?: string;
+  className?: string;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const activa = opciones.find((o) => o.value === value) ?? opciones[0];
+  const ActivaIcon = activa?.Icon;
+
+  useEffect(() => {
+    if (!abierto) return;
+    const alTeclado = (e: KeyboardEvent) => { if (e.key === "Escape") setAbierto(false); };
+    window.addEventListener("keydown", alTeclado);
+    return () => window.removeEventListener("keydown", alTeclado);
+  }, [abierto]);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        aria-haspopup="listbox"
+        aria-expanded={abierto}
+        className={`flex items-center gap-3 w-full bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700 rounded-2xl pl-2.5 pr-4 py-2 shadow-sm text-left touch-manipulation active:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#fd6301]/40 ${className}`}
+        data-testid={testId}
+      >
+        {/* Ícono suelto, sin fondo (pedido del usuario, oct-2026). */}
+        <span className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] shrink-0">
+          {ActivaIcon && <ActivaIcon className="h-5 w-5" />}
+        </span>
+        <span className="flex flex-col items-start leading-none min-w-0 flex-1">
+          <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Sección</span>
+          <span className="font-normal text-sm text-slate-700 dark:text-slate-100 truncate max-w-full">{activa?.label}</span>
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
+      </button>
+      {abierto && createPortal(
+        <div className="fixed inset-0 z-[80] flex flex-col justify-end" role="presentation">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setAbierto(false)} />
+          <div
+            role="listbox"
+            aria-label="Sección"
+            className="relative bg-white dark:bg-slate-900 rounded-t-3xl shadow-2xl pt-2 pb-[calc(env(safe-area-inset-bottom)+12px)] max-h-[80dvh] overflow-y-auto overscroll-contain"
+          >
+            <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-slate-200 dark:bg-slate-700" />
+            <p className="px-5 pb-2 text-[11px] uppercase tracking-wider font-bold text-slate-500">Sección</p>
+            {opciones.map(({ value: v, label, Icon, extra }) => {
+              const sel = v === value;
+              return (
+                <button
+                  key={v}
+                  type="button"
+                  role="option"
+                  aria-selected={sel}
+                  onClick={() => { setAbierto(false); onChange(v); }}
+                  className={`w-full flex items-center gap-3 px-5 h-14 text-left text-base touch-manipulation active:bg-slate-100 dark:active:bg-slate-800 ${sel ? "font-semibold text-slate-900 dark:text-white" : "text-slate-700 dark:text-slate-200"}`}
+                  data-testid={testId ? `${testId}-${v}` : undefined}
+                >
+                  <Icon className="h-5 w-5 text-[#fd6301] shrink-0" />
+                  <span className="flex-1 min-w-0 truncate">{label}</span>
+                  {extra}
+                  {sel && <Check className="h-5 w-5 text-[#fd6301] shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
+// ==================================================================================
 // useHojaMovil - alto real de la hoja del detalle en el teléfono
 // ==================================================================================
 // En iOS Safari, al abrir el teclado la pantalla visible se achica pero `100dvh`
@@ -6360,23 +6428,47 @@ function useHojaMovil(): React.CSSProperties | undefined {
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
     const mql = window.matchMedia("(min-width: 1024px)");
     if (!vv) return;
-    const medir = () => {
-      if (mql.matches) { setEstilo(undefined); return; }
-      setEstilo({ height: `${Math.round(vv.height)}px`, top: `${Math.round(vv.offsetTop)}px` });
+    // Mientras se escribe, Safari dispara decenas de eventos por segundo (cada
+    // vez que mueve la vista para seguir el cursor). Se mide una vez por cuadro y
+    // solo se re-dibuja si el alto o la posición cambiaron de verdad: re-dibujar
+    // todo el detalle en cada evento era lo que dejaba el chat "pegado" al
+    // escribir (oct-2026).
+    let frame = 0;
+    let ultimo = "";
+    const aplicar = (devolverScroll: boolean) => {
+      frame = 0;
+      if (mql.matches) { ultimo = ""; setEstilo(undefined); return; }
+      const height = Math.round(vv.height);
+      const top = Math.round(vv.offsetTop);
+      const clave = `${height}:${top}`;
+      if (clave !== ultimo) {
+        ultimo = clave;
+        setEstilo({ height: `${height}px`, top: `${top}px` });
+      }
       // Safari corre la página al enfocar el campo; se la devuelve al origen
-      // para que la hoja (fixed) no quede a medio camino.
-      if (window.scrollY !== 0) window.scrollTo(0, 0);
+      // para que la hoja (fixed) no quede a medio camino. Solo al abrir o cerrar
+      // el teclado (resize): hacerlo también en cada scroll peleaba con Safari,
+      // que vuelve a correrla para mostrar el cursor, y la pantalla tironeaba.
+      if (devolverScroll && window.scrollY !== 0) window.scrollTo(0, 0);
     };
+    const programar = (devolverScroll: boolean) => {
+      if (devolverScroll) { if (frame) cancelAnimationFrame(frame); frame = requestAnimationFrame(() => aplicar(true)); return; }
+      if (!frame) frame = requestAnimationFrame(() => aplicar(false));
+    };
+    const alRedimensionar = () => programar(true);
+    const alDesplazar = () => programar(false);
+    const medir = () => aplicar(true);
     medir();
-    vv.addEventListener("resize", medir);
-    vv.addEventListener("scroll", medir);
+    vv.addEventListener("resize", alRedimensionar);
+    vv.addEventListener("scroll", alDesplazar);
     mql.addEventListener("change", medir);
     // La página de atrás no se mueve mientras la hoja está abierta.
     const previo = document.body.style.overflow;
     if (!mql.matches) document.body.style.overflow = "hidden";
     return () => {
-      vv.removeEventListener("resize", medir);
-      vv.removeEventListener("scroll", medir);
+      if (frame) cancelAnimationFrame(frame);
+      vv.removeEventListener("resize", alRedimensionar);
+      vv.removeEventListener("scroll", alDesplazar);
       mql.removeEventListener("change", medir);
       document.body.style.overflow = previo;
     };
@@ -6637,7 +6729,6 @@ function TaskDetailDialog({
     ] : []),
   ];
   const detailTabActiva = detailTabs.find((t) => t.value === activeDetailTab) || detailTabs[1];
-  const DetailTabIcon = detailTabActiva.Icon;
 
   return (
     // En desktop es una página dentro del layout (alto fijo para que el chat y
@@ -6656,7 +6747,16 @@ function TaskDetailDialog({
         <div className="px-3 sm:px-6 py-3 sm:py-4 sm:border-b bg-muted/30 flex-shrink-0">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-start justify-between gap-2 sm:gap-4">
             <div className="flex items-center sm:items-start gap-2 sm:gap-3 min-w-0 flex-1">
-              <button onClick={onClose} className="sm:mt-0.5 p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all flex-shrink-0" title="Volver al listado">
+              {/* 44px en el celular: el tamaño mínimo cómodo para el dedo. Chico, el
+                  teléfono "adivinaba" el toque y elegía lo que estaba al lado. */}
+              <button
+                type="button"
+                onClick={onClose}
+                className="-ml-1.5 sm:ml-0 sm:mt-0.5 h-11 w-11 sm:h-auto sm:w-auto sm:p-1.5 inline-flex items-center justify-center rounded-xl hover:bg-muted active:bg-muted text-muted-foreground hover:text-foreground transition-all flex-shrink-0 touch-manipulation"
+                title="Volver al listado"
+                aria-label="Volver al listado"
+                data-testid="button-volver-detalle"
+              >
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div className={`rounded-xl p-2.5 shadow-sm flex-shrink-0 ${
@@ -6706,35 +6806,13 @@ function TaskDetailDialog({
           {/* Celular: en el riel no entran seis pestañas y arrastrarlas a ciegas no
               deja ver dónde estás; va el desplegable de sección del módulo, en
               recuadro y pegado al título (pedido del usuario, oct-2026). */}
-          <div className="sm:hidden mt-3 relative">
-            {/* Selector NATIVO del teléfono, invisible sobre la tarjeta (oct-2026). El
-                desplegable de Radix abría una lista flotante que deja el `body` con
-                `pointer-events: none` mientras está abierta: en el celular, si no se
-                cerraba bien, toda la pantalla quedaba "pegada". El nativo no monta
-                nada encima de la página y se siente como el resto del teléfono.
-                text-base (16px): con menos, iOS hace zoom al enfocarlo. */}
-            <select
-              value={activeDetailTab}
-              onChange={(e) => setActiveDetailTab(e.target.value)}
-              aria-label="Sección"
-              className="peer absolute inset-0 z-10 w-full h-full opacity-0 cursor-pointer appearance-none text-base"
-              data-testid="select-detalle-tab-movil"
-            >
-              {detailTabs.map(({ value, label }) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-            <div className="flex items-center gap-3 w-full bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700 rounded-2xl pl-2.5 pr-4 py-2 shadow-sm peer-focus-visible:ring-2 peer-focus-visible:ring-[#fd6301]/40">
-              {/* Ícono suelto, sin fondo (pedido del usuario, oct-2026). */}
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] shrink-0">
-                <DetailTabIcon className="h-5 w-5" />
-              </div>
-              <div className="flex flex-col items-start leading-none min-w-0 flex-1">
-                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-900 dark:text-slate-100 mb-0.5">Sección</span>
-                <span className="font-normal text-sm text-slate-700 dark:text-slate-100 truncate">{detailTabActiva.label}</span>
-              </div>
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
-            </div>
+          <div className="sm:hidden mt-3">
+            <SelectorSeccionMovil
+              value={detailTabActiva.value}
+              opciones={detailTabs}
+              onChange={setActiveDetailTab}
+              testId="select-detalle-tab-movil"
+            />
           </div>
           {/* Celular: resumen de cobranza a la vista antes de entrar a conversar
               (pedido del usuario, oct-2026). Un toque abre la pestaña Cobranza. */}
@@ -6918,7 +6996,7 @@ function TaskDetailDialog({
                           href={link.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-1.5 rounded-lg text-slate-400 hover:bg-orange-50 hover:text-orange-600 transition-all flex-shrink-0"
+                          className="p-3 sm:p-1.5 touch-manipulation rounded-lg text-slate-400 hover:bg-orange-50 hover:text-orange-600 transition-all flex-shrink-0"
                           title="Abrir enlace"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
@@ -6927,7 +7005,7 @@ function TaskDetailDialog({
                           <button
                             onClick={() => removeDriveLink(i)}
                             disabled={updateDriveLinksMutation.isPending}
-                            className="p-1.5 rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-500 transition-all flex-shrink-0 disabled:opacity-50"
+                            className="p-3 sm:p-1.5 ml-1 sm:ml-0 touch-manipulation rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-500 transition-all flex-shrink-0 disabled:opacity-50"
                             title="Quitar enlace"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -7011,7 +7089,7 @@ function TaskDetailDialog({
                           onClick={() => markAsReadMutation.mutate({ taskId: task.id, assignmentId: assignment.id })}
                           disabled={markAsReadMutation.isPending}
                           title="Acusar recibo"
-                          className="flex-shrink-0 p-1 rounded-md text-orange-600 hover:bg-orange-100 transition-colors disabled:opacity-50"
+                          className="flex-shrink-0 p-2.5 sm:p-1 touch-manipulation rounded-md text-orange-600 hover:bg-orange-100 transition-colors disabled:opacity-50"
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </button>
@@ -7152,8 +7230,12 @@ function DetailChatPanel({ taskId, iaPensando = false, nombres }: { taskId: stri
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Se baja solo la lista de mensajes. `scrollIntoView` mueve además la página
+  // entera: en el celular con el teclado abierto empujaba la hoja hacia arriba
+  // y el campo de escribir quedaba fuera de la vista.
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const lista = chatEndRef.current?.closest('.overflow-y-auto') as HTMLElement | null;
+    lista?.scrollTo({ top: lista.scrollHeight, behavior: 'smooth' });
   }, [comments.length, iaPensando]);
 
   if (isLoading) {
@@ -7254,11 +7336,14 @@ function AudioMensaje({ url, duracionMs, texto, isMine }: { url: string; duracio
   const [playing, setPlaying] = useState(false);
   const [progreso, setProgreso] = useState(0); // 0..1
   const [duracion, setDuracion] = useState<number>((duracionMs || 0) / 1000);
+  // Audios viejos grabados en webm no se escuchan en algunos iPhone: en vez de
+  // un botón que no hace nada, se avisa y se ofrece abrir el archivo.
+  const [noReproducible, setNoReproducible] = useState(false);
 
   const toggle = () => {
     const el = audioRef.current;
     if (!el) return;
-    if (el.paused) void el.play(); else el.pause();
+    if (el.paused) el.play().catch(() => setNoReproducible(true)); else el.pause();
   };
 
   const tono = isMine ? 'text-white' : 'text-slate-700';
@@ -7278,7 +7363,18 @@ function AudioMensaje({ url, duracionMs, texto, isMine }: { url: string; duracio
         onEnded={() => { setPlaying(false); setProgreso(0); }}
         onLoadedMetadata={(e) => { const d = e.currentTarget.duration; if (Number.isFinite(d) && d > 0) setDuracion(d); }}
         onTimeUpdate={(e) => { const el = e.currentTarget; if (el.duration > 0) setProgreso(el.currentTime / el.duration); }}
+        onError={() => setNoReproducible(true)}
       />
+      {noReproducible && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className={`block text-[11px] underline mb-1.5 ${isMine ? 'text-white/80' : 'text-slate-500'}`}
+        >
+          Este equipo no reproduce el audio aquí · abrirlo
+        </a>
+      )}
       <div className="flex items-center gap-2.5">
         <button
           type="button"
@@ -7414,26 +7510,34 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
   const empezarGrabacion = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Chrome/Android graban webm (opus); Safari/iOS solo mp4. Se elige lo que
-      // el navegador soporte; sin opciones, MediaRecorder usa su default.
-      const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((m) => MediaRecorder.isTypeSupported(m));
+      // Primero mp4: es el único formato que se escucha en cualquier teléfono.
+      // Un webm grabado en Android no se reproducía en los iPhone (oct-2026). Si
+      // el navegador no graba mp4 (Firefox), se cae a webm/ogg.
+      const mime = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
+        .find((m) => MediaRecorder.isTypeSupported?.(m));
       const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
       chunksRef.current = [];
       descartarRef.current = false;
-      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
       rec.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         detenerTimer();
         setGrabando(false);
         setSegundos(0);
         const duracionMs = Date.now() - inicioRef.current;
-        if (descartarRef.current || chunksRef.current.length === 0 || duracionMs < 500) return;
-        const blob = new Blob(chunksRef.current, { type: rec.mimeType || mime || 'audio/webm' });
+        if (descartarRef.current || duracionMs < 500) return;
+        if (chunksRef.current.length === 0) {
+          toast({ title: "No se grabó el audio", description: "El teléfono no entregó la grabación. Intenta de nuevo.", variant: "destructive" });
+          return;
+        }
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || mime || chunksRef.current[0].type || 'audio/mp4' });
         void enviarAudio(blob, duracionMs);
       };
       recorderRef.current = rec;
       inicioRef.current = Date.now();
-      rec.start();
+      // En tramos de 1 s: sin tramos, Safari a veces entrega la grabación vacía
+      // al detener y el audio no se mandaba.
+      rec.start(1000);
       setGrabando(true);
       setSegundos(0);
       timerRef.current = setInterval(() => {
@@ -7441,8 +7545,15 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
         setSegundos(s);
         if (s >= AUDIO_MAX_SEGUNDOS) recorderRef.current?.stop();
       }, 250);
-    } catch {
-      toast({ title: "Sin acceso al micrófono", description: "Permite el micrófono en el navegador para grabar.", variant: "destructive" });
+    } catch (error: any) {
+      const sinPermiso = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
+      toast({
+        title: sinPermiso ? "Sin acceso al micrófono" : "No se pudo grabar",
+        description: sinPermiso
+          ? "Permite el micrófono para esta página en los ajustes del navegador."
+          : "El teléfono no pudo iniciar la grabación. Intenta de nuevo.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -7474,7 +7585,9 @@ function DetailChatInput({ taskId, onIaPensando }: { taskId: string; onIaPensand
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // isComposing: con el autocorrector del teléfono, el Enter que confirma la
+    // palabra sugerida no es "enviar"; mandaba el mensaje a medio escribir.
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSubmit();
     }
