@@ -59,6 +59,7 @@ interface Detalle extends TintoSolicitud {
   puedeResponder: boolean;
   color: { hex: string | null; nombre: string | null; codigo: string; cartilla: string } | null;
   formula: TintoFormula | null;
+  formulaBase: string | null;
   mensajes: TintoSolicitudMensaje[];
 }
 
@@ -787,7 +788,7 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
                 <Dato titulo="Color" valor={[s.colorCodigo, s.colorNombre].filter(Boolean).join(" · ")} />
                 <Dato titulo="Cartilla" valor={s.cartilla ? nombreCartilla(s.cartilla) : null} />
                 <Dato titulo="Línea" valor={s.linea} />
-                <Dato titulo="Base" valor={s.base} />
+                <Dato titulo="Base" valor={s.formulaBase || s.base} />
                 <Dato titulo="Formato" valor={s.formato} />
                 <Dato titulo="Cantidad" valor={s.cantidad} />
                 <Dato titulo="Ciudad" valor={s.ciudad} />
@@ -891,6 +892,11 @@ function Respuesta({ s }: { s: Detalle }) {
         <div className="text-sm text-slate-800 dark:text-slate-100">
           Costo: <span className="font-bold tabular-nums">{money(s.precio)}</span>
           {s.precioUnidad ? ` ${s.precioUnidad}` : ""}
+        </div>
+      )}
+      {s.formulaBase && (
+        <div className="text-sm text-slate-800 dark:text-slate-100">
+          Base: <span className="font-bold">{s.formulaBase}</span>
         </div>
       )}
       {s.formulaId && !s.formula && (

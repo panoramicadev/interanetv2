@@ -306,10 +306,13 @@ export function registerTintometriaSolicitudesRoutes(app: Express) {
 
       // La fórmula solo para quien tiene "Ver fórmulas"; al resto le basta con
       // saber que está lista.
+      // La base sí la ve todo el que ve la solicitud: sin ella no se puede preparar.
       let formula = null;
-      if (s.formulaId && (await userHasPermission(req.user, 'tintometria.formulas'))) {
+      let formulaBase: string | null = null;
+      if (s.formulaId) {
         const [f] = await db.select().from(tintoFormulas).where(eq(tintoFormulas.id, s.formulaId));
-        formula = f ?? null;
+        formulaBase = f?.base ?? null;
+        if (f && (await userHasPermission(req.user, 'tintometria.formulas'))) formula = f;
       }
 
       const lab = await esLaboratorio(req.user);
@@ -320,6 +323,7 @@ export function registerTintometriaSolicitudesRoutes(app: Express) {
         puedeResponder: lab,
         color: color ?? null,
         formula,
+        formulaBase,
         mensajes,
       });
     } catch (error: any) {
