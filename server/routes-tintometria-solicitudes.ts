@@ -304,15 +304,16 @@ export function registerTintometriaSolicitudesRoutes(app: Express) {
         ? await db.select().from(tintoColores).where(eq(tintoColores.id, s.colorId))
         : [];
 
-      // La fórmula solo para quien tiene "Ver fórmulas"; al resto le basta con
-      // saber que está lista.
-      // La base sí la ve todo el que ve la solicitud: sin ella no se puede preparar.
+      // La fórmula la ve quien la pidió (y su supervisor) y quien tiene "Ver
+      // fórmulas"; al resto le basta con saber que está lista. La base sí la ve
+      // todo el que ve la solicitud: sin ella no se puede preparar.
       let formula = null;
       let formulaBase: string | null = null;
       if (s.formulaId) {
         const [f] = await db.select().from(tintoFormulas).where(eq(tintoFormulas.id, s.formulaId));
         formulaBase = f?.base ?? null;
-        if (f && (await userHasPermission(req.user, 'tintometria.formulas'))) formula = f;
+        const esSuya = s.solicitanteId === req.user.id || s.supervisorId === req.user.id;
+        if (f && (esSuya || (await userHasPermission(req.user, 'tintometria.formulas')))) formula = f;
       }
 
       const lab = await esLaboratorio(req.user);
