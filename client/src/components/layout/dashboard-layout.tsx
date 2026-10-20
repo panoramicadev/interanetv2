@@ -96,6 +96,7 @@ type NavItemProps = {
   pendingOrdersCount: number;
   marketingPorAceptar: number;
   laboratorioPendientes: number;
+  cotizacionesWebPendientes: number;
   publicSlug?: string;
   onNavegar: () => void;
   onToggleSubmenu: (href: string) => void;
@@ -111,6 +112,7 @@ const NavItem = memo(function NavItem({
   pendingOrdersCount,
   marketingPorAceptar,
   laboratorioPendientes,
+  cotizacionesWebPendientes,
   publicSlug,
   onNavegar,
   onToggleSubmenu,
@@ -123,6 +125,7 @@ const NavItem = memo(function NavItem({
   // Bandeja de Marketing suelta en el primer nivel: lleva el mismo contador que
   // cuando cuelga del grupo "Marketing".
   const isMarketingInbox = item.href === "/marketing/solicitudes";
+  const isCotizacionesWeb = item.href === "/cotizaciones-b2c";
   const isPremium = item.isPremium;
   const isExpanded = expandedItems.has(item.href);
   const hasChildren = item.children && item.children.length > 0;
@@ -291,7 +294,7 @@ const NavItem = memo(function NavItem({
             data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
           >
             <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-white" : isPremium ? "text-amber-400" : "text-slate-400"}`} />
-            {((isNotif && unreadCount > 0) || (isMarketingInbox && marketingPorAceptar > 0)) && (
+            {((isNotif && unreadCount > 0) || (isMarketingInbox && marketingPorAceptar > 0) || (isCotizacionesWeb && cotizacionesWebPendientes > 0)) && (
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
             )}
           </button>
@@ -357,6 +360,16 @@ const NavItem = memo(function NavItem({
               data-testid="badge-solicitudes-marketing"
             >
               {marketingPorAceptar}
+            </span>
+          )}
+          {isCotizacionesWeb && cotizacionesWebPendientes > 0 && (
+            <span
+              className={`flex-shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${
+                isActive ? "bg-white text-[#fd6301]" : "bg-[#fd6301] text-white"
+              }`}
+              data-testid="badge-cotizaciones-web"
+            >
+              {cotizacionesWebPendientes}
             </span>
           )}
         </button>
@@ -558,6 +571,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   });
   const laboratorioPendientes = laboratorioData?.count || 0;
 
+  // Cotizaciones Web (cotizador público) pendientes de atender. Misma consulta que
+  // usa la pantalla, así comparten lo ya cargado.
+  const hasCotizacionesWeb = useMemo(
+    () => sidebarItems.some((item) => item.href === "/cotizaciones-b2c"),
+    [sidebarItems],
+  );
+  const { data: cotizacionesWebData } = useQuery<{ requests: { status: string }[] }>({
+    queryKey: ["/api/b2c/quote-requests"],
+    refetchInterval: 60000,
+    enabled: !!user && hasCotizacionesWeb,
+  });
+  const cotizacionesWebPendientes = (cotizacionesWebData?.requests ?? []).filter((r) => r.status === "pending").length;
+
   // Al entrar a una ruta que vive dentro de un grupo, el grupo se abre solo: si no,
   // el menú se ve colapsado y no se entiende dónde está uno parado.
   useEffect(() => {
@@ -706,6 +732,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               pendingOrdersCount={pendingOrdersCount}
               marketingPorAceptar={marketingPorAceptar}
               laboratorioPendientes={laboratorioPendientes}
+              cotizacionesWebPendientes={cotizacionesWebPendientes}
               publicSlug={(user as any)?.publicSlug}
               onNavegar={cerrarMenuMovil}
               onToggleSubmenu={toggleSubmenu}

@@ -47,7 +47,7 @@ const SEG_ESTADO_LABEL: Record<string, string> = {
   despacho: 'Despacho', completado: 'Completado', perdido: 'Perdido',
 };
 const COTIZADOR_ESTADO_LABEL: Record<string, string> = {
-  pending: 'Pendiente', contacted: 'Contactado', quoted: 'Cotizado', closed: 'Cerrado',
+  pending: 'Pendiente', assigned: 'Asignado', contacted: 'Contactado', quoted: 'Cotizado', closed: 'Cerrado',
 };
 const RETAIL_TYPE_LABEL: Record<string, string> = {
   sucursal_propia: 'Sucursal propia', distribuidor: 'Distribuidor', ferreteria: 'Ferretería',

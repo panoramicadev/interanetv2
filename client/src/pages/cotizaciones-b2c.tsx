@@ -1,15 +1,32 @@
 /**
- * CotizacionesB2C — Admin panel for managing B2C quote requests
- * Shows all quotation requests submitted from the public /cotizador
+ * Cotizaciones Web — solicitudes que llegan desde el cotizador público (/cotizador).
+ *
+ * Quién ve qué lo decide el servidor (GET /api/b2c/quote-requests): el admin ve
+ * todas y filtra por segmento; el supervisor ve solo las de su área. Cada
+ * solicitud trae `puedeAsignar`: el admin asigna vendedor en cualquier segmento
+ * y el supervisor solo donde su área lo permite (hoy Ferretería). Asignar deja
+ * la cotización en "Asignado", pasa el lead del CRM al vendedor y le avisa por
+ * correo.
  */
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileText, User, Mail, Phone, Building, MapPin, Calendar, Eye, ChevronDown, ChevronUp, Package, Clock, CheckCircle, MessageSquare, Filter, Search, RefreshCw, DollarSign, Palette, Printer, Trash2, StickyNote, Save, Layers } from 'lucide-react';
+import {
+  FileText, User, Mail, Phone, Building, MapPin, Calendar, ChevronDown, Package, Clock,
+  CheckCircle, MessageSquare, Search, RefreshCw, DollarSign, Palette, Printer, Trash2,
+  StickyNote, Save, Layers, Building2, UserCheck, UserPlus, Loader2,
+} from 'lucide-react';
 import { Link } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import { EstadoVacio, SUPERFICIE, BOTON_MARCA } from '@/components/gastos/ui';
 import QuoteRequestPricingModal from '@/components/b2c-admin/QuoteRequestPricingModal';
-import { ETIQUETA_COTIZACION_WEB, segmentoCotizacionWebLabel } from '@shared/segmentos-cotizacion-web';
+import {
+  ETIQUETA_COTIZACION_WEB,
+  SEGMENTOS_COTIZACION_WEB,
+  getSegmentoCotizacionWeb,
+  segmentoCotizacionWebLabel,
+} from '@shared/segmentos-cotizacion-web';
 
 interface QuoteRequestItem {
   sku: string;
@@ -49,42 +66,148 @@ interface QuoteRequest {
   totalAmount?: string | number;
   pricedAt?: string;
   validUntilDate?: string;
+  assignedToUserId?: string | null;
+  assignedToName?: string | null;
+  puedeAsignar?: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-const fmtCLP = (n: number | string | undefined): string => {
+interface QuoteRequestsResponse {
+  requests: QuoteRequest[];
+  acceso: { todos: boolean; segmento?: string | null };
+}
+
+const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+const fmtCLP =(n: number | string | undefined): string => {
   const num = typeof n === 'string' ? parseFloat(n) : (n || 0);
   return `$${Math.round(num || 0).toLocaleString('es-CL').replace(/,/g, '.')}`;
 };
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: any }> = {
-  pending: { label: 'Pendiente', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock },
-  contacted: { label: 'Contactado', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: Phone },
-  quoted: { label: 'Cotizado', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: CheckCircle },
-  sale: { label: 'Venta', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200', icon: DollarSign },
-  closed: { label: 'Cerrado', color: 'text-gray-700', bg: 'bg-gray-50 border-gray-200', icon: CheckCircle },
+const STATUS_CONFIG: Record<string, { label: string; chip: string; icon: any }> = {
+  pending: { label: 'Pendiente', chip: 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-300', icon: Clock },
+  assigned: { label: 'Asignado', chip: 'bg-orange-50 border-orange-200 text-[#fd6301] dark:bg-orange-950/40 dark:border-orange-900', icon: UserCheck },
+  contacted: { label: 'Contactado', chip: 'bg-sky-50 border-sky-200 text-sky-700 dark:bg-sky-950/40 dark:border-sky-900 dark:text-sky-300', icon: Phone },
+  quoted: { label: 'Cotizado', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-300', icon: CheckCircle },
+  sale: { label: 'Venta', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-300', icon: DollarSign },
+  closed: { label: 'Cerrado', chip: 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300', icon: CheckCircle },
 };
+const ESTADOS = ['pending', 'assigned', 'contacted', 'quoted', 'sale', 'closed'];
+
+const BOTON_SECUNDARIO = 'inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-orange-200 hover:text-[#fd6301] transition-all disabled:opacity-40';
+/** Botón de contacto (Llamar / WhatsApp / Correo) del detalle. */
+const ACCION_CONTACTO = 'inline-flex items-center justify-center gap-1.5 h-10 px-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-orange-200 hover:text-[#fd6301] transition-all';
+const MICRO_LABEL ='text-[10px] uppercase tracking-wider font-bold text-slate-400';
+
+// ── Resumen: tarjetas que filtran (molde de Seguimiento en pages/tareas.tsx) ──
+
+const HORAS = 60 * 60 * 1000;
+/** Una cotización sin vendedor más de esto ya se considera atrasada. */
+const HORAS_ATRASO = 48;
+const horasDesde = (fecha: string) => (Date.now() - new Date(fecha).getTime()) / HORAS;
+
+type FiltroResumen = 'sin-vendedor' | 'con-vendedor' | 'nuevas' | 'atrasadas' | 'cotizadas' | 'ventas';
+
+const FILTROS_RESUMEN: Record<FiltroResumen, (r: QuoteRequest) => boolean> = {
+  'sin-vendedor': r => !r.assignedToUserId && r.status !== 'closed',
+  'con-vendedor': r => !!r.assignedToUserId,
+  nuevas: r => horasDesde(r.createdAt) <= HORAS_ATRASO,
+  atrasadas: r => r.status === 'pending' && !r.assignedToUserId && horasDesde(r.createdAt) > HORAS_ATRASO,
+  cotizadas: r => r.status === 'quoted',
+  ventas: r => r.status === 'sale',
+};
+
+const GRUPOS_RESUMEN: Array<{
+  titulo: string;
+  Icono: any;
+  filtros: Array<{ id: FiltroResumen; etiqueta: string; alerta?: boolean }>;
+}> = [
+  {
+    titulo: 'Vendedor',
+    Icono: UserCheck,
+    filtros: [
+      { id: 'sin-vendedor', etiqueta: 'sin vendedor', alerta: true },
+      { id: 'con-vendedor', etiqueta: 'con vendedor' },
+    ],
+  },
+  {
+    titulo: 'Atención',
+    Icono: Clock,
+    filtros: [
+      { id: 'nuevas', etiqueta: `nuevas ${HORAS_ATRASO} h` },
+      { id: 'atrasadas', etiqueta: `atrasadas ${HORAS_ATRASO / 24}+ días`, alerta: true },
+    ],
+  },
+  {
+    titulo: 'Resultado',
+    Icono: CheckCircle,
+    filtros: [
+      { id: 'cotizadas', etiqueta: 'cotizadas' },
+      { id: 'ventas', etiqueta: 'ventas' },
+    ],
+  },
+];
+
+function TarjetaResumen({ icono, titulo, activo, opciones }: {
+  icono: React.ReactNode;
+  titulo: string;
+  activo: boolean;
+  opciones: Array<{ id: string; valor: number; etiqueta: string; alerta?: boolean; sel: boolean; onClick: () => void }>;
+}) {
+  return (
+    <div className={cn(
+      'rounded-2xl border bg-white dark:bg-slate-800/40 p-3 sm:p-4 shadow-sm transition-all',
+      activo ? 'border-[#fd6301] ring-2 ring-[#fd6301]/20' : 'border-slate-200/80 dark:border-slate-700/60',
+    )}>
+      <div className="flex items-center gap-2 mb-2.5 text-slate-900 dark:text-slate-100">
+        <span className="w-5 h-5 flex items-center justify-center flex-shrink-0">{icono}</span>
+        <span className="text-sm font-semibold">{titulo}</span>
+      </div>
+      <div className={cn('grid gap-1.5', opciones.length === 3 ? 'grid-cols-3' : 'grid-cols-2')}>
+        {opciones.map(o => (
+          <button
+            key={o.id}
+            type="button"
+            onClick={o.onClick}
+            className={cn(
+              'rounded-xl px-2 py-1.5 text-left transition-colors min-w-0',
+              o.sel ? 'bg-[#fd6301] text-white' : 'bg-slate-50 hover:bg-orange-50 dark:bg-slate-900/40 dark:hover:bg-orange-950/30',
+            )}
+            data-testid={`kpi-${o.id}`}
+            title={o.sel ? 'Quitar filtro' : 'Ver estas cotizaciones'}
+          >
+            <div className={cn(
+              'text-xl font-bold leading-none tabular-nums',
+              o.sel ? 'text-white' : o.alerta && o.valor > 0 ? 'text-[#fd6301]' : 'text-slate-900 dark:text-slate-100',
+            )}>
+              {o.valor}
+            </div>
+            <p className={cn('text-[11px] mt-1 leading-tight truncate', o.sel ? 'text-white/90' : 'text-slate-500 dark:text-slate-400')}>
+              {o.etiqueta}
+            </p>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function CotizacionesB2CPage() {
   return <SolicitudesWebPanel />;
 }
 
-/**
- * SolicitudesWebPanel — reusable list of B2C quote requests (solicitudes web).
- * Rendered standalone in /cotizaciones-b2c and embedded as the "Solicitudes" tab in Pedidos.
- * Pass `embedded` to drop the standalone page header/padding.
- */
-export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }) {
+export function SolicitudesWebPanel() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterSegmento, setFilterSegmento] = useState<string>('all');
+  const [kpiFiltro, setKpiFiltro] = useState<FiltroResumen | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [pricingRequest, setPricingRequest] = useState<QuoteRequest | null>(null);
   const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery<QuoteRequestsResponse>({
     queryKey: ['/api/b2c/quote-requests'],
     queryFn: async () => {
       const res = await fetch('/api/b2c/quote-requests', { credentials: 'include' });
@@ -92,6 +215,8 @@ export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }
       return res.json();
     },
   });
+
+  const invalidar = () => queryClient.invalidateQueries({ queryKey: ['/api/b2c/quote-requests'] });
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status, internalNotes }: { id: string; status?: string; internalNotes?: string }) => {
@@ -108,7 +233,7 @@ export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }
       return res.json();
     },
     onSuccess: (_data, vars) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/b2c/quote-requests'] });
+      invalidar();
       toast({
         title: vars.status !== undefined ? 'Estado actualizado' : 'Nota guardada',
         description: 'La solicitud ha sido actualizada correctamente.',
@@ -132,7 +257,7 @@ export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/b2c/quote-requests'] });
+      invalidar();
       toast({ title: 'Solicitud eliminada', description: 'La cotización fue eliminada correctamente.' });
       setExpandedId(null);
     },
@@ -142,290 +267,266 @@ export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }
   });
 
   const requests: QuoteRequest[] = data?.requests || [];
+  // Solo el admin elige Área: el supervisor ya recibe nada más que las de la suya.
+  const verTodas = !!data?.acceso?.todos;
 
-  // Filter
-  const filtered = requests.filter(r => {
-    if (filterStatus !== 'all' && r.status !== filterStatus) return false;
+  // El segmento acota todo lo demás (KPIs incluidos); el estado y la búsqueda, solo la lista.
+  const delSegmento = requests.filter(r =>
+    filterSegmento === 'all' || getSegmentoCotizacionWeb(r.segmento)?.value === filterSegmento,
+  );
+  const filtered = delSegmento.filter(r => {
+    if (kpiFiltro && !FILTROS_RESUMEN[kpiFiltro](r)) return false;
     if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      return (
-        r.visitorName.toLowerCase().includes(term) ||
-        r.visitorEmail.toLowerCase().includes(term) ||
-        (r.visitorCompany || '').toLowerCase().includes(term) ||
-        (r.visitorCity || '').toLowerCase().includes(term) ||
-        (segmentoCotizacionWebLabel(r.segmento) || '').toLowerCase().includes(term)
-      );
+      // Sin tildes ni mayúsculas: "hernandez" encuentra a "Hernández".
+      const term = sinTildes(searchTerm.trim());
+      return [r.visitorName, r.visitorEmail, r.visitorCompany, r.visitorCity, r.assignedToName]
+        .some(v => sinTildes(v || '').includes(term));
     }
     return true;
   });
 
-  // Stats
-  const stats = {
-    total: requests.length,
-    pending: requests.filter(r => r.status === 'pending').length,
-    contacted: requests.filter(r => r.status === 'contacted').length,
-    quoted: requests.filter(r => r.status === 'quoted').length,
-    sale: requests.filter(r => r.status === 'sale').length,
-  };
-
-  const formatDate = (d: string) => {
-    return new Date(d).toLocaleDateString('es-CL', {
-      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString('es-CL', {
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
-  };
 
   return (
-    <div className={embedded ? "space-y-6" : "p-4 md:p-6 max-w-7xl mx-auto space-y-6"}>
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        {embedded ? (
-          <div>
-            <p className="text-sm text-gray-500">
-              Solicitudes recibidas desde el sitio web (cotizador público <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">/cotizador</code>)
-            </p>
-          </div>
-        ) : (
-          <div>
-            <h1 className="text-2xl font-black text-gray-900 flex items-center gap-2">
-              <FileText className="w-6 h-6 text-[#FF6E23]" />
-              Solicitudes de Cotización B2C
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Solicitudes recibidas desde el cotizador público <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">/cotizador</code>
-            </p>
-          </div>
-        )}
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4 md:space-y-5">
+      {/* Encabezado */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Ícono naranjo suelto, sin fondo (pedido del usuario, oct-2026). */}
+          <FileText className="h-6 w-6 text-[#fd6301] shrink-0" />
+          <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100 min-w-0">Cotizaciones Web</h1>
+        </div>
+        {/* Chico y a la derecha, también en celular (pedido del usuario, oct-2026). */}
         <button
           onClick={() => refetch()}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+          title="Actualizar"
+          className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-orange-200 hover:text-[#fd6301] transition-all"
         >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          Actualizar
+          <RefreshCw className={cn('w-3.5 h-3.5', isFetching && 'animate-spin')} />
+          <span className="hidden sm:inline">Actualizar</span>
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: 'Total', value: stats.total, color: 'text-gray-700', bg: 'bg-white' },
-          { label: 'Pendientes', value: stats.pending, color: 'text-amber-600', bg: 'bg-amber-50' },
-          { label: 'Contactados', value: stats.contacted, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Cotizados', value: stats.quoted, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Ventas', value: stats.sale, color: 'text-orange-600', bg: 'bg-orange-50' },
-        ].map(s => (
-          <div key={s.label} className={`${s.bg} rounded-xl border border-gray-100 px-4 py-2.5`}>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">{s.label}</p>
-            <p className={`text-2xl font-black mt-0.5 ${s.color}`}>{s.value}</p>
-          </div>
+      {/* Buscador */}
+      <div className="relative w-full sm:max-w-md">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+          placeholder="Buscar cliente o vendedor..."
+          className="w-full h-10 pl-10 pr-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-[#fd6301] focus:ring-2 focus:ring-orange-500/20"
+        />
+      </div>
+
+      {/* Resumen: cada número filtra la lista (mismo molde que Seguimiento del Panel de Trabajo) */}
+      <div className={cn('grid grid-cols-1 min-[420px]:grid-cols-2 gap-2.5 sm:gap-3', verTodas ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
+        {verTodas && (
+          <TarjetaResumen
+            icono={<Building2 className="h-5 w-5" />}
+            titulo="Área"
+            activo={filterSegmento !== 'all'}
+            opciones={SEGMENTOS_COTIZACION_WEB.map(s => ({
+              id: s.value,
+              valor: requests.filter(r => getSegmentoCotizacionWeb(r.segmento)?.value === s.value).length,
+              etiqueta: s.crmSegmento,
+              sel: filterSegmento === s.value,
+              onClick: () => setFilterSegmento(filterSegmento === s.value ? 'all' : s.value),
+            }))}
+          />
+        )}
+        {GRUPOS_RESUMEN.map(g => (
+          <TarjetaResumen
+            key={g.titulo}
+            icono={<g.Icono className="h-5 w-5" />}
+            titulo={g.titulo}
+            activo={g.filtros.some(f => f.id === kpiFiltro)}
+            opciones={g.filtros.map(f => ({
+              id: f.id,
+              valor: delSegmento.filter(FILTROS_RESUMEN[f.id]).length,
+              etiqueta: f.etiqueta,
+              alerta: f.alerta,
+              sel: kpiFiltro === f.id,
+              onClick: () => setKpiFiltro(kpiFiltro === f.id ? null : f.id),
+            }))}
+          />
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            placeholder="Buscar por nombre, email, empresa..."
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6E23]/20 focus:border-[#FF6E23]/40"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-400" />
-          {['all', 'pending', 'contacted', 'quoted', 'sale', 'closed'].map(status => (
-            <button
-              key={status}
-              onClick={() => setFilterStatus(status)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                filterStatus === status
-                  ? 'bg-[#FF6E23] text-white shadow-sm'
-                  : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              {status === 'all' ? 'Todos' : STATUS_CONFIG[status]?.label || status}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Sin fila de pestañas por estado (pedido del usuario, oct-2026): filtran las
+          tarjetas de arriba, y el estado se cambia en el detalle de cada cotización. */}
 
-      {/* List */}
+      {/* Lista */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
-          <div className="w-8 h-8 border-3 border-[#FF6E23] border-t-transparent rounded-full animate-spin" />
+          <Loader2 className="w-7 h-7 text-[#fd6301] animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16">
-          <FileText className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-          <h3 className="font-semibold text-gray-600">Sin solicitudes</h3>
-          <p className="text-sm text-gray-400 mt-1">No hay solicitudes de cotización {filterStatus !== 'all' && `con estado "${STATUS_CONFIG[filterStatus]?.label}"`}</p>
-        </div>
+        <EstadoVacio
+          icono={FileText}
+          titulo="Sin solicitudes"
+          descripcion={
+            kpiFiltro || searchTerm || filterSegmento !== 'all'
+              ? 'Ninguna cotización calza con el filtro. Toca de nuevo el número elegido para quitarlo.'
+              : 'Cuando llegue una cotización desde el sitio web va a aparecer acá.'
+          }
+        />
       ) : (
         <div className="space-y-3">
           {filtered.map(request => {
             const isExpanded = expandedId === request.id;
             const statusCfg = STATUS_CONFIG[request.status] || STATUS_CONFIG.pending;
             const StatusIcon = statusCfg.icon;
+            const segmentoLabel = segmentoCotizacionWebLabel(request.segmento);
 
             return (
               <div
                 key={request.id}
-                className={`bg-white rounded-xl border overflow-hidden transition-all ${
-                  isExpanded ? 'border-[#FF6E23]/30 shadow-lg' : 'border-gray-200 hover:border-gray-300'
-                }`}
+                className={cn(SUPERFICIE, 'overflow-hidden transition-all', isExpanded ? 'border-orange-200 shadow-md dark:border-orange-900' : 'hover:border-slate-300 dark:hover:border-slate-600')}
               >
-                {/* Row */}
-                <div
-                  className="flex items-center gap-4 p-4 cursor-pointer hover:bg-gray-50/50 transition-colors"
+                {/* Fila */}
+                <button
+                  type="button"
+                  className="w-full flex flex-wrap sm:flex-nowrap items-center gap-x-4 gap-y-2 p-4 text-left hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
                   onClick={() => setExpandedId(isExpanded ? null : request.id)}
                 >
-                  {/* Status */}
-                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold ${statusCfg.bg} ${statusCfg.color}`}>
+                  <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold shrink-0', statusCfg.chip)}>
                     <StatusIcon className="w-3.5 h-3.5" />
                     {statusCfg.label}
-                  </div>
+                  </span>
 
-                  {/* Name + email */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-gray-800 text-sm truncate">{request.visitorName}</span>
-                      {segmentoCotizacionWebLabel(request.segmento) && (
-                        <span className="shrink-0 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-wide">
-                          {segmentoCotizacionWebLabel(request.segmento)}
+                  <div className="flex-1 min-w-0 basis-full sm:basis-auto order-last sm:order-none">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm truncate">{request.visitorName}</span>
+                      {segmentoLabel && (
+                        <span className="shrink-0 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase tracking-wide">
+                          {segmentoLabel}
                         </span>
                       )}
                       {request.visitorCompany && (
-                        <span className="text-xs text-gray-400 hidden sm:inline">· {request.visitorCompany}</span>
+                        <span className="text-xs text-slate-400 hidden md:inline truncate">· {request.visitorCompany}</span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-400 truncate">{request.visitorEmail}</p>
+                    <p className="text-xs text-slate-400 truncate">{request.visitorEmail}</p>
                   </div>
 
-                  {/* Items count */}
-                  <div className="flex items-center gap-1 text-xs font-semibold text-gray-500 hidden sm:flex">
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1.5 text-xs font-semibold shrink-0',
+                      request.assignedToName ? 'text-slate-600 dark:text-slate-300' : 'text-amber-600 dark:text-amber-400',
+                    )}
+                  >
+                    {/* Con vendedor va solo el nombre: el chip "Asignado" ya lleva el ícono. */}
+                    {!request.assignedToName && <UserPlus className="w-3.5 h-3.5" />}
+                    {request.assignedToName || 'Sin vendedor'}
+                  </span>
+
+                  <span className="hidden lg:inline-flex items-center gap-1 text-xs font-semibold text-slate-500 shrink-0">
                     <Package className="w-3.5 h-3.5" />
                     {request.itemCount} producto{request.itemCount !== 1 ? 's' : ''}
-                  </div>
+                  </span>
 
-                  {/* Date */}
-                  <span className="text-xs text-gray-400 hidden md:block whitespace-nowrap">
+                  <span className="text-xs text-slate-400 hidden md:block whitespace-nowrap shrink-0">
                     {formatDate(request.createdAt)}
                   </span>
 
-                  {/* Expand */}
-                  {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                </div>
+                  <ChevronDown className={cn('w-4 h-4 text-slate-400 shrink-0 ml-auto sm:ml-0 transition-transform', isExpanded && 'rotate-180')} />
+                </button>
 
-                {/* Expanded detail */}
+                {/* Detalle */}
                 {isExpanded && (
-                  <div className="border-t border-gray-100 bg-gray-50/30">
-                    <div className="p-5 grid md:grid-cols-2 gap-6">
-                      {/* Left: Contact info */}
-                      <div className="space-y-3">
-                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Datos de Contacto</h4>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="flex items-start gap-2">
-                            <User className="w-4 h-4 text-gray-400 mt-0.5" />
-                            <div>
-                              <p className="text-[10px] text-gray-400 uppercase">Nombre</p>
-                              <p className="text-sm font-semibold text-gray-800">{request.visitorName}</p>
-                            </div>
+                  <div className="border-t border-slate-100 dark:border-slate-800">
+                    <div className="p-4 md:p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Izquierda: vendedor, contacto, estado, notas */}
+                      <div className="space-y-5 min-w-0">
+                        <AsignacionVendedor request={request} />
+
+                        <div className="space-y-3">
+                          <h4 className={MICRO_LABEL}>Datos de contacto</h4>
+
+                          {/* Contactar a un toque: lo primero que se hace desde el teléfono */}
+                          <div className={cn('grid gap-2', request.visitorPhone ? 'grid-cols-3' : 'grid-cols-1')}>
+                            {request.visitorPhone && (
+                              <a href={`tel:${request.visitorPhone}`} className={ACCION_CONTACTO}>
+                                <Phone className="w-4 h-4" />
+                                Llamar
+                              </a>
+                            )}
+                            {request.visitorPhone && (
+                              <a
+                                href={`https://wa.me/${request.visitorPhone.replace(/\D/g, '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={ACCION_CONTACTO}
+                              >
+                                <MessageSquare className="w-4 h-4" />
+                                WhatsApp
+                              </a>
+                            )}
+                            <a href={`mailto:${request.visitorEmail}`} className={ACCION_CONTACTO}>
+                              <Mail className="w-4 h-4" />
+                              Correo
+                            </a>
                           </div>
-                          <div className="flex items-start gap-2">
-                            <Mail className="w-4 h-4 text-gray-400 mt-0.5" />
-                            <div>
-                              <p className="text-[10px] text-gray-400 uppercase">Email</p>
-                              <a href={`mailto:${request.visitorEmail}`} className="text-sm font-semibold text-blue-600 hover:underline">{request.visitorEmail}</a>
+
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+                            <div className="col-span-2">
+                              <Dato icono={User} label="Nombre">{request.visitorName}</Dato>
                             </div>
+                            <div className="col-span-2">
+                              <Dato icono={Mail} label="Email">
+                                <span className="break-all">{request.visitorEmail}</span>
+                              </Dato>
+                            </div>
+                            {request.visitorPhone && <Dato icono={Phone} label="Teléfono">{request.visitorPhone}</Dato>}
+                            {request.visitorCompany && <Dato icono={Building} label="Empresa">{request.visitorCompany}</Dato>}
+                            {request.visitorCity && <Dato icono={MapPin} label="Ciudad">{request.visitorCity}</Dato>}
+                            {request.visitorRut && <Dato icono={FileText} label="RUT">{request.visitorRut}</Dato>}
+                            {segmentoLabel && <Dato icono={Layers} label="Segmento">{segmentoLabel}</Dato>}
                           </div>
-                          {request.visitorPhone && (
-                            <div className="flex items-start gap-2">
-                              <Phone className="w-4 h-4 text-gray-400 mt-0.5" />
-                              <div>
-                                <p className="text-[10px] text-gray-400 uppercase">Teléfono</p>
-                                <a href={`tel:${request.visitorPhone}`} className="text-sm font-semibold text-gray-800">{request.visitorPhone}</a>
-                              </div>
-                            </div>
+
+                          {request.crmSeguimientoId && (
+                            <Link
+                              href={`/seguimiento-clientes/${request.crmSeguimientoId}`}
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#fd6301] hover:underline"
+                              title={`Etiqueta ${ETIQUETA_COTIZACION_WEB}`}
+                            >
+                              <Layers className="w-3.5 h-3.5" />
+                              Ver lead en el CRM
+                            </Link>
                           )}
-                          {request.visitorCompany && (
-                            <div className="flex items-start gap-2">
-                              <Building className="w-4 h-4 text-gray-400 mt-0.5" />
-                              <div>
-                                <p className="text-[10px] text-gray-400 uppercase">Empresa</p>
-                                <p className="text-sm font-semibold text-gray-800">{request.visitorCompany}</p>
+
+                          {request.message && (
+                            <div className="rounded-2xl bg-orange-50 dark:bg-orange-950/30 border-l-4 border-[#fd6301] px-4 py-3">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <MessageSquare className="w-3.5 h-3.5 text-[#fd6301]" />
+                                <p className={MICRO_LABEL}>Mensaje</p>
                               </div>
-                            </div>
-                          )}
-                          {request.visitorCity && (
-                            <div className="flex items-start gap-2">
-                              <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
-                              <div>
-                                <p className="text-[10px] text-gray-400 uppercase">Ciudad</p>
-                                <p className="text-sm font-semibold text-gray-800">{request.visitorCity}</p>
-                              </div>
-                            </div>
-                          )}
-                          {request.visitorRut && (
-                            <div className="flex items-start gap-2">
-                              <FileText className="w-4 h-4 text-gray-400 mt-0.5" />
-                              <div>
-                                <p className="text-[10px] text-gray-400 uppercase">RUT</p>
-                                <p className="text-sm font-semibold text-gray-800">{request.visitorRut}</p>
-                              </div>
-                            </div>
-                          )}
-                          {segmentoCotizacionWebLabel(request.segmento) && (
-                            <div className="flex items-start gap-2">
-                              <Layers className="w-4 h-4 text-gray-400 mt-0.5" />
-                              <div>
-                                <p className="text-[10px] text-gray-400 uppercase">Segmento</p>
-                                <p className="text-sm font-semibold text-gray-800">{segmentoCotizacionWebLabel(request.segmento)}</p>
-                              </div>
+                              <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{request.message}</p>
                             </div>
                           )}
                         </div>
 
-                        {/* Lead creado automáticamente en el CRM del segmento */}
-                        {request.crmSeguimientoId && (
-                          <Link
-                            href={`/seguimiento-clientes/${request.crmSeguimientoId}`}
-                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#FF6E23] hover:underline"
-                          >
-                            <Layers className="w-3.5 h-3.5" />
-                            Ver lead en el CRM · etiqueta {ETIQUETA_COTIZACION_WEB}
-                          </Link>
-                        )}
-
-                        {request.message && (
-                          <div className="mt-3">
-                            <div className="flex items-center gap-1.5 mb-1">
-                              <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
-                              <p className="text-[10px] text-gray-400 uppercase font-bold">Mensaje</p>
-                            </div>
-                            <p className="text-sm text-gray-600 bg-white rounded-lg p-3 border border-gray-100 italic">
-                              "{request.message}"
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Status change */}
-                        <div className="mt-4 pt-3 border-t border-gray-200">
-                          <p className="text-[10px] text-gray-400 uppercase font-bold mb-2">Cambiar Estado</p>
+                        <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+                          <p className={cn(MICRO_LABEL, 'mb-2')}>Cambiar estado</p>
                           <div className="flex gap-2 flex-wrap">
-                            {['pending', 'contacted', 'quoted', 'sale', 'closed'].map(status => {
+                            {ESTADOS.map(status => {
                               const cfg = STATUS_CONFIG[status];
                               const isCurrent = request.status === status;
                               return (
                                 <button
                                   key={status}
-                                  disabled={isCurrent}
+                                  disabled={isCurrent || updateStatusMutation.isPending}
                                   onClick={() => updateStatusMutation.mutate({ id: request.id, status })}
-                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                                  className={cn(
+                                    'px-3 py-1.5 rounded-2xl text-xs font-bold border transition-all',
                                     isCurrent
-                                      ? `${cfg.bg} ${cfg.color} cursor-default`
-                                      : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'
-                                  }`}
+                                      ? cn(cfg.chip, 'cursor-default')
+                                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500 hover:border-orange-200 hover:text-[#fd6301]',
+                                  )}
                                 >
                                   {cfg.label}
                                 </button>
@@ -434,11 +535,10 @@ export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }
                           </div>
                         </div>
 
-                        {/* Internal notes */}
-                        <div className="mt-4 pt-3 border-t border-gray-200">
+                        <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
                           <div className="flex items-center gap-1.5 mb-2">
-                            <StickyNote className="w-3.5 h-3.5 text-[#FF6E23]" />
-                            <p className="text-[10px] text-gray-400 uppercase font-bold">Notas internas del cliente</p>
+                            <StickyNote className="w-3.5 h-3.5 text-[#fd6301]" />
+                            <p className={MICRO_LABEL}>Notas internas del cliente</p>
                           </div>
                           {(() => {
                             const draft = notesDraft[request.id];
@@ -449,17 +549,13 @@ export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }
                               <>
                                 <textarea
                                   value={value}
-                                  onChange={e =>
-                                    setNotesDraft(prev => ({ ...prev, [request.id]: e.target.value }))
-                                  }
+                                  onChange={e => setNotesDraft(prev => ({ ...prev, [request.id]: e.target.value }))}
                                   placeholder="Anota llamadas, acuerdos, preferencias del cliente..."
                                   rows={3}
-                                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6E23]/20 focus:border-[#FF6E23]/40 resize-y"
+                                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 text-slate-700 dark:text-slate-200 focus:outline-none focus:border-[#fd6301] focus:ring-2 focus:ring-orange-500/20 resize-y"
                                 />
                                 <div className="flex items-center justify-between mt-1.5">
-                                  <span className="text-[10px] text-gray-400">
-                                    {dirty ? 'Cambios sin guardar' : 'Guardado'}
-                                  </span>
+                                  <span className="text-[10px] text-slate-400">{dirty ? 'Cambios sin guardar' : 'Guardado'}</span>
                                   <button
                                     type="button"
                                     disabled={!dirty || updateStatusMutation.isPending}
@@ -476,7 +572,7 @@ export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }
                                         },
                                       )
                                     }
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-2xl text-xs font-bold bg-[#0a0a0a] text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                                   >
                                     <Save className="w-3.5 h-3.5" />
                                     Guardar nota
@@ -488,14 +584,12 @@ export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }
                         </div>
                       </div>
 
-                      {/* Right: Products */}
-                      <div>
+                      {/* Derecha: productos y precios */}
+                      <div className="min-w-0">
                         <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                            Productos Solicitados ({request.itemCount})
-                          </h4>
+                          <h4 className={MICRO_LABEL}>Productos solicitados ({request.itemCount})</h4>
                           {request.quoteNumber && (
-                            <span className="text-[10px] font-mono font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                            <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 px-2 py-0.5 rounded-full">
                               {request.quoteNumber}
                             </span>
                           )}
@@ -506,107 +600,94 @@ export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }
                             return (
                               <div
                                 key={idx}
-                                className={`flex items-center gap-3 p-2.5 rounded-lg border ${
+                                className={cn(
+                                  'flex items-center gap-3 p-2.5 rounded-xl border',
                                   isCustom
-                                    ? 'bg-gradient-to-r from-fuchsia-50/60 to-pink-50/60 border-fuchsia-200'
-                                    : 'bg-white border-gray-100'
-                                }`}
+                                    ? 'bg-fuchsia-50/60 border-fuchsia-200 dark:bg-fuchsia-950/20 dark:border-fuchsia-900'
+                                    : 'bg-white border-slate-100 dark:bg-slate-900 dark:border-slate-800',
+                                )}
                               >
                                 <div
-                                  className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center"
-                                  style={
-                                    isCustom && item.customColorHex
-                                      ? { background: item.customColorHex }
-                                      : undefined
-                                  }
+                                  className="w-10 h-10 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 overflow-hidden flex-shrink-0 flex items-center justify-center"
+                                  style={isCustom && item.customColorHex ? { background: item.customColorHex } : undefined}
                                 >
                                   {!isCustom && item.imageUrl ? (
                                     <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-contain p-1" />
                                   ) : !isCustom ? (
-                                    <Package className="w-5 h-5 text-gray-200" />
+                                    <Package className="w-5 h-5 text-slate-300" />
                                   ) : (
                                     <Palette className="w-5 h-5 text-white drop-shadow" />
                                   )}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-1.5 flex-wrap">
-                                    <p className="text-xs font-bold text-gray-800 uppercase truncate">{item.productName}</p>
+                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase truncate">{item.productName}</p>
                                     {isCustom && (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white shrink-0">
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-fuchsia-500 text-white shrink-0">
                                         <Palette className="w-2.5 h-2.5" /> CUSTOM
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-[10px] text-gray-400">
+                                  <p className="text-[10px] text-slate-400">
                                     {item.color && item.color !== 'Sin Color' ? `${item.color} · ` : ''}{item.format}
-                                    <span className="ml-1.5 text-gray-300">SKU: {item.sku}</span>
+                                    <span className="ml-1.5 text-slate-300">SKU: {item.sku}</span>
                                   </p>
                                   {isCustom && (
-                                    <p className="text-[10px] text-fuchsia-700 font-semibold mt-0.5">
+                                    <p className="text-[10px] text-fuchsia-700 dark:text-fuchsia-300 font-semibold mt-0.5">
                                       {item.customColorBrand}: {item.customColorCode}
                                       {item.customColorHex && ` · ${item.customColorHex.toUpperCase()}`}
                                     </p>
                                   )}
                                   {typeof item.unitPrice === 'number' && item.unitPrice > 0 && (
-                                    <p className="text-[10px] text-slate-500 mt-0.5">
+                                    <p className="text-[10px] text-slate-500 mt-0.5 tabular-nums">
                                       <span className="font-semibold">{fmtCLP(item.unitPrice)}</span>
-                                      {' × '}
-                                      {item.quantity}
-                                      {' = '}
-                                      <span className="font-bold text-[#FF6E23]">{fmtCLP(item.lineTotal || item.unitPrice * item.quantity)}</span>
+                                      {' × '}{item.quantity}{' = '}
+                                      <span className="font-bold text-[#fd6301]">{fmtCLP(item.lineTotal || item.unitPrice * item.quantity)}</span>
                                     </p>
                                   )}
                                 </div>
-                                <span className="text-sm font-black text-[#FF6E23] flex-shrink-0">
-                                  x{item.quantity}
-                                </span>
+                                <span className="text-sm font-bold text-[#fd6301] flex-shrink-0 tabular-nums">x{item.quantity}</span>
                               </div>
                             );
                           })}
                         </div>
 
-                        {/* Totals (if priced) */}
                         {request.totalAmount && parseFloat(String(request.totalAmount)) > 0 && (
-                          <div className="mt-3 p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-1">
-                            <div className="flex justify-between text-xs text-slate-600">
+                          <div className="mt-3 p-3 rounded-2xl bg-orange-50 dark:bg-orange-950/30 space-y-1 tabular-nums">
+                            <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
                               <span>Subtotal</span>
                               <span className="font-semibold">{fmtCLP(request.subtotal)}</span>
                             </div>
-                            <div className="flex justify-between text-xs text-slate-600">
+                            <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
                               <span>IVA 19%</span>
                               <span className="font-semibold">{fmtCLP(request.taxAmount)}</span>
                             </div>
-                            <div className="flex justify-between text-sm font-black pt-1 border-t border-slate-200">
-                              <span className="text-slate-800">Total</span>
-                              <span className="text-[#FF6E23]">{fmtCLP(request.totalAmount)}</span>
+                            <div className="flex justify-between text-sm font-bold pt-1 border-t border-orange-200/70 dark:border-orange-900">
+                              <span className="text-slate-800 dark:text-slate-100">Total</span>
+                              <span className="text-[#fd6301]">{fmtCLP(request.totalAmount)}</span>
                             </div>
                             {request.validUntilDate && (
-                              <p className="text-[10px] text-slate-400 pt-1">
-                                Válida hasta: {formatDate(request.validUntilDate)}
-                              </p>
+                              <p className="text-[10px] text-slate-400 pt-1">Válida hasta: {formatDate(request.validUntilDate)}</p>
                             )}
                           </div>
                         )}
 
-                        {/* Actions: pricing + PDF */}
-                        <div className="mt-3 flex flex-wrap gap-2">
+                        <div className="mt-3 flex flex-col sm:flex-row gap-2">
                           <button
                             onClick={() => setPricingRequest(request)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-[#FF6E23] to-[#E55E13] text-white hover:from-[#E55E13] hover:to-[#D54E03] shadow-sm shadow-orange-500/20 transition-all"
+                            className={cn(BOTON_MARCA, 'inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold')}
                           >
-                            <DollarSign className="w-3.5 h-3.5" />
-                            {request.totalAmount && parseFloat(String(request.totalAmount)) > 0
-                              ? 'Editar precios'
-                              : 'Asignar precios'}
+                            <DollarSign className="w-4 h-4" />
+                            {request.totalAmount && parseFloat(String(request.totalAmount)) > 0 ? 'Editar precios' : 'Asignar precios'}
                           </button>
                           {request.totalAmount && parseFloat(String(request.totalAmount)) > 0 && (
                             <a
                               href={`/api/b2c/quote-requests/${request.id}/pdf`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 transition-all"
+                              className={BOTON_SECUNDARIO}
                             >
-                              <Printer className="w-3.5 h-3.5" />
+                              <Printer className="w-4 h-4" />
                               Ver / imprimir PDF
                             </a>
                           )}
@@ -614,35 +695,26 @@ export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }
                       </div>
                     </div>
 
-                    {/* Footer */}
-                    <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-3 flex-wrap">
-                      <span className="text-[10px] text-gray-400">
+                    {/* Pie */}
+                    <div className="px-4 md:px-5 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 flex-wrap">
+                      <span className="text-[10px] text-slate-400">
                         <Calendar className="w-3 h-3 inline mr-1" />
                         Recibida: {formatDate(request.createdAt)}
-                        {request.updatedAt !== request.createdAt && (
-                          <> · Actualizada: {formatDate(request.updatedAt)}</>
-                        )}
+                        {request.updatedAt !== request.createdAt && <> · Actualizada: {formatDate(request.updatedAt)}</>}
                       </span>
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          disabled={deleteMutation.isPending}
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `¿Eliminar la solicitud de ${request.visitorName}? Esta acción no se puede deshacer.`,
-                              )
-                            ) {
-                              deleteMutation.mutate(request.id);
-                            }
-                          }}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          Eliminar
-                        </button>
-                        <span className="text-[10px] text-gray-300">ID: {request.id}</span>
-                      </div>
+                      <button
+                        type="button"
+                        disabled={deleteMutation.isPending}
+                        onClick={() => {
+                          if (window.confirm(`¿Eliminar la solicitud de ${request.visitorName}? Esta acción no se puede deshacer.`)) {
+                            deleteMutation.mutate(request.id);
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-2xl text-xs font-bold border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/40 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Eliminar
+                      </button>
                     </div>
                   </div>
                 )}
@@ -652,19 +724,203 @@ export function SolicitudesWebPanel({ embedded = false }: { embedded?: boolean }
         </div>
       )}
 
-      {/* Pricing modal */}
       <QuoteRequestPricingModal
         open={!!pricingRequest}
         request={pricingRequest as any}
         onClose={() => setPricingRequest(null)}
         onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ['/api/b2c/quote-requests'] });
-          toast({
-            title: 'Cotización guardada',
-            description: 'Los precios fueron asignados correctamente.',
-          });
+          invalidar();
+          toast({ title: 'Cotización guardada', description: 'Los precios fueron asignados correctamente.' });
         }}
       />
+    </div>
+  );
+}
+
+function Dato({ icono: Icono, label, children }: { icono: any; label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2 min-w-0">
+      <Icono className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+      <div className="min-w-0">
+        <p className="text-[10px] text-slate-400 uppercase">{label}</p>
+        <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Bloque "Vendedor asignado" del detalle. Quien puede asignar elige de la lista
+ * del segmento; el resto ve a quién quedó y quién la asigna.
+ */
+function AsignacionVendedor({ request }: { request: QuoteRequest }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [elegido, setElegido] = useState<string>('');
+
+  const { data: vendedoresData, isLoading } = useQuery<{ vendedores: { id: string; nombre: string; role?: string }[] }>({
+    queryKey: ['/api/b2c/quote-requests', request.id, 'vendedores'],
+    queryFn: async () => {
+      const res = await fetch(`/api/b2c/quote-requests/${request.id}/vendedores`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Error al cargar vendedores');
+      return res.json();
+    },
+    enabled: !!request.puedeAsignar,
+  });
+  const vendedores = vendedoresData?.vendedores ?? [];
+
+  const asignar = useMutation({
+    mutationFn: async (vendedorId: string) => {
+      const res = await fetch(`/api/b2c/quote-requests/${request.id}/asignar`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ vendedorId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.message || 'No se pudo asignar');
+      return body;
+    },
+    onSuccess: (body: any) => {
+      setElegido('');
+      queryClient.invalidateQueries({ queryKey: ['/api/b2c/quote-requests'] });
+      toast({
+        title: 'Vendedor asignado',
+        description: `${body?.assignedToName || 'El vendedor'} recibió un correo con el lead${request.crmSeguimientoId ? ' y ya lo tiene en su CRM' : ''}.`,
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Error', description: err?.message || 'No se pudo asignar.', variant: 'destructive' });
+    },
+  });
+
+  // Con vendedor, el bloque arranca mostrando a quién quedó; "Cambiar" abre la lista.
+  const [eligiendo, setEligiendo] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
+  const abierta = !!request.puedeAsignar && (eligiendo || !request.assignedToUserId);
+  const elegidoNombre = vendedores.find(v => v.id === elegido)?.nombre;
+  const termino = busqueda.trim().toLowerCase();
+  const visibles = termino ? vendedores.filter(v => v.nombre.toLowerCase().includes(termino)) : vendedores;
+
+  const Avatar = ({ nombre, activo }: { nombre: string; activo?: boolean }) => (
+    <span className={cn(
+      'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
+      activo ? 'bg-white text-[#fd6301]' : 'bg-orange-50 text-[#fd6301] dark:bg-orange-950/40',
+    )}>
+      {nombre.trim().charAt(0).toUpperCase()}
+    </span>
+  );
+
+  return (
+    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700 p-3.5 min-w-0">
+      <div className="flex items-center justify-between gap-2 mb-2.5">
+        <div className="flex items-center gap-1.5">
+          <UserCheck className="w-3.5 h-3.5 text-[#fd6301]" />
+          <p className={MICRO_LABEL}>Vendedor asignado</p>
+        </div>
+        {request.puedeAsignar && request.assignedToUserId && (
+          <button
+            type="button"
+            onClick={() => { setEligiendo(!eligiendo); setElegido(''); setBusqueda(''); }}
+            className="text-xs font-semibold text-[#fd6301] hover:underline"
+          >
+            {eligiendo ? 'Cancelar' : 'Cambiar'}
+          </button>
+        )}
+      </div>
+
+      {/* A quién quedó (o quién la asigna) */}
+      {!abierta && (
+        request.assignedToName ? (
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Avatar nombre={request.assignedToName} />
+            <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{request.assignedToName}</span>
+          </div>
+        ) : (
+          <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">Sin vendedor · la asigna el administrador</p>
+        )
+      )}
+
+      {/* Lista para elegir: se toca la fila, sin desplegable */}
+      {abierta && (
+        <div className="space-y-2.5">
+          {vendedores.length > 6 && (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <input
+                type="text"
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                placeholder="Buscar vendedor..."
+                className="w-full h-9 pl-8 pr-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/60 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-[#fd6301] focus:ring-2 focus:ring-orange-500/20"
+              />
+            </div>
+          )}
+
+          <div className="max-h-64 overflow-y-auto -mx-1 px-1 space-y-1" role="radiogroup" aria-label="Vendedores">
+            {isLoading ? (
+              [0, 1, 2].map(i => (
+                <div key={i} className="flex items-center gap-2.5 p-2">
+                  <span className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  <span className="h-3 w-40 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                </div>
+              ))
+            ) : visibles.length === 0 ? (
+              <p className="text-xs text-slate-400 px-2 py-3">
+                {vendedores.length === 0 ? 'No hay vendedores activos en este segmento.' : 'Ningún vendedor coincide con la búsqueda.'}
+              </p>
+            ) : (
+              visibles.map(v => {
+                const sel = elegido === v.id;
+                const actual = request.assignedToUserId === v.id;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={sel}
+                    disabled={actual || asignar.isPending}
+                    onClick={() => setElegido(sel ? '' : v.id)}
+                    data-testid={`vendedor-${v.id}`}
+                    className={cn(
+                      'w-full flex items-center gap-2.5 p-2 rounded-xl text-left transition-colors min-w-0',
+                      sel
+                        ? 'bg-[#fd6301] text-white'
+                        : 'hover:bg-orange-50 dark:hover:bg-orange-950/30 disabled:opacity-50 disabled:hover:bg-transparent',
+                    )}
+                  >
+                    <Avatar nombre={v.nombre} activo={sel} />
+                    <span className={cn('text-sm font-medium truncate flex-1', sel ? 'text-white' : 'text-slate-700 dark:text-slate-200')}>
+                      {v.nombre}
+                    </span>
+                    {v.role === 'supervisor' && (
+                      <span className={cn('text-[10px] font-bold uppercase tracking-wide shrink-0', sel ? 'text-white/80' : 'text-slate-400')}>
+                        Supervisor
+                      </span>
+                    )}
+                    {actual && <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 shrink-0">Actual</span>}
+                    {sel && <CheckCircle className="w-4 h-4 text-white shrink-0" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          <button
+            type="button"
+            disabled={!elegido || asignar.isPending}
+            onClick={() => asignar.mutate(elegido, { onSuccess: () => setEligiendo(false) })}
+            className={cn(BOTON_MARCA, 'w-full inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed')}
+            data-testid={`asignar-${request.id}`}
+          >
+            {asignar.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+            <span className="truncate">{elegidoNombre ? `Asignar a ${elegidoNombre}` : 'Elige un vendedor'}</span>
+          </button>
+          <p className="text-[11px] text-slate-400 leading-snug">
+            Le llega un correo{request.crmSeguimientoId ? ' y el lead queda a su nombre en el CRM' : ''}.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

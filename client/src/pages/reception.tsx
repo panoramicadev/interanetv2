@@ -221,17 +221,9 @@ export default function Reception() {
     refetchInterval: 60000,
   });
 
-  // Panorámica Market: cotizaciones B2C
-  const { data: b2cQuotesData } = useQuery<{ requests: Array<{ status: string }> }>({
-    queryKey: ["/api/b2c/quote-requests"],
-    enabled: !!user && user.role === 'reception',
-    refetchInterval: 60000,
-  });
-
+  // Las cotizaciones del cotizador web ya no pasan por recepción: las ven el
+  // admin y el supervisor de cada segmento en "Cotizaciones Web".
   const pendingOrdersCount = pendingOrdersData?.count ?? 0;
-  const pendingB2cQuotesCount = (b2cQuotesData?.requests ?? []).filter(
-    (r) => r.status === 'pending' || r.status === 'contacted'
-  ).length;
 
   // Fetch selected quote details
   const { data: selectedQuote, isLoading: isLoadingQuoteDetails } = useQuery<QuoteWithItems>({
@@ -697,19 +689,6 @@ export default function Reception() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-amber-600">{pendingOrdersCount}</div>
-                <p className="text-xs text-muted-foreground mt-1">Panorámica Market</p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/cotizaciones-b2c">
-            <Card className="cursor-pointer hover:shadow-md transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Cotizaciones</CardTitle>
-                <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-blue-600">{pendingB2cQuotesCount}</div>
                 <p className="text-xs text-muted-foreground mt-1">Panorámica Market</p>
               </CardContent>
             </Card>

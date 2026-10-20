@@ -592,6 +592,83 @@ export function buildQuoteInternalNotifyEmail(data: QuoteInternalNotifyData): { 
   return { subject, html };
 }
 
+interface LeadWebAsignadoData {
+  vendedorNombre: string;
+  asignadoPor: string;
+  visitorName: string;
+  visitorEmail: string;
+  visitorPhone?: string | null;
+  visitorCompany?: string | null;
+  visitorCity?: string | null;
+  segmento?: string | null;
+  /** Lead del CRM (no hay cuando quien cotizó ya es cliente). */
+  crmLeadId?: string | null;
+  message?: string | null;
+  items: Array<{ productName: string; color?: string; format?: string; quantity: number }>;
+}
+
+/** Aviso al vendedor: se le asignó una cotización web / un lead nuevo en el CRM. */
+export function buildLeadWebAsignadoEmail(data: LeadWebAsignadoData): { subject: string; html: string } {
+  const esc = (s?: string | null) =>
+    String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const base = PUBLIC_BASE_URL.replace(/\/$/, '');
+  const subject = data.crmLeadId
+    ? `🎯 Se te asignó un nuevo lead en el CRM: ${data.visitorName}`
+    : `🎯 Se te asignó una cotización web: ${data.visitorName}`;
+
+  const contactRow = (label: string, value?: string | null) => value ? `
+    <tr>
+      <td style="padding: 6px 12px; font-size: 13px; color: #888; white-space: nowrap;">${label}</td>
+      <td style="padding: 6px 12px; font-size: 13px; color: #1a1f2e; font-weight: bold;">${esc(value)}</td>
+    </tr>` : '';
+
+  const itemsRows = data.items.slice(0, 50).map(it => `
+    <tr>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333;">${esc(it.productName)}${it.color ? ` — ${esc(it.color)}` : ''}${it.format ? ` (${esc(it.format)})` : ''}</td>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; color: #333; text-align: center;">${it.quantity}</td>
+    </tr>`).join('');
+
+  const boton = data.crmLeadId
+    ? { href: `${base}/seguimiento-clientes/${data.crmLeadId}`, label: 'Ver el lead en el CRM' }
+    : { href: `${base}/tareas`, label: 'Ir al Panel de Trabajo' };
+
+  const html = wrapEmailContent(`
+    <h2 style="color: #1a1f2e; margin: 0 0 16px 0; font-family: Arial, sans-serif;">Hola ${esc(data.vendedorNombre)}, tienes un nuevo lead</h2>
+    <p style="color: #333; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
+      ${esc(data.asignadoPor)} te asignó una solicitud que llegó desde el cotizador web${data.crmLeadId ? ' y ya quedó a tu nombre en el CRM' : ''}.
+      Contáctalo lo antes posible.
+    </p>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0; background-color: #f8f9fa; border-radius: 6px;">
+      ${contactRow('Segmento', data.segmento)}
+      ${contactRow('Nombre', data.visitorName)}
+      ${contactRow('Email', data.visitorEmail)}
+      ${contactRow('Teléfono', data.visitorPhone)}
+      ${contactRow('Empresa', data.visitorCompany)}
+      ${contactRow('Ciudad', data.visitorCity)}
+    </table>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0; border: 1px solid #eee; border-radius: 6px; overflow: hidden;">
+      <thead>
+        <tr style="background-color: #1a1f2e;">
+          <th style="padding: 10px 12px; text-align: left; font-size: 12px; color: #fff; letter-spacing: 0.5px;">PRODUCTO</th>
+          <th style="padding: 10px 12px; text-align: center; font-size: 12px; color: #fff; letter-spacing: 0.5px;">CANT.</th>
+        </tr>
+      </thead>
+      <tbody>${itemsRows}</tbody>
+    </table>
+    ${data.message ? `
+    <div style="background-color: #fff7ed; border-left: 4px solid #fd6301; padding: 12px 16px; border-radius: 4px; margin: 0 0 16px 0;">
+      <p style="color: #1a1f2e; margin: 0 0 6px 0; font-size: 13px; font-weight: bold;">Mensaje del cliente:</p>
+      <p style="color: #333; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${esc(data.message)}</p>
+    </div>` : ''}
+    <p style="text-align: center; margin: 20px 0 0 0;">
+      <a href="${boton.href}" style="display: inline-block; background-color: #fd6301; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold; font-size: 14px;">
+        ${boton.label}
+      </a>
+    </p>
+  `);
+  return { subject, html };
+}
+
 interface CustomColorPricedData {
   clientName: string;
   productName: string;

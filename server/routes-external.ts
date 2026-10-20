@@ -617,7 +617,7 @@ const OPENAPI_SPEC = {
       get: {
         summary: 'Lista solicitudes del cotizador público B2C',
         parameters: [
-          { name: 'status', in: 'query', schema: { type: 'string', enum: ['pending', 'contacted', 'quoted', 'sale', 'closed'] } },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['pending', 'assigned', 'contacted', 'quoted', 'sale', 'closed'] } },
           { $ref: '#/components/parameters/limit' },
         ],
         responses: { '200': { description: '{ requests, count }' } },
@@ -635,7 +635,7 @@ const OPENAPI_SPEC = {
         summary: 'Actualizar estado y/o notas internas de una solicitud B2C',
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: {
-          status: { type: 'string', enum: ['pending', 'contacted', 'quoted', 'sale', 'closed'] },
+          status: { type: 'string', enum: ['pending', 'assigned', 'contacted', 'quoted', 'sale', 'closed'] },
           internalNotes: { type: 'string' },
         } } } } },
         responses: { '200': { description: 'OK' }, '404': { description: 'No encontrada' } },
@@ -2171,9 +2171,9 @@ router.get('/help', async (_req: ApiAuthRequest, res) => {
       'GET /ordenes/:id/items': {},
       'POST /ordenes/:id/items': { body: ['productName*', 'quantity*', 'unitPrice*', 'type', 'productCode', 'customSku', 'notes'], note: 'recalcula totales' },
       'POST /cotizaciones/:id/convertir-orden': { note: 'Crea un pedido desde la cotización y la marca como converted' },
-      'GET /solicitudes-b2c': { filters: ['status (pending|contacted|quoted|sale|closed)', 'limit'], note: 'solicitudes del cotizador público; returns { requests, count }' },
+      'GET /solicitudes-b2c': { filters: ['status (pending|assigned|contacted|quoted|sale|closed)', 'limit'], note: 'solicitudes del cotizador público; returns { requests, count }' },
       'GET /solicitudes-b2c/:id': {},
-      'PATCH /solicitudes-b2c/:id/estado': { body: ['status (pending|contacted|quoted|sale|closed)', 'internalNotes'] },
+      'PATCH /solicitudes-b2c/:id/estado': { body: ['status (pending|assigned|contacted|quoted|sale|closed)', 'internalNotes'] },
       'GET /solicitudes-b2c/:id/pdf': { note: 'HTML imprimible; requiere precios asignados' },
       'GET /ecommerce/erp-orders': { filters: ['salesperson (ILIKE, opcional)'], note: 'cruce FCV/NVV/GDV últimos 90 días, agrupados; returns { orders, count, nvvCount, gdvCount, fcvCount }' },
       'GET /nvv': { filters: ['salesperson*', 'dateFrom', 'dateTo'], note: 'notas de venta pendientes del vendedor' },
@@ -6282,7 +6282,7 @@ router.patch('/solicitudes-b2c/:id/estado', requireApiRole(['read_write', 'admin
   try {
     const { id } = req.params;
     const { status, internalNotes } = req.body ?? {};
-    const allowed = ['pending', 'contacted', 'quoted', 'sale', 'closed'];
+    const allowed = ['pending', 'assigned', 'contacted', 'quoted', 'sale', 'closed'];
     if (status !== undefined && !allowed.includes(status)) {
       return res.status(400).json({ error: `status inválido (válidos: ${allowed.join(', ')})` });
     }

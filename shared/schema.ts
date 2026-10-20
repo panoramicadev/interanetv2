@@ -9143,7 +9143,7 @@ export const quoteRequests = pgTable("quote_requests", {
   items: jsonb("items").notNull().$type<QuoteRequestItem[]>(),
   itemCount: integer("item_count").notNull().default(0),
   // Internal management
-  status: varchar("status").notNull().default("pending"), // pending, contacted, quoted, closed
+  status: varchar("status").notNull().default("pending"), // pending, assigned, contacted, quoted, sale, closed
   assignedToUserId: varchar("assigned_to_user_id"),
   internalNotes: text("internal_notes"),
   // Pricing (filled when quote is assigned prices)

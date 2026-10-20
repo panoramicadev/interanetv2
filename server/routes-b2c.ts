@@ -24,12 +24,44 @@ import {
   getVariantsForClient,
 } from './services/custom-color.service';
 import { insertQuoteRequestSchema, storeBanners, storeConfig, type QuoteRequestItem } from '@shared/schema';
-import { segmentoCotizacionWebLabel, destinatariosNotificacionCotizacionWeb } from '@shared/segmentos-cotizacion-web';
+import { segmentoCotizacionWebLabel, destinatariosNotificacionCotizacionWeb, ESTADOS_COTIZACION_WEB } from '@shared/segmentos-cotizacion-web';
+import {
+  getAccesoCotizacionesWeb,
+  puedeVerCotizacionWeb,
+  puedeAsignarCotizacionWeb,
+  filtrarCotizacionesWeb,
+  vendedoresParaSegmento,
+  nombresVendedores,
+  asignarVendedorCotizacionWeb,
+} from './services/cotizacion-web-acceso.service';
 import { db } from './db';
 import { eq, sql } from 'drizzle-orm';
 import { requireAuth, requireAdminOrSupervisor, requireRoles } from './auth';
 
 const requireAdminSupervisorOrReception = requireRoles(['admin', 'supervisor', 'encargado_area', 'reception']);
+
+// Cotizaciones Web: solo admin (todas) y supervisor (las de su segmento).
+const requireAdminOrSupervisorCotWeb = requireRoles(['admin', 'supervisor']);
+
+/**
+ * Carga la cotización :id y verifica que el usuario la pueda ver. Responde el
+ * 404/403 y devuelve null si no corresponde.
+ */
+async function cargarCotizacionVisible(req: any, res: any, opts: { html?: boolean } = {}) {
+  const send = (code: number, message: string) =>
+    opts.html ? res.status(code).send(message) : res.status(code).json({ message });
+  const request = await getQuoteRequestById(req.params.id);
+  if (!request) {
+    send(404, 'Solicitud no encontrada');
+    return null;
+  }
+  const acceso = await getAccesoCotizacionesWeb(req.user);
+  if (!acceso || !puedeVerCotizacionWeb(acceso, request.segmento)) {
+    send(403, 'No tienes acceso a esta cotización');
+    return null;
+  }
+  return { request, acceso };
+}
 
 export function registerB2CRoutes(app: Express) {
   // ═══════════════════════════════════════════════
@@ -254,14 +286,26 @@ export function registerB2CRoutes(app: Express) {
   /**
    * GET /api/b2c/quote-requests — List all quote requests (admin only)
    */
-  app.get('/api/b2c/quote-requests', requireAuth, requireAdminSupervisorOrReception, async (req: any, res: any) => {
+  app.get('/api/b2c/quote-requests', requireAuth, requireAdminOrSupervisorCotWeb, async (req: any, res: any) => {
     try {
       const { status, limit } = req.query;
-      const requests = await getQuoteRequests({
+      const acceso = await getAccesoCotizacionesWeb(req.user);
+      if (!acceso) return res.status(403).json({ message: 'Sin acceso a Cotizaciones Web' });
+      const visibles = filtrarCotizacionesWeb(acceso, await getQuoteRequests({
         status: status as string | undefined,
-        limit: limit ? parseInt(limit as string) : undefined,
+      }));
+      const rows = limit ? visibles.slice(0, parseInt(limit as string)) : visibles;
+      const nombres = await nombresVendedores(rows.map(r => r.assignedToUserId || ''));
+      const requests = rows.map(r => ({
+        ...r,
+        assignedToName: r.assignedToUserId ? nombres.get(r.assignedToUserId) ?? null : null,
+        puedeAsignar: puedeAsignarCotizacionWeb(acceso, r.segmento),
+      }));
+      res.json({
+        requests,
+        // Para la pantalla: el admin ve el filtro por segmento; el supervisor, el suyo fijo.
+        acceso: acceso.todos ? { todos: true } : { todos: false, segmento: acceso.segmento?.value ?? null },
       });
-      res.json({ requests });
     } catch (error) {
       console.error('[B2C] Error fetching quote requests:', error);
       res.status(500).json({ message: 'Error al obtener solicitudes' });
@@ -271,12 +315,14 @@ export function registerB2CRoutes(app: Express) {
   /**
    * PATCH /api/b2c/quote-requests/:id — Update quote request status (admin only)
    */
-  app.patch('/api/b2c/quote-requests/:id', requireAuth, requireAdminSupervisorOrReception, async (req: any, res: any) => {
+  app.patch('/api/b2c/quote-requests/:id', requireAuth, requireAdminOrSupervisorCotWeb, async (req: any, res: any) => {
     try {
       const { id } = req.params;
       const { status, internalNotes } = req.body;
 
-      if (status !== undefined && !['pending', 'contacted', 'quoted', 'sale', 'closed'].includes(status)) {
+      if (!(await cargarCotizacionVisible(req, res))) return;
+
+      if (status !== undefined && !(ESTADOS_COTIZACION_WEB as readonly string[]).includes(status)) {
         return res.status(400).json({ message: 'Estado inválido' });
       }
       if (status === undefined && internalNotes === undefined) {
@@ -298,9 +344,10 @@ export function registerB2CRoutes(app: Express) {
   /**
    * DELETE /api/b2c/quote-requests/:id — Delete a quote request (admin only)
    */
-  app.delete('/api/b2c/quote-requests/:id', requireAuth, requireAdminSupervisorOrReception, async (req: any, res: any) => {
+  app.delete('/api/b2c/quote-requests/:id', requireAuth, requireAdminOrSupervisorCotWeb, async (req: any, res: any) => {
     try {
       const { id } = req.params;
+      if (!(await cargarCotizacionVisible(req, res))) return;
       const deleted = await deleteQuoteRequest(id);
       if (!deleted) {
         return res.status(404).json({ message: 'Solicitud no encontrada' });
@@ -315,9 +362,10 @@ export function registerB2CRoutes(app: Express) {
   /**
    * PATCH /api/b2c/quote-requests/:id/pricing — Assign prices + generate quote
    */
-  app.patch('/api/b2c/quote-requests/:id/pricing', requireAuth, requireAdminSupervisorOrReception, async (req: any, res: any) => {
+  app.patch('/api/b2c/quote-requests/:id/pricing', requireAuth, requireAdminOrSupervisorCotWeb, async (req: any, res: any) => {
     try {
       const { id } = req.params;
+      if (!(await cargarCotizacionVisible(req, res))) return;
       const { items, internalNotes, validDays, shippingItems } = req.body;
 
       if (!Array.isArray(items) || items.length === 0) {
@@ -372,15 +420,58 @@ export function registerB2CRoutes(app: Express) {
   });
 
   /**
+   * GET /api/b2c/quote-requests/:id/vendedores — Vendedores asignables a la
+   * cotización (los del segmento). Solo para quien puede asignar.
+   */
+  app.get('/api/b2c/quote-requests/:id/vendedores', requireAuth, requireAdminOrSupervisorCotWeb, async (req: any, res: any) => {
+    try {
+      const cargada = await cargarCotizacionVisible(req, res);
+      if (!cargada) return;
+      if (!puedeAsignarCotizacionWeb(cargada.acceso, cargada.request.segmento)) {
+        return res.status(403).json({ message: 'Solo el administrador asigna vendedor en este segmento' });
+      }
+      const vendedores = await vendedoresParaSegmento(cargada.request.segmento);
+      res.json({ vendedores: vendedores.map(v => ({ id: v.id, nombre: v.nombre, role: v.role })) });
+    } catch (error: any) {
+      console.error('[B2C] Error listing salespeople for quote:', error);
+      res.status(500).json({ message: 'Error al cargar vendedores' });
+    }
+  });
+
+  /**
+   * PATCH /api/b2c/quote-requests/:id/asignar — Asigna el vendedor: la
+   * cotización pasa a "Asignado", el lead del CRM queda a su nombre y le llega
+   * un correo.
+   */
+  app.patch('/api/b2c/quote-requests/:id/asignar', requireAuth, requireAdminOrSupervisorCotWeb, async (req: any, res: any) => {
+    try {
+      const cargada = await cargarCotizacionVisible(req, res);
+      if (!cargada) return;
+      const { request, acceso } = cargada;
+      if (!puedeAsignarCotizacionWeb(acceso, request.segmento)) {
+        return res.status(403).json({ message: 'Solo el administrador asigna vendedor en este segmento' });
+      }
+      const vendedorId = String(req.body?.vendedorId || '');
+      const vendedor = (await vendedoresParaSegmento(request.segmento)).find(v => v.id === vendedorId);
+      if (!vendedor) {
+        return res.status(400).json({ message: 'El vendedor no corresponde al segmento de la cotización' });
+      }
+      const updated = await asignarVendedorCotizacionWeb(request, vendedor, req.user);
+      res.json({ ...updated, assignedToName: vendedor.nombre });
+    } catch (error: any) {
+      console.error('[B2C] Error assigning salesperson:', error);
+      res.status(500).json({ message: `Error al asignar vendedor: ${error?.message || error}` });
+    }
+  });
+
+  /**
    * GET /api/b2c/quote-requests/:id/pdf — Printable HTML (browser → PDF)
    */
-  app.get('/api/b2c/quote-requests/:id/pdf', requireAuth, requireAdminSupervisorOrReception, async (req: any, res: any) => {
+  app.get('/api/b2c/quote-requests/:id/pdf', requireAuth, requireAdminOrSupervisorCotWeb, async (req: any, res: any) => {
     try {
-      const { id } = req.params;
-      const request = await getQuoteRequestById(id);
-      if (!request) {
-        return res.status(404).send('Solicitud no encontrada');
-      }
+      const cargada = await cargarCotizacionVisible(req, res, { html: true });
+      if (!cargada) return;
+      const { request } = cargada;
 
       const items = (request.items as QuoteRequestItem[]) || [];
       const hasPricing = items.some(i => typeof i.unitPrice === 'number' && i.unitPrice > 0);

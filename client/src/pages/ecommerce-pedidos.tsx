@@ -28,25 +28,8 @@ import {
   EcommerceOrder, OrderDetailView, formatPrice, statusConfig, timeAgo, getOrderItems
 } from "@/components/ecommerce/order-detail-view";
 import ErpOrdersTable from "@/components/ecommerce/erp-orders-table";
-import { SolicitudesWebPanel } from "@/pages/cotizaciones-b2c";
-
-// Cuenta de solicitudes web pendientes para el badge de la pestaña "Solicitudes".
-function useSolicitudesPendientes() {
-  const { data } = useQuery<{ requests: { status: string }[] }>({
-    queryKey: ["/api/b2c/quote-requests"],
-    queryFn: async () => {
-      const res = await fetch("/api/b2c/quote-requests", { credentials: "include" });
-      if (!res.ok) throw new Error("Error al cargar solicitudes");
-      return res.json();
-    },
-    retry: false,
-  });
-  const requests = data?.requests ?? [];
-  return {
-    total: requests.length,
-    pending: requests.filter((r) => r.status === "pending").length,
-  };
-}
+// Las solicitudes del cotizador web ya no viven acá: tienen su propio ítem en el
+// menú, "Cotizaciones Web" (/cotizaciones-b2c), solo para admin y supervisores.
 
 // ==================== MAIN PAGE ====================
 // La página tiene dos modos según el rol:
@@ -62,13 +45,14 @@ export default function EcommercePedidos() {
 }
 
 // ==================== VISTA PRINCIPAL (admin/supervisor/encargado) ====================
-// Dos pestañas: el listado ERP y las Solicitudes que llegan desde el sitio web.
-// El admin suma una tercera, "Vista Recepción", que embebe la misma pantalla que
-// ve el rol reception para poder revisarla y operarla sin cambiar de usuario.
+// El listado ERP. El admin suma una segunda pestaña, "Vista Recepción", que embebe
+// la misma pantalla que ve el rol reception para poder revisarla y operarla sin
+// cambiar de usuario; el resto ve el listado solo, sin pestañas.
+// Las solicitudes del sitio web ya no van acá: tienen su propio ítem en el menú,
+// "Cotizaciones Web" (/cotizaciones-b2c).
 function DefaultPedidosView() {
   const { user } = useAuth();
   const canSeeReceptionView = user?.role === 'admin';
-  const { total: solicitudesTotal, pending: solicitudesPending } = useSolicitudesPendientes();
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
@@ -78,7 +62,8 @@ function DefaultPedidosView() {
       </div>
 
       <Tabs defaultValue="pedidos" className="w-full space-y-6">
-        <TabsList className={`grid ${canSeeReceptionView ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"} gap-3 sm:gap-4 bg-transparent p-0 h-auto w-full`}>
+        {canSeeReceptionView && (
+        <TabsList className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 bg-transparent p-0 h-auto w-full">
           <TabsTrigger
             value="pedidos"
             className="group justify-start gap-3 px-4 sm:px-5 py-4 rounded-2xl border-2 border-gray-200 bg-white hover:border-gray-300 data-[state=active]:border-[#FF6E23] data-[state=active]:bg-orange-50/40 data-[state=active]:shadow-md transition-all"
@@ -92,44 +77,22 @@ function DefaultPedidosView() {
             </div>
           </TabsTrigger>
           <TabsTrigger
-            value="solicitudes"
+            value="recepcion"
             className="group justify-start gap-3 px-4 sm:px-5 py-4 rounded-2xl border-2 border-gray-200 bg-white hover:border-gray-300 data-[state=active]:border-[#FF6E23] data-[state=active]:bg-orange-50/40 data-[state=active]:shadow-md transition-all"
           >
-            <div className="relative w-11 h-11 rounded-xl bg-gray-100 group-data-[state=active]:bg-[#FF6E23] flex items-center justify-center flex-shrink-0 transition-colors">
-              <Inbox className="h-5 w-5 text-gray-500 group-data-[state=active]:text-white" />
-              {solicitudesPending > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
-                  {solicitudesPending}
-                </span>
-              )}
+            <div className="w-11 h-11 rounded-xl bg-gray-100 group-data-[state=active]:bg-[#FF6E23] flex items-center justify-center flex-shrink-0 transition-colors">
+              <ClipboardCheck className="h-5 w-5 text-gray-500 group-data-[state=active]:text-white" />
             </div>
             <div className="text-left min-w-0">
-              <div className="font-bold text-gray-900 text-sm sm:text-base leading-tight truncate">Solicitudes</div>
-              <div className="text-xs text-gray-500 font-normal truncate">{solicitudesTotal} solicitud{solicitudesTotal !== 1 ? "es" : ""} desde la web</div>
+              <div className="font-bold text-gray-900 text-sm sm:text-base leading-tight truncate">Vista Recepción</div>
+              <div className="text-xs text-gray-500 font-normal truncate">Tal como la ve recepción</div>
             </div>
           </TabsTrigger>
-          {canSeeReceptionView && (
-            <TabsTrigger
-              value="recepcion"
-              className="group justify-start gap-3 px-4 sm:px-5 py-4 rounded-2xl border-2 border-gray-200 bg-white hover:border-gray-300 data-[state=active]:border-[#FF6E23] data-[state=active]:bg-orange-50/40 data-[state=active]:shadow-md transition-all"
-            >
-              <div className="w-11 h-11 rounded-xl bg-gray-100 group-data-[state=active]:bg-[#FF6E23] flex items-center justify-center flex-shrink-0 transition-colors">
-                <ClipboardCheck className="h-5 w-5 text-gray-500 group-data-[state=active]:text-white" />
-              </div>
-              <div className="text-left min-w-0">
-                <div className="font-bold text-gray-900 text-sm sm:text-base leading-tight truncate">Vista Recepción</div>
-                <div className="text-xs text-gray-500 font-normal truncate">Tal como la ve recepción</div>
-              </div>
-            </TabsTrigger>
-          )}
         </TabsList>
+        )}
 
         <TabsContent value="pedidos" className="mt-0 space-y-6">
           <ErpOrdersTable />
-        </TabsContent>
-
-        <TabsContent value="solicitudes" className="mt-0 space-y-6">
-          <SolicitudesWebPanel embedded />
         </TabsContent>
 
         {canSeeReceptionView && (
@@ -197,8 +160,6 @@ function ReceptionPedidosView({ embedded = false }: { embedded?: boolean }) {
   });
   const erpCount = erpData?.count ?? 0;
 
-  const { total: solicitudesTotal, pending: solicitudesPending } = useSolicitudesPendientes();
-
   if (selectedOrder) {
     return (
       <div className={embedded ? "" : "max-w-6xl mx-auto p-6"}>
@@ -223,7 +184,7 @@ function ReceptionPedidosView({ embedded = false }: { embedded?: boolean }) {
       )}
 
       <Tabs defaultValue="tienda" className="w-full space-y-6">
-        <TabsList className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 bg-transparent p-0 h-auto w-full">
+        <TabsList className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 bg-transparent p-0 h-auto w-full">
           <TabsTrigger
             value="erp"
             className="group justify-start gap-3 px-4 sm:px-5 py-4 rounded-2xl border-2 border-gray-200 bg-white hover:border-gray-300 data-[state=active]:border-[#FF6E23] data-[state=active]:bg-orange-50/40 data-[state=active]:shadow-md transition-all"
@@ -258,23 +219,6 @@ function ReceptionPedidosView({ embedded = false }: { embedded?: boolean }) {
             <div className="text-left min-w-0">
               <div className="font-bold text-gray-900 text-sm sm:text-base leading-tight truncate">Cotizaciones</div>
               <div className="text-xs text-gray-500 font-normal truncate">{sentQuotesCount} cotización{sentQuotesCount !== 1 ? "es" : ""} enviada{sentQuotesCount !== 1 ? "s" : ""}</div>
-            </div>
-          </TabsTrigger>
-          <TabsTrigger
-            value="solicitudes"
-            className="group justify-start gap-3 px-4 sm:px-5 py-4 rounded-2xl border-2 border-gray-200 bg-white hover:border-gray-300 data-[state=active]:border-[#FF6E23] data-[state=active]:bg-orange-50/40 data-[state=active]:shadow-md transition-all"
-          >
-            <div className="relative w-11 h-11 rounded-xl bg-gray-100 group-data-[state=active]:bg-[#FF6E23] flex items-center justify-center flex-shrink-0 transition-colors">
-              <Inbox className="h-5 w-5 text-gray-500 group-data-[state=active]:text-white" />
-              {solicitudesPending > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
-                  {solicitudesPending}
-                </span>
-              )}
-            </div>
-            <div className="text-left min-w-0">
-              <div className="font-bold text-gray-900 text-sm sm:text-base leading-tight truncate">Solicitudes</div>
-              <div className="text-xs text-gray-500 font-normal truncate">{solicitudesTotal} desde la web</div>
             </div>
           </TabsTrigger>
         </TabsList>
@@ -480,10 +424,6 @@ function ReceptionPedidosView({ embedded = false }: { embedded?: boolean }) {
 
         <TabsContent value="cotizaciones" className="mt-0 space-y-6">
           <SentQuotesTable />
-        </TabsContent>
-
-        <TabsContent value="solicitudes" className="mt-0 space-y-6">
-          <SolicitudesWebPanel embedded />
         </TabsContent>
       </Tabs>
     </div>
