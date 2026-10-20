@@ -33,6 +33,17 @@ export interface SegmentoCotizacionWeb {
    * cotizador web: no cambia el ruteo al CRM ni el correo al visitante.
    */
   notificacionEmails?: string[];
+  /**
+   * El supervisor del área puede asignar el vendedor de las cotizaciones de su
+   * segmento. Si no, solo lo asigna un admin (el supervisor igual las ve).
+   */
+  asignaSupervisor?: boolean;
+  /**
+   * Vendedores a los que se le pueden asignar las cotizaciones del segmento, en
+   * este orden y con este nombre visible (`id` = salespeople_users.id). Sin lista,
+   * se ofrecen los del área y los equipos de sus supervisores.
+   */
+  vendedores?: Array<{ id: string; nombre: string }>;
 }
 
 /** A quién se le avisa una cotización web cuando el segmento no define destinatarios propios. */
@@ -54,6 +65,18 @@ export const SEGMENTOS_COTIZACION_WEB: SegmentoCotizacionWeb[] = [
     label: 'FERRETERÍA',
     crmSegmento: 'Ferretería',
     assignedSegmentLike: ['%ferreter%'],
+    // Ferretería la reparte su supervisor (Daniel Hermosilla); Construcción e
+    // Industrial las asigna el admin.
+    asignaSupervisor: true,
+    // Lista cerrada pedida por el usuario (oct-2026).
+    vendedores: [
+      { id: '7f144924-8919-4b49-8c7a-990f5e181eb8', nombre: 'Daniel Hermosilla' },
+      { id: '36c85cad-94f5-48aa-9cba-234049e41f00', nombre: 'Claudio Lopez' },
+      { id: '44825c43-17c2-4c66-83f1-b14357d53fa6', nombre: 'Fabian Zenteno' },
+      { id: 'a0b25ee9-ffe5-45f9-a33b-487ebab186eb', nombre: 'Pablo Soto' },
+      { id: 'b586c293-074f-4f41-9a99-254236d1871d', nombre: 'Omar Arámbula' },
+      { id: '718557b9-bf76-4723-b990-836fa629403c', nombre: 'Carol Aguirre' },
+    ],
   },
   {
     value: 'industrial',
@@ -73,6 +96,40 @@ export function getSegmentoCotizacionWeb(value?: string | null): SegmentoCotizac
   const v = value.trim().toLowerCase();
   return SEGMENTOS_COTIZACION_WEB.find(s => s.value === v || s.crmSegmento.toLowerCase() === v) || null;
 }
+
+/**
+ * Segmento del cotizador al que pertenece un área de `salespeople_users.assigned_segment`
+ * (texto libre: "FERRETERIAS", "Construcción"…). Aplica los mismos patrones
+ * `assignedSegmentLike` que el ruteo al CRM, pero en memoria.
+ */
+export function segmentoCotizacionWebDeArea(assignedSegment?: string | null): SegmentoCotizacionWeb | null {
+  if (!assignedSegment) return null;
+  const area = assignedSegment.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  return SEGMENTOS_COTIZACION_WEB.find(s =>
+    s.assignedSegmentLike.some(p => area.includes(p.replace(/%/g, ''))),
+  ) || null;
+}
+
+/**
+ * Nombre visible de un vendedor en Cotizaciones Web: el de la lista del segmento
+ * si está ahí; si no, el del sistema con solo la inicial de cada palabra en
+ * mayúscula ("PATRICIO HERNAN GHISELLINI" → "Patricio Hernan Ghisellini").
+ */
+export function nombreVendedorCotizacionWeb(id: string | null | undefined, nombre: string | null | undefined): string {
+  for (const s of SEGMENTOS_COTIZACION_WEB) {
+    const fijo = s.vendedores?.find(v => v.id === id);
+    if (fijo) return fijo.nombre;
+  }
+  return (nombre || '')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(p => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(' ');
+}
+
+/** Estados de una cotización web, en el orden en que avanza. */
+export const ESTADOS_COTIZACION_WEB = ['pending', 'assigned', 'contacted', 'quoted', 'sale', 'closed'] as const;
 
 /** Etiqueta legible del segmento (para emails y panel admin). */
 export function segmentoCotizacionWebLabel(value?: string | null): string | null {

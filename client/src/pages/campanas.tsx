@@ -1014,7 +1014,7 @@ const SEG_ESTADOS = [
   { v: "perdido", label: "Perdido" },
 ];
 const COTIZADOR_ESTADOS = [
-  { v: "pending", label: "Pendiente" }, { v: "contacted", label: "Contactado" },
+  { v: "pending", label: "Pendiente" }, { v: "assigned", label: "Asignado" }, { v: "contacted", label: "Contactado" },
   { v: "quoted", label: "Cotizado" }, { v: "closed", label: "Cerrado" },
 ];
 const OBRA_ROLES = [

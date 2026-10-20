@@ -218,6 +218,13 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
     label: "Panel de Trabajo",
     icon: CheckCircle2,
   },
+  // Solicitudes del cotizador público del sitio web. Antes era una pestaña
+  // dentro de Market → Pedidos; ahora tiene su propio ítem.
+  {
+    href: "/cotizaciones-b2c",
+    label: "Cotizaciones Web",
+    icon: Inbox,
+  },
   {
     href: "/tomador-pedidos-v2",
     label: "Tomador de Pedidos",
