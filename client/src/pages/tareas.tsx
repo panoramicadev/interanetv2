@@ -1860,7 +1860,7 @@ export default function TareasPage() {
 
   // A quién le llega una tarea nueva. Ya no se elige a mano (pedido del usuario,
   // ago-2026): el selector "Equipo asignado" salió del formulario y la tarea queda
-  // siempre para el que la crea, su supervisor y la administración.
+  // siempre para el que la crea, su supervisor y, si la crea un admin, la administración.
   //
   // - el que la crea, porque si no queda fuera: al vendedor solo le aparecen las
   //   tareas donde figura como asignado, no las que escribió.
@@ -1876,12 +1876,20 @@ export default function TareasPage() {
   // por si ya está fresca.
   const personasDelSistema = (availableUsers || tareasInit?.salespeople || []) as Array<{ id: string; role: string; salespersonName?: string | null }>;
   const asignacionesPorDefecto = (): CreateTaskWithAssignmentsInput['assignments'] => {
+    // Si la crea alguien que no es admin (supervisor, vendedor, etc.), la
+    // administración no se suma sola (pedido del usuario, oct-2026): solo queda si
+    // la eligen a mano en "Participantes". Tampoco el supervisor de la ficha cuando
+    // esa cuenta es admin.
+    const creaUnAdmin = user.role === 'admin';
+    const esAdmin = (id: string) => personasDelSistema.find((p) => p.id === id)?.role === 'admin';
     const ids: string[] = [user.id];
     const supervisorDelCreador = (user as any).supervisorId as string | undefined | null;
-    if (supervisorDelCreador) ids.push(supervisorDelCreador);
-    personasDelSistema.forEach((p) => {
-      if (p.role === 'admin' && !ADMINS_SIN_TAREAS.has(normalizarNombre(p.salespersonName))) ids.push(p.id);
-    });
+    if (supervisorDelCreador && (creaUnAdmin || !esAdmin(supervisorDelCreador))) ids.push(supervisorDelCreador);
+    if (creaUnAdmin) {
+      personasDelSistema.forEach((p) => {
+        if (p.role === 'admin' && !ADMINS_SIN_TAREAS.has(normalizarNombre(p.salespersonName))) ids.push(p.id);
+      });
+    }
     // Sin repetidos: el creador puede ser él mismo un admin, o su propio supervisor.
     return Array.from(new Set(ids)).map((id) => {
       const rol = personasDelSistema.find((p) => p.id === id)?.role;
