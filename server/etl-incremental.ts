@@ -639,9 +639,14 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     }));
     await batchInsert(stgMaepr, maepr_records, 'stg_maepr', logger);
 
-    // 5. EXTRAER vendedores (usando KOFUEN de MAEEN)
+    // 5. EXTRAER vendedores: KOFUEN de MAEEN y KOFULIDO de MAEDDO.
+    // fact_ventas.nokofu se cruza por dd.kofulido (vendedor de la línea, como en Random);
+    // si solo se traen los KOFUEN, el vendedor que no es el asignado al cliente queda sin nombre.
     console.log('5️⃣  Extrayendo MAEVEN (Vendedores)...');
-    const kofuens = [...new Set(maeen.recordset.map(r => r.KOFUEN).filter(k => k))];
+    const kofuens = [...new Set([
+      ...maeen.recordset.map(r => r.KOFUEN?.trim()),
+      ...maeddo.recordset.map(r => r.KOFULIDO?.trim()),
+    ].filter(k => k))];
     let maeven = { recordset: [] };
 
     if (kofuens.length > 0) {
