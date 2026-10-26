@@ -185,9 +185,17 @@ function enviar(opciones: { to: string[]; cc?: string[]; excluir?: string[]; sub
 
 const asunto = (s: SolicitudMuestra, que: string) => `${que} · muestra #${s.numero} · ${s.clienteNombre}`;
 
+/**
+ * Planificación ve las solicitudes de todos los vendedores, pero de mirón:
+ * no aprueba (ver `puedeAprobar`) ni escribe en las ajenas.
+ */
+const esObservador = (u: any) => u?.role === 'planificacion';
+const esAjena = (u: any, s: SolicitudMuestra) => s.solicitanteId !== u.id && s.supervisorId !== u.id;
+
 /** Lo que el usuario puede ver. `undefined` = todo. */
 async function alcance(usuario: any): Promise<SQL | undefined> {
   if (await gestiona(usuario)) return undefined;
+  if (esObservador(usuario)) return undefined;
   const condiciones: SQL[] = [
     eq(solicitudesMuestra.solicitanteId, usuario.id),
     eq(solicitudesMuestra.supervisorId, usuario.id),
@@ -503,6 +511,9 @@ export function registerSolicitudesMuestraRoutes(app: Express) {
     try {
       const s = await buscar(req.user, req.params.id);
       if (!s) return res.status(404).json({ message: 'Solicitud no encontrada' });
+      if (esObservador(req.user) && esAjena(req.user, s)) {
+        return res.status(403).json({ message: 'Solo puedes ver esta solicitud: no es tuya.' });
+      }
       if (s.estado === 'rechazada' || s.estado === 'cerrada') {
         return res.status(409).json({ message: 'La solicitud ya está cerrada.' });
       }

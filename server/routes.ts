@@ -11810,7 +11810,8 @@ export function registerRoutes(app: Express): Server {
   // (todas las del ERP, no solo las del Market). Sirve global o acotado a un
   // cliente por su RUT (clienteIdErp). KPIs por estado + lista paginada.
   // ==========================================================================
-  const TMS_ROLES_INTERNOS = ['admin', 'supervisor', 'encargado_area', 'reception', 'logistica_bodega', 'salesperson'];
+  // planificacion: consulta Logística desde su menú (solo lectura, todo es GET).
+  const TMS_ROLES_INTERNOS = ['admin', 'supervisor', 'encargado_area', 'reception', 'logistica_bodega', 'salesperson', 'planificacion'];
 
   // Resuelve el formato de RUT que el TMS reconoce (prueba con guión y compacto).
   const resolveTmsRut = async (raw: string): Promise<string | null> => {
@@ -32463,7 +32464,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get GDV summary (totales por estado)
-  app.get('/api/etl/gdv/summary', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/gdv/summary', requireRoles(['admin', 'supervisor', 'encargado_area', 'planificacion']), asyncHandler(async (req: any, res: any) => {
     try {
       // Normalize sucursales: handle both comma-delimited strings and repeated query params
       let sucursales: string[] | undefined = undefined;
@@ -32488,7 +32489,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get GDV by vendedor
-  app.get('/api/etl/gdv/by-vendedor', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/gdv/by-vendedor', requireRoles(['admin', 'supervisor', 'encargado_area', 'planificacion']), asyncHandler(async (req: any, res: any) => {
     try {
       const filters = {
         startDate: req.query.startDate as string | undefined,
@@ -32503,7 +32504,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get GDV pending records (all individual records)
-  app.get('/api/etl/gdv/pending-records', requireRoles(['admin', 'supervisor', 'encargado_area', 'logistica_bodega']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/gdv/pending-records', requireRoles(['admin', 'supervisor', 'encargado_area', 'logistica_bodega', 'planificacion']), asyncHandler(async (req: any, res: any) => {
     try {
       const limit = parseInt(req.query.limit as string) || 500;
       const records = await storage.getGdvPendingRecords(limit);

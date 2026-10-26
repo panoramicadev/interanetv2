@@ -236,6 +236,10 @@ const EXTRAS_OCULTOS_POR_ROL: Record<string, Set<string>> = {
   // Marketing no usa el CRM aunque tenga el permiso (tareas.tsx tampoco le
   // muestra la pestaña): su trabajo es el módulo Marketing.
   marketing: new Set(["clientes.seguimiento"]),
+  // Planificación consulta los pedidos desde "Pedidos" de Market; el
+  // seguimiento de pedidos y "Mis Pedidos" sueltos sobraban en su menú.
+  // Productos (catálogo con edición de precios) tampoco va en su menú.
+  planificacion: new Set(["seguimiento_pedidos", "mis_pedidos", "productos", "solicitud_credito", "nuevo_cliente"]),
 };
 
 /** Datos del usuario que cambian su menú más allá del rol. */

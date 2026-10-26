@@ -801,7 +801,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     ...CMMS_BASICO,
     "gastos",
   ],
-  planificacion: ["nuevo_cliente", "postventa.reclamos", ...CMMS_BASICO, "gastos"],
+  planificacion: ["nuevo_cliente", "postventa.reclamos", ...CMMS_BASICO, "gastos", "inventario", "tintometria.solicitudes", "solicitud_muestra", "finanzas"],
   bodega_materias_primas: ["nuevo_cliente", "postventa.reclamos", ...CMMS_BASICO, "gastos"],
   prevencion_riesgos: ["nuevo_cliente", "postventa.reclamos", "gastos"],
   // Sin rrhh.remuneraciones a propósito: se entrega a mano, persona por persona.
