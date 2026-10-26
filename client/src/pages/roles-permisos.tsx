@@ -30,12 +30,183 @@ import {
   Users as UsersIcon,
   CircleDot,
   Loader2,
+  ChevronDown,
+  CornerDownRight,
 } from "lucide-react";
 import {
   PERMISSIONS,
-  PERMISSION_GROUPS,
   ALL_PERMISSION_KEYS,
+  type PermissionDef,
 } from "@shared/permissions";
+
+/**
+ * Orden de la matriz: sigue el menú lateral del administrador, sección por
+ * sección, y los menús desplegables (Market, Solicitudes, Tintometría,
+ * Marketing, Mantención, Configuración) muestran sus ítems en el mismo orden
+ * en que aparecen al abrirlos. `sub` marca un permiso que vive dentro de la
+ * pantalla del ítem anterior (no es un ítem del menú), y `label` reemplaza la
+ * etiqueta del catálogo cuando en el menú el ítem se llama distinto.
+ * Cualquier permiso que no esté acá cae en "Otros permisos": así un permiso
+ * nuevo nunca queda escondido.
+ */
+interface MenuRow {
+  key: string;
+  label?: string;
+  sub?: boolean;
+}
+
+interface MenuSection {
+  key: string;
+  label: string;
+  description: string;
+  desplegable?: boolean;
+  rows: MenuRow[];
+}
+
+const MENU_SECTIONS: MenuSection[] = [
+  {
+    key: "general",
+    label: "General",
+    description: "Acceso base a la intranet",
+    rows: [{ key: "dashboard" }],
+  },
+  {
+    key: "market",
+    label: "Panorámica Market",
+    description: "Menú desplegable del eCommerce B2B/B2C",
+    desplegable: true,
+    rows: [
+      { key: "market.pedidos" },
+      { key: "productos" },
+      { key: "productos.costos", sub: true },
+      { key: "precios.editar", sub: true },
+      { key: "clientes" },
+      { key: "clientes.seguimiento" },
+      { key: "clientes.ayuda_memoria" },
+      { key: "market.donde_comprar" },
+      { key: "market.mailing" },
+      { key: "market.configuracion" },
+    ],
+  },
+  {
+    key: "operacion",
+    label: "Pedidos, inventario y logística",
+    description: "Ítems sueltos del menú para el trabajo diario",
+    rows: [
+      { key: "tomador_pedidos" },
+      { key: "seguimiento_pedidos" },
+      { key: "mis_pedidos" },
+      { key: "mi_catalogo" },
+      { key: "lista_precios" },
+      { key: "inventario" },
+      { key: "market.logistica" },
+      { key: "gastos" },
+    ],
+  },
+  {
+    key: "solicitudes",
+    label: "Solicitudes",
+    description: "Menú desplegable de pedidos a otras áreas",
+    desplegable: true,
+    rows: [
+      { key: "tintometria.solicitudes" },
+      { key: "tintometria.laboratorio", sub: true },
+      { key: "solicitud_credito" },
+      { key: "nuevo_cliente" },
+      { key: "solicitud_muestra" },
+      { key: "solicitud_muestra.bandeja", sub: true },
+      { key: "solicitud_muestra.gestion", sub: true },
+    ],
+  },
+  {
+    key: "tintometria",
+    label: "Tintometría",
+    description: "Menú desplegable de color y fórmulas",
+    desplegable: true,
+    rows: [
+      { key: "tintometria.carta" },
+      { key: "tintometria.formulas", label: "Libro de Fórmulas" },
+      { key: "tintometria.admin" },
+      { key: "tintometria.calculadora" },
+      { key: "tintometria.selector" },
+    ],
+  },
+  {
+    key: "marketing",
+    label: "Marketing",
+    description: "Menú desplegable del área de marketing",
+    desplegable: true,
+    rows: [{ key: "marketing" }, { key: "market.campanas", label: "Email Marketing" }],
+  },
+  {
+    key: "finanzas",
+    label: "Finanzas",
+    description: "Facturación, márgenes, comisiones y resultados",
+    rows: [
+      { key: "finanzas" },
+      { key: "margen" },
+      { key: "rrhh.comisiones" },
+      { key: "rrhh.remuneraciones" },
+      { key: "finanzas.balance" },
+    ],
+  },
+  {
+    key: "postventa",
+    label: "Post-Venta",
+    description: "Visitas técnicas y reclamos",
+    rows: [{ key: "postventa.visitas" }, { key: "postventa.reclamos" }],
+  },
+  {
+    key: "mantencion",
+    label: "Mantención (CMMS)",
+    description: "Menú desplegable de mantenimiento de planta",
+    desplegable: true,
+    rows: [
+      { key: "cmms.dashboard" },
+      { key: "cmms.ordenes" },
+      { key: "cmms.mantenciones_planificadas" },
+      { key: "cmms.planes_preventivos" },
+      { key: "cmms.equipos" },
+      { key: "cmms.proveedores" },
+      { key: "cmms.presupuesto" },
+      { key: "cmms.gastos_materiales" },
+      { key: "cmms.calendario" },
+    ],
+  },
+  {
+    key: "configuracion",
+    label: "Configuración",
+    description: "Página de Configuración y cada una de sus pestañas",
+    desplegable: true,
+    rows: [
+      { key: "configuracion" },
+      { key: "config.usuarios", sub: true },
+      { key: "config.metas", sub: true },
+      { key: "etl_monitor", sub: true },
+      { key: "config.apikeys", sub: true },
+      { key: "config.importar", sub: true },
+      { key: "config.correos", sub: true },
+      { key: "config.whatsapp", sub: true },
+      { key: "config.integraciones", sub: true },
+    ],
+  },
+];
+
+const PERMISSION_BY_KEY = new Map(PERMISSIONS.map((p) => [p.key, p]));
+
+const SECTIONS_WITH_PERMISSIONS: { section: MenuSection; rows: { row: MenuRow; permission: PermissionDef }[] }[] = (() => {
+  const placed = new Set(MENU_SECTIONS.flatMap((s) => s.rows.map((r) => r.key)));
+  const otros = PERMISSIONS.filter((p) => !placed.has(p.key)).map((p) => ({ key: p.key }));
+  const sections = otros.length
+    ? [...MENU_SECTIONS, { key: "otros", label: "Otros permisos", description: "Permisos que aún no tienen lugar en el menú", rows: otros }]
+    : MENU_SECTIONS;
+  return sections.map((section) => ({
+    section,
+    rows: section.rows
+      .filter((row) => PERMISSION_BY_KEY.has(row.key))
+      .map((row) => ({ row, permission: PERMISSION_BY_KEY.get(row.key)! })),
+  }));
+})();
 
 interface RolePermissionsEntry {
   role: string;
@@ -173,21 +344,21 @@ export default function RolesPermisosPage() {
   }
 
   const normalizedSearch = search.trim().toLowerCase();
-  const visiblePermissions = normalizedSearch
-    ? PERMISSIONS.filter(
-        (p) =>
-          p.label.toLowerCase().includes(normalizedSearch) ||
-          p.description.toLowerCase().includes(normalizedSearch),
-      )
-    : PERMISSIONS;
+  // Buscar también por el nombre de la sección: "tintometría" trae todo su menú.
+  const groupsToRender = SECTIONS_WITH_PERMISSIONS.map(({ section, rows }) => ({
+    section,
+    rows: normalizedSearch
+      ? rows.filter(
+          ({ row, permission }) =>
+            section.label.toLowerCase().includes(normalizedSearch) ||
+            (row.label || permission.label).toLowerCase().includes(normalizedSearch) ||
+            permission.label.toLowerCase().includes(normalizedSearch) ||
+            permission.description.toLowerCase().includes(normalizedSearch),
+        )
+      : rows,
+  })).filter((entry) => entry.rows.length > 0);
 
-  const groupsToRender = PERMISSION_GROUPS.map((group) => ({
-    group,
-    permissions: visiblePermissions.filter((p) => p.group === group.key),
-  })).filter((entry) => entry.permissions.length > 0);
-
-  const setGroup = (groupKey: string, value: boolean) => {
-    const keys = PERMISSIONS.filter((p) => p.group === groupKey).map((p) => p.key);
+  const setGroup = (keys: string[], value: boolean) => {
     setDraft((prev) => {
       const next = { ...prev };
       for (const key of keys) next[key] = value;
@@ -349,16 +520,25 @@ export default function RolesPermisosPage() {
                 </AlertDescription>
               </Alert>
             ) : (
-              groupsToRender.map(({ group, permissions }) => {
-                const groupKeys = PERMISSIONS.filter((p) => p.group === group.key).map((p) => p.key);
+              groupsToRender.map(({ section, rows }) => {
+                const groupKeys = rows.map(({ permission }) => permission.key);
                 const allOn = groupKeys.every((key) => draft[key]);
                 const noneOn = groupKeys.every((key) => !draft[key]);
+                const enabledCount = groupKeys.filter((key) => draft[key]).length;
                 return (
-                  <div key={group.key} className="rounded-xl border">
+                  <div key={section.key} className="rounded-xl border">
                     <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b bg-muted/40 rounded-t-xl">
                       <div>
-                        <p className="text-sm font-semibold">{group.label}</p>
-                        <p className="text-xs text-muted-foreground">{group.description}</p>
+                        <p className="text-sm font-semibold flex items-center gap-1.5">
+                          {section.desplegable && (
+                            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                          )}
+                          {section.label}
+                          <span className="text-xs font-normal text-muted-foreground">
+                            {enabledCount}/{groupKeys.length}
+                          </span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">{section.description}</p>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <Button
@@ -366,8 +546,8 @@ export default function RolesPermisosPage() {
                           size="sm"
                           className="h-7 px-2 text-xs"
                           disabled={allOn}
-                          onClick={() => setGroup(group.key, true)}
-                          data-testid={`group-all-${group.key}`}
+                          onClick={() => setGroup(groupKeys, true)}
+                          data-testid={`group-all-${section.key}`}
                         >
                           Todos
                         </Button>
@@ -376,25 +556,30 @@ export default function RolesPermisosPage() {
                           size="sm"
                           className="h-7 px-2 text-xs"
                           disabled={noneOn}
-                          onClick={() => setGroup(group.key, false)}
-                          data-testid={`group-none-${group.key}`}
+                          onClick={() => setGroup(groupKeys, false)}
+                          data-testid={`group-none-${section.key}`}
                         >
                           Ninguno
                         </Button>
                       </div>
                     </div>
                     <div className="divide-y">
-                      {permissions.map((permission) => {
+                      {rows.map(({ row, permission }) => {
                         const changed =
                           !!draft[permission.key] !== !!current.permissions[permission.key];
                         return (
                           <div
                             key={permission.key}
-                            className="flex items-center justify-between gap-4 px-4 py-3"
+                            className={`flex items-center justify-between gap-4 py-3 pr-4 ${
+                              row.sub ? "pl-10 bg-muted/20" : "pl-4"
+                            }`}
                           >
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
-                                <p className="text-sm font-medium">{permission.label}</p>
+                                {row.sub && (
+                                  <CornerDownRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                )}
+                                <p className="text-sm font-medium">{row.label || permission.label}</p>
                                 {changed && (
                                   <span
                                     className="w-1.5 h-1.5 rounded-full bg-blue-500"
