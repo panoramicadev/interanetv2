@@ -1,6 +1,10 @@
 /**
- * Libro de fórmulas: lo que hay cargado y la subida del libro tintométrico en
- * Excel. Vive como pestaña de Tintometría → Administrar Datos.
+ * Libro de fórmulas: lo que hay cargado en la carta y la subida del libro
+ * tintométrico en Excel. Vive como pestaña de Tintometría → Administrar Datos.
+ *
+ * Desde oct-2026 el libro se sube por producto en Tintometría → Libro de
+ * Fórmulas, aparte de la pantonera: el botón de acá lleva allá, para que el
+ * libro no vuelva a crear colores en la carta.
  *
  * Subir el libro reemplaza las fórmulas del libro de cada línea que venga en el
  * archivo (las que ya no vienen se apagan) y nunca toca las que respondió
@@ -8,6 +12,7 @@
  * ciegas: vuelve como alertas para que laboratorio decida.
  */
 import { useRef, useState } from "react";
+import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, BookOpen, FileSpreadsheet, Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -89,9 +94,8 @@ export function LibroFormulasAdmin() {
             <div>
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Libro de fórmulas</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xl">
-                Sube el libro tintométrico en Excel (el mismo formato del «Libro tintométrico EA Copper 960»). Se
-                cargan todas sus hojas; las fórmulas del libro que ya no vengan quedan apagadas. Las fórmulas que
-                respondió laboratorio no se tocan.
+                El libro tintométrico de cada producto ahora se sube y se consulta en Tintometría → Libro de
+                Fórmulas, aparte de la pantonera. Acá queda el resumen de lo cargado en la carta.
               </p>
             </div>
           </div>
@@ -107,13 +111,13 @@ export function LibroFormulasAdmin() {
             data-testid="input-libro-excel"
           />
           <Button
-            onClick={() => archivoRef.current?.click()}
-            disabled={subiendo}
+            asChild
             className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25"
-            data-testid="button-subir-libro"
+            data-testid="button-ir-libro-formulas"
           >
-            {subiendo ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-            {subiendo ? "Importando…" : "Subir libro en Excel"}
+            <Link href="/tintometria/libro">
+              <BookOpen className="h-4 w-4 mr-2" /> Ir al Libro de Fórmulas
+            </Link>
           </Button>
         </div>
 

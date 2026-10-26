@@ -4276,6 +4276,44 @@ export const tintoFormulas = pgTable("tinto_formulas", {
 export type TintoColor = typeof tintoColores.$inferSelect;
 export type TintoFormula = typeof tintoFormulas.$inferSelect;
 
+// ── Libro de fórmulas por producto (oct-2026) ────────────────────────────────
+// Cada producto (Esmalte al agua Copper…) tiene su libro tintométrico en Excel,
+// con una hoja por cartilla. Vive aparte de la pantonera: el libro no crea
+// colores en la carta. Subir otra versión del mismo producto deja la anterior
+// apagada (activo = false), no la borra.
+export const tintoLibros = pgTable("tinto_libros", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  producto: text("producto").notNull(), // "Esmalte al agua Copper", como lo escribe quien sube
+  linea: varchar("linea", { length: 120 }), // la LINEA de la ficha del Excel, tal cual
+  version: varchar("version", { length: 60 }),
+  archivo: text("archivo"),
+  formulas: integer("formulas").notNull().default(0),
+  creadoPorId: varchar("creado_por_id"),
+  creadoPorNombre: text("creado_por_nombre"),
+  activo: boolean("activo").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  productoIdx: index("IDX_tinto_libros_producto").on(table.producto),
+}));
+
+export const tintoLibroFormulas = pgTable("tinto_libro_formulas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  libroId: varchar("libro_id").notNull(),
+  hoja: text("hoja"),
+  cartilla: varchar("cartilla", { length: 40 }).notNull(), // PANORAMICA | SW | LINEA | …
+  codigo: varchar("codigo", { length: 60 }).notNull(), // "001-4", "SW6561", "SUR MAGICO"
+  base: varchar("base", { length: 40 }).notNull(),
+  variante: integer("variante").notNull().default(1),
+  items: jsonb("items").notNull().default(sql`'[]'::jsonb`), // ItemFormula[] (shared/tintometria.ts)
+  alerta: text("alerta"),
+  orden: integer("orden"), // el orden de la fila en el Excel
+}, (table) => ({
+  libroIdx: index("IDX_tinto_libro_formulas_libro").on(table.libroId),
+}));
+
+export type TintoLibro = typeof tintoLibros.$inferSelect;
+export type TintoLibroFormula = typeof tintoLibroFormulas.$inferSelect;
+
 // ── Solicitudes a laboratorio (sep-2026) ─────────────────────────────────────
 // Un vendedor le pide a laboratorio la fórmula y/o el precio de un color para un
 // cliente, con los mismos datos de la planilla "Solicitud de fórmula

@@ -15,7 +15,7 @@ import { db } from './db';
 import { requireAuth } from './auth';
 import { requirePermission, userHasPermission } from './permissions';
 import { tintoColores, tintoFormulas, tintoSolicitudes } from '../shared/schema';
-import { importarLibro, leerLibro } from './services/tintometria-libro';
+import { importarLibro, importarLibroProducto, leerLibro } from './services/tintometria-libro';
 
 /** Pasa si el usuario tiene al menos uno de los permisos. */
 const requireAlgunPermiso = (claves: string[]) => async (req: any, res: any, next: any) => {
@@ -29,6 +29,8 @@ const requireAlgunPermiso = (claves: string[]) => async (req: any, res: any, nex
 };
 
 const puedeVerCarta = requireAlgunPermiso(['tintometria.carta', 'tintometria.formulas', 'tintometria.admin']);
+// El Libro de Fórmulas es del operador que tiñe y de quien administra tintometría.
+const puedeVerLibro = requireAlgunPermiso(['tintometria.formulas', 'tintometria.admin']);
 
 // El libro pesa menos de 1 MB; 15 MB deja margen sin aceptar cualquier cosa.
 const subida = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -177,6 +179,97 @@ export function registerTintometriaRoutes(app: Express) {
       } catch (error: any) {
         console.error('[tintometria] falló la importación del libro:', error);
         res.status(500).json({ message: 'No se pudo importar el libro. No se cambió nada.' });
+      }
+    },
+  );
+
+  // ── Libro de Fórmulas por producto ──────────────────────────────────────────
+
+  /** Libros vigentes, uno por producto, con cuántas fórmulas trae cada cartilla. */
+  app.get('/api/tintometria/libros', requireAuth, puedeVerLibro, async (_req, res) => {
+    try {
+      const r = await db.execute(sql`
+        SELECT l.id, l.producto, l.linea, l.version, l.archivo, l.formulas,
+               l.creado_por_nombre AS "creadoPorNombre", l.created_at AS "createdAt",
+               COALESCE((
+                 SELECT json_agg(json_build_object('cartilla', x.cartilla, 'formulas', x.n) ORDER BY x.primera)
+                 FROM (
+                   SELECT cartilla, count(*)::int AS n, min(orden) AS primera
+                   FROM tinto_libro_formulas WHERE libro_id = l.id GROUP BY cartilla
+                 ) x
+               ), '[]'::json) AS cartillas
+        FROM tinto_libros l
+        WHERE l.activo = true
+        ORDER BY l.producto
+      `);
+      res.json((r as any).rows ?? []);
+    } catch (error: any) {
+      console.error('[tintometria] no se pudieron leer los libros:', error.message);
+      res.status(500).json({ message: 'No se pudieron cargar los libros' });
+    }
+  });
+
+  /**
+   * Fórmulas de un libro. Pesan poco (unas 2.800) y se filtran en el navegador.
+   * Los códigos de la pantonera Panorámica traen su nombre y su color.
+   */
+  app.get('/api/tintometria/libros/:id/formulas', requireAuth, puedeVerLibro, async (req: any, res) => {
+    try {
+      const r = await db.execute(sql`
+        SELECT f.id, f.hoja, f.cartilla, f.codigo, f.base, f.variante, f.items, f.alerta,
+               c.nombre, c.hex
+        FROM tinto_libro_formulas f
+        LEFT JOIN tinto_colores c ON c.cartilla = f.cartilla AND c.codigo = f.codigo
+        WHERE f.libro_id = ${req.params.id}
+        ORDER BY f.cartilla, f.orden
+      `);
+      res.json((r as any).rows ?? []);
+    } catch (error: any) {
+      console.error('[tintometria] no se pudieron leer las fórmulas del libro:', error.message);
+      res.status(500).json({ message: 'No se pudieron cargar las fórmulas del libro' });
+    }
+  });
+
+  /**
+   * Sube el libro de un producto. Reemplaza el libro vigente de ese producto
+   * (el anterior queda apagado) y no toca la pantonera.
+   */
+  app.post(
+    '/api/tintometria/libros/importar',
+    requireAuth,
+    requirePermission('tintometria.admin'),
+    subida.single('archivo'),
+    async (req: any, res) => {
+      try {
+        const producto = String(req.body?.producto ?? '').trim().replace(/\s+/g, ' ');
+        if (!producto) return res.status(400).json({ message: 'Indica a qué producto corresponde el libro.' });
+        if (!req.file?.buffer) {
+          return res.status(400).json({ message: 'Adjunta el libro tintométrico en Excel.' });
+        }
+        let hojas;
+        try {
+          hojas = leerLibro(req.file.buffer);
+        } catch {
+          return res.status(400).json({ message: 'No se pudo leer el archivo. ¿Es el libro en Excel (.xlsx)?' });
+        }
+        if (hojas.length === 0 || hojas.every((h) => h.filas.length === 0)) {
+          return res.status(400).json({
+            message:
+              'El archivo no tiene el formato del libro tintométrico: falta la fila BASE | COLOR | COL_1… o la ficha con la LINEA.',
+          });
+        }
+        const resumen = await importarLibroProducto(producto, req.file.originalname ?? null, hojas, {
+          id: req.user?.id,
+          nombre: nombreDe(req.user),
+        });
+        console.log(
+          `[tintometria] libro de ${producto} cargado por ${req.user?.email}: ${resumen.formulas} fórmulas, ` +
+            `${resumen.librosApagados} libro(s) anterior(es) apagado(s)`,
+        );
+        res.json(resumen);
+      } catch (error: any) {
+        console.error('[tintometria] falló la carga del libro del producto:', error);
+        res.status(500).json({ message: 'No se pudo cargar el libro. No se cambió nada.' });
       }
     },
   );

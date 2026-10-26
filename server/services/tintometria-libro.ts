@@ -21,7 +21,7 @@
 import * as XLSX from 'xlsx';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db';
-import { tintoColores, tintoFormulas } from '../../shared/schema';
+import { tintoColores, tintoFormulas, tintoLibroFormulas, tintoLibros } from '../../shared/schema';
 import { escribirDosis, esDosisVacia, leerDosis, type ItemFormula } from '../../shared/tintometria';
 
 export interface HojaLeida {
@@ -60,26 +60,38 @@ export interface ResumenImportacion {
 const texto = (v: unknown) => (v === null || v === undefined ? '' : String(v).trim());
 const mayus = (v: unknown) => texto(v).toUpperCase().replace(/\s+/g, ' ');
 
-/** "SHERWIN WILLIAMS" → "SW", "PANORAMICA" → "PANORAMICA"; el resto tal cual. */
+/**
+ * "SHERWIN WILLIAMS" → "SW"; "PANORAMICA" y "PANTONERA COPPER COLOR, 1232
+ * COLORES" (el libro de oct-2026) → "PANORAMICA"; "COLORES DE LINEA" → "LINEA";
+ * el resto tal cual.
+ */
 function codigoCartilla(nombre: string): string {
   const n = mayus(nombre).normalize('NFD').replace(/[̀-ͯ]/g, '');
   if (n.includes('SHERWIN')) return 'SW';
-  if (n.includes('PANORAMICA')) return 'PANORAMICA';
+  if (n.includes('PANORAMICA') || n.includes('PANTONERA')) return 'PANORAMICA';
+  if (n.includes('COLORES DE LINEA')) return 'LINEA';
   return n;
 }
 
-/** Códigos de color sin espacios; los de Sherwin-Williams sin guion ("SW-7539" → "SW7539"). */
+/**
+ * Códigos de color: los de Sherwin-Williams sin espacios ni guion ("SW-7539" →
+ * "SW7539"). Los colores de línea se llaman por su nombre ("SUR MAGICO"), así
+ * que ahí los espacios se respetan.
+ */
 function normalizarCodigo(v: unknown): string {
-  const c = mayus(v).replace(/\s+/g, '');
-  const sw = /^SW-?(\d+)$/.exec(c);
+  const c = mayus(v);
+  const sw = /^SW\s*-?\s*(\d+)$/.exec(c);
   return sw ? `SW${sw[1]}` : c;
 }
 
-/** Galones de una columna de dosis por su título: "GALON" → 1, "5 GL" → 5, "RAYAS 5 GALONES" → 5. */
+/**
+ * Galones de una columna de dosis por su título: "GALON" y "GL" → 1, "4 GALON"
+ * y "5 GL" → 4 y 5, "RAYAS 5 GALONES" → 5.
+ */
 function galonesDeTitulo(titulo: string): number | null {
-  const n = /(\d+(?:[.,]\d+)?)\s*(?:GL|GALONES|GAL)\b/.exec(titulo);
+  const n = /(\d+(?:[.,]\d+)?)\s*(?:GL|GALONES|GALON|GAL)\b/.exec(titulo);
   if (n) return Number(n[1].replace(',', '.'));
-  if (/GAL[OÓ]N|RAYAS O PINTAS/.test(titulo)) return 1;
+  if (/GAL[OÓ]N|^GL$|RAYAS O PINTAS/.test(titulo)) return 1;
   return null;
 }
 
@@ -121,19 +133,41 @@ export function leerLibro(buffer: Buffer): HojaLeida[] {
     const colColor = colBase + 1;
 
     // Bloques COL_n: el colorante y, hasta el próximo COL_, sus columnas de dosis.
-    const bloques: Array<{ colColorante: number; textos: Map<number, number>; rayas: Map<number, number> }> = [];
+    const bloques: Array<{
+      colColorante: number;
+      textos: Map<number, number>;
+      rayas: Map<number, number>;
+      columnasDosis: number[];
+      tituloRepetido: boolean;
+    }> = [];
     encabezado.forEach((titulo, i) => {
       if (/^COL_?\d+$/.test(titulo)) {
-        bloques.push({ colColorante: i, textos: new Map(), rayas: new Map() });
+        bloques.push({ colColorante: i, textos: new Map(), rayas: new Map(), columnasDosis: [], tituloRepetido: false });
         return;
       }
       const bloque = bloques[bloques.length - 1];
       if (!bloque) return;
       const galones = galonesDeTitulo(titulo);
       if (galones === null) return;
-      if (titulo.includes('RAYAS')) bloque.rayas.set(galones, i);
-      else bloque.textos.set(galones, i);
+      if (titulo.includes('RAYAS')) {
+        bloque.rayas.set(galones, i);
+        return;
+      }
+      if (bloque.textos.has(galones)) bloque.tituloRepetido = true;
+      bloque.textos.set(galones, i);
+      bloque.columnasDosis.push(i);
     });
+    // Un título mal copiado ("GALON | 5GL | 5 GL" en vez de "GALON | 4 GL | 5 GL",
+    // libro de oct-2026) taparía un formato: ese bloque toma, por posición, los
+    // formatos de un bloque bien titulado con la misma cantidad de columnas.
+    const modelo = bloques.find((b) => !b.tituloRepetido);
+    if (modelo) {
+      const formatosModelo = modelo.columnasDosis.map((col) => Array.from(modelo.textos).find(([, c]) => c === col)![0]);
+      for (const b of bloques) {
+        if (!b.tituloRepetido || b.columnasDosis.length !== formatosModelo.length) continue;
+        b.textos = new Map(b.columnasDosis.map((col, k) => [formatosModelo[k], col]));
+      }
+    }
 
     const cartilla = codigoCartilla(ficha['CARTILLA'] || nombreHoja);
     const linea = mayus(ficha['LINEA'] || '');
@@ -196,6 +230,48 @@ const ALERTA_VARIANTES =
 const alertaBases = (bases: string[]) =>
   `Este color aparece en más de una base del libro (${bases.join(' y ').toLowerCase()}). Confirma con laboratorio cuál corresponde.`;
 
+interface FormulaArmada {
+  codigo: string;
+  base: string;
+  variante: number;
+  items: ItemFormula[];
+  alerta: string | null;
+  orden: number;
+}
+
+/**
+ * Numera las variantes de cada color y base y les pone la alerta que
+ * corresponda. Una fila idéntica a otra ya vista se cuenta y se omite.
+ */
+function armarVariantes(filas: FilaLibro[]): { aGuardar: FormulaArmada[]; repetidas: number } {
+  const basesDe = new Map<string, Set<string>>();
+  for (const f of filas) {
+    if (!basesDe.has(f.codigo)) basesDe.set(f.codigo, new Set());
+    basesDe.get(f.codigo)!.add(f.base);
+  }
+  const vistas = new Map<string, ItemFormula[][]>(); // codigo|base → variantes
+  const aGuardar: FormulaArmada[] = [];
+  let repetidas = 0;
+  filas.forEach((f, orden) => {
+    const clave = `${f.codigo}|${f.base}`;
+    const previas = vistas.get(clave) ?? [];
+    if (previas.some((p) => mismaFormula(p, f.items))) {
+      repetidas++;
+      return;
+    }
+    previas.push(f.items);
+    vistas.set(clave, previas);
+    aGuardar.push({ codigo: f.codigo, base: f.base, variante: previas.length, items: f.items, alerta: null, orden });
+  });
+  for (const g of aGuardar) {
+    const variantes = vistas.get(`${g.codigo}|${g.base}`)!.length;
+    const bases = Array.from(basesDe.get(g.codigo) ?? []);
+    if (variantes > 1) g.alerta = ALERTA_VARIANTES;
+    else if (bases.length > 1) g.alerta = alertaBases(bases);
+  }
+  return { aGuardar, repetidas };
+}
+
 /**
  * Carga el libro: crea los colores que falten, actualiza las fórmulas del libro
  * de cada línea importada y apaga las que ya no vienen. Todo en una
@@ -236,31 +312,7 @@ export async function importarLibro(
       const idDe = new Map(colores.map((c) => [c.codigo, c.id]));
 
       // 2) Variantes y alertas por color.
-      const basesDe = new Map<string, Set<string>>();
-      for (const f of hoja.filas) {
-        if (!basesDe.has(f.codigo)) basesDe.set(f.codigo, new Set());
-        basesDe.get(f.codigo)!.add(f.base);
-      }
-      const vistas = new Map<string, ItemFormula[][]>(); // codigo|base → variantes
-      const aGuardar: Array<{ codigo: string; base: string; variante: number; items: ItemFormula[]; alerta: string | null }> = [];
-      let repetidas = 0;
-      for (const f of hoja.filas) {
-        const clave = `${f.codigo}|${f.base}`;
-        const previas = vistas.get(clave) ?? [];
-        if (previas.some((p) => mismaFormula(p, f.items))) {
-          repetidas++;
-          continue;
-        }
-        previas.push(f.items);
-        vistas.set(clave, previas);
-        aGuardar.push({ codigo: f.codigo, base: f.base, variante: previas.length, items: f.items, alerta: null });
-      }
-      for (const g of aGuardar) {
-        const variantes = vistas.get(`${g.codigo}|${g.base}`)!.length;
-        const bases = Array.from(basesDe.get(g.codigo) ?? []);
-        if (variantes > 1) g.alerta = ALERTA_VARIANTES;
-        else if (bases.length > 1) g.alerta = alertaBases(bases);
-      }
+      const { aGuardar, repetidas } = armarVariantes(hoja.filas);
       const conAlerta = new Set<string>();
       for (const g of aGuardar) {
         if (g.alerta && !conAlerta.has(g.codigo)) {
@@ -348,4 +400,101 @@ export async function importarLibro(
   resumen.sinFormula = (((sinFormula as any).rows || []) as Array<{ codigo: string }>).map((r) => r.codigo);
 
   return resumen;
+}
+
+export interface ResumenLibroProducto {
+  libroId: string;
+  producto: string;
+  version: string | null;
+  hojas: Array<{ hoja: string; cartilla: string; filas: number; formulas: number; repetidasIdenticas: number }>;
+  formulas: number;
+  /** Libros anteriores del mismo producto que quedaron apagados. */
+  librosApagados: number;
+  alertas: Array<{ cartilla: string; codigo: string; alerta: string }>;
+}
+
+/**
+ * Carga el libro de un producto en el Libro de Fórmulas, aparte de la
+ * pantonera: no crea colores en la carta. El libro anterior del mismo producto
+ * queda apagado (no se borra). Todo en una transacción.
+ */
+export async function importarLibroProducto(
+  producto: string,
+  archivo: string | null,
+  hojas: HojaLeida[],
+  autor: { id?: string | null; nombre?: string | null },
+): Promise<ResumenLibroProducto> {
+  const version = hojas.map((h) => h.version).filter(Boolean).sort((a, b) => b!.length - a!.length)[0] ?? null;
+  const linea = hojas.find((h) => h.linea)?.linea ?? null;
+
+  return db.transaction(async (tx) => {
+    const apagados = await tx
+      .update(tintoLibros)
+      .set({ activo: false })
+      .where(and(sql`lower(${tintoLibros.producto}) = lower(${producto})`, eq(tintoLibros.activo, true)))
+      .returning({ id: tintoLibros.id });
+
+    const [libro] = await tx
+      .insert(tintoLibros)
+      .values({
+        producto,
+        linea,
+        version,
+        archivo,
+        creadoPorId: autor.id ?? null,
+        creadoPorNombre: autor.nombre ?? null,
+      })
+      .returning({ id: tintoLibros.id });
+
+    const resumen: ResumenLibroProducto = {
+      libroId: libro.id,
+      producto,
+      version,
+      hojas: [],
+      formulas: 0,
+      librosApagados: apagados.length,
+      alertas: [],
+    };
+
+    // El orden sigue al Excel entero (hoja por hoja), así las pestañas salen
+    // en el orden de sus hojas.
+    let desde = 0;
+    for (const hoja of hojas) {
+      const { aGuardar, repetidas } = armarVariantes(hoja.filas);
+      const conAlerta = new Set<string>();
+      for (const g of aGuardar) {
+        if (g.alerta && !conAlerta.has(g.codigo)) {
+          conAlerta.add(g.codigo);
+          resumen.alertas.push({ cartilla: hoja.cartilla, codigo: g.codigo, alerta: g.alerta });
+        }
+      }
+      for (let i = 0; i < aGuardar.length; i += 500) {
+        await tx.insert(tintoLibroFormulas).values(
+          aGuardar.slice(i, i + 500).map((g) => ({
+            libroId: libro.id,
+            hoja: hoja.hoja.trim(),
+            cartilla: hoja.cartilla,
+            codigo: g.codigo,
+            base: g.base,
+            variante: g.variante,
+            items: g.items,
+            alerta: g.alerta,
+            orden: desde + g.orden,
+          })),
+        );
+      }
+      desde += hoja.filas.length;
+      resumen.formulas += aGuardar.length;
+      resumen.hojas.push({
+        hoja: hoja.hoja.trim(),
+        cartilla: hoja.cartilla,
+        filas: hoja.filas.length,
+        formulas: aGuardar.length,
+        repetidasIdenticas: repetidas,
+      });
+    }
+
+    await tx.update(tintoLibros).set({ formulas: resumen.formulas }).where(eq(tintoLibros.id, libro.id));
+    return resumen;
+  });
 }

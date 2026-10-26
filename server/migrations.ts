@@ -2295,6 +2295,38 @@ export async function ensureTintometriaTablas(): Promise<void> {
       ON tinto_formulas (color_id, linea, base, variante) WHERE origen = 'libro'
   `);
 
+  // Libro de fórmulas por producto (oct-2026): aparte de la pantonera.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS tinto_libros (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      producto TEXT NOT NULL,
+      linea VARCHAR(120),
+      version VARCHAR(60),
+      archivo TEXT,
+      formulas INTEGER NOT NULL DEFAULT 0,
+      creado_por_id VARCHAR,
+      creado_por_nombre TEXT,
+      activo BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_tinto_libros_producto" ON tinto_libros (producto)`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS tinto_libro_formulas (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      libro_id VARCHAR NOT NULL REFERENCES tinto_libros(id),
+      hoja TEXT,
+      cartilla VARCHAR(40) NOT NULL,
+      codigo VARCHAR(60) NOT NULL,
+      base VARCHAR(40) NOT NULL,
+      variante INTEGER NOT NULL DEFAULT 1,
+      items JSONB NOT NULL DEFAULT '[]'::jsonb,
+      alerta TEXT,
+      orden INTEGER
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_tinto_libro_formulas_libro" ON tinto_libro_formulas (libro_id)`);
+
   // Solicitudes a laboratorio (migración 091).
   await db.execute(sql`
       CREATE TABLE IF NOT EXISTS tinto_solicitudes (

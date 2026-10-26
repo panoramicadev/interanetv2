@@ -338,11 +338,13 @@ export const PERMISSIONS: PermissionDef[] = [
     group: "tintometria",
   },
   {
-    // Sin href: es un permiso DENTRO de la carta. Las fórmulas son del
-    // laboratorio; por ahora solo las ve el operador que tiñe (sep-2026).
+    // Las fórmulas son del laboratorio; por ahora solo las ve el operador que
+    // tiñe (sep-2026). Abre el Libro de Fórmulas por producto (oct-2026) y
+    // muestra la fórmula dentro de la carta.
     key: "tintometria.formulas",
     label: "Ver fórmulas",
-    description: "Ver en la carta la fórmula de cada color (colorantes y dosis)",
+    description: "Ver el Libro de Fórmulas por producto y la fórmula de cada color en la carta (colorantes y dosis)",
+    href: "/tintometria/libro",
     group: "tintometria",
   },
   {
