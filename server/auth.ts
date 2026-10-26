@@ -499,6 +499,22 @@ export const requireCommercialAccess = requireRoles([
   'reception'
 ]);
 
+// Lectura de ventas (Dashboard, metas, márgenes, pedidos ERP): los mismos roles
+// comerciales más `planificacion`, que necesita ver todos los vendedores y
+// segmentos. Solo va en endpoints GET de consulta; lo que escribe o administra
+// (usuarios, API keys, bodegas) sigue con requireCommercialAccess.
+export const requireSalesViewAccess = requireRoles([
+  'admin',
+  'supervisor',
+  'encargado_area',
+  'salesperson',
+  'tecnico_obra',
+  'jefe_planta',
+  'logistica_bodega',
+  'reception',
+  'planificacion'
+]);
+
 // Marketing Module Access Control
 // Access to the Marketing module (inventario, gastos, presupuesto, solicitudes, creatividades).
 // Same commercial roles as requireCommercialAccess, plus the dedicated `marketing` role.

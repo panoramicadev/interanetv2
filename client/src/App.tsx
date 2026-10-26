@@ -9,6 +9,7 @@ import { FilterProvider } from "@/contexts/FilterContext";
 import { UpdateNotification } from "@/components/UpdateNotification";
 import { TrackingScripts } from "@/components/tracking-scripts";
 import { Guarded } from "@/components/guarded-route";
+import { usePermissions } from "@/hooks/usePermissions";
 import { TourProvider, TourOverlay } from "@/components/guided-tour";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import ClientEcommerceLayout from "@/components/layout/client-ecommerce-layout";
@@ -149,6 +150,20 @@ function guarded(permission: string, Component: any, soloRoles?: string[]) {
 // para que los vendedores tengan respaldo si algo falla en el nuevo.
 const TomadorPedidosV2 = (props: any) => <TomadorPedidos {...props} variant="v2" />;
 
+// Inicio de Planificación: si tiene el Dashboard habilitado en Roles y Permisos,
+// aterriza ahí (es el primer ítem de su menú); si no, sigue en Reclamos Generales.
+function PlanificacionHome() {
+  const { can, isReady } = usePermissions();
+  if (!isReady) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  return can("dashboard") ? <Dashboard /> : <ReclamosGeneralesPage />;
+}
+
 function Router() {
   const { user, isLoading } = useAuth();
 
@@ -251,8 +266,9 @@ function Router() {
                   // Va por Redirect y no renderizando <Marketing/> acá para que la URL
                   // sea la de la sección: así el sidebar marca dónde está parada.
                   return <Redirect to="/marketing/hoy" />;
-                case 'produccion':
                 case 'planificacion':
+                  return <PlanificacionHome />;
+                case 'produccion':
                 case 'bodega_materias_primas':
                 case 'prevencion_riesgos':
                 case 'laboratorio':

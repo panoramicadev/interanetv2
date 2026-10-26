@@ -836,6 +836,13 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   ],
 
   planificacion: [
+    // Dashboard primero: si el rol tiene el permiso, es su pantalla de inicio
+    // (ver App.tsx). Sin el permiso, el filtro del sidebar lo esconde.
+    {
+      href: "/",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
     {
       href: "/reclamos-generales",
       label: "Reclamos",
