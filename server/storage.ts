@@ -23146,6 +23146,7 @@ export class DatabaseStorage implements IStorage {
     search?: string;
     warehouse?: string;
     branch?: string;
+    excludeWarehouseNames?: string[];
   }): Promise<any[]> {
     const rows = await this.getInventoryWithPrices(filters);
     return rows.map(({ averagePrice, totalValue, ...stock }) => stock);
@@ -23154,6 +23155,8 @@ export class DatabaseStorage implements IStorage {
   async getInventorySummary(filters?: {
     search?: string;
     warehouse?: string;
+    branch?: string;
+    excludeWarehouseNames?: string[];
   }): Promise<{
     totalProducts: number;
     totalQuantity: number;
@@ -23267,6 +23270,8 @@ export class DatabaseStorage implements IStorage {
     search?: string;
     warehouse?: string;
     branch?: string;
+    // Bodegas que la pantalla no quiere ver, por nombre (p. ej. 'BODEGA DEL SUR')
+    excludeWarehouseNames?: string[];
   }): Promise<any[]> {
     // Create cache key from filters (sorted to ensure consistency)
     const cacheKey = JSON.stringify(filters || {}, Object.keys(filters || {}).sort());
@@ -23315,6 +23320,10 @@ export class DatabaseStorage implements IStorage {
 
         if (filters?.branch && filters.branch !== 'all') {
           conditions.push(eq(inventoryProducts.sucursal, filters.branch));
+        }
+
+        for (const name of filters?.excludeWarehouseNames || []) {
+          conditions.push(sql`UPPER(TRIM(COALESCE(${inventoryProducts.nombreBodega}, ''))) <> ${name.toUpperCase().trim()}`);
         }
 
         // Query inventory from PostgreSQL
@@ -23479,6 +23488,7 @@ export class DatabaseStorage implements IStorage {
     search?: string;
     warehouse?: string;
     branch?: string;
+    excludeWarehouseNames?: string[];
     hideNoStock?: boolean;
     hideZZProducts?: boolean;
   }): Promise<{

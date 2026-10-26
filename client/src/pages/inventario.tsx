@@ -65,6 +65,12 @@ interface Warehouse {
   name: string;
 }
 
+// Bodegas que no se muestran en Inventario (pedido del usuario, oct-2026).
+// Solo se ocultan acá: Tomador de Pedidos y Recepción las siguen viendo.
+const BODEGAS_OCULTAS = ['BODEGA DEL SUR'];
+const esBodegaOculta = (name?: string) =>
+  BODEGAS_OCULTAS.includes((name || '').toUpperCase().trim());
+
 interface Branch {
   code: string;
   name: string;
@@ -396,7 +402,7 @@ function WarehouseFilter({
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="all">Todas las bodegas</SelectItem>
-        {warehouses?.map((warehouse) => (
+        {warehouses?.filter((warehouse) => !esBodegaOculta(warehouse.name)).map((warehouse) => (
           <SelectItem key={warehouse.code} value={warehouse.code}>
             {warehouse.name || warehouse.code}
           </SelectItem>
@@ -440,6 +446,7 @@ function StockSummary({
       if (searchTerm) params.append('search', searchTerm);
       if (selectedWarehouse !== 'all') params.append('warehouse', selectedWarehouse);
       if (selectedBranch !== 'all') params.append('branch', selectedBranch);
+      params.append('excludeWarehouse', BODEGAS_OCULTAS.join(','));
       if (hideNoStock) params.append('hideNoStock', 'true');
       if (hideZZProducts) params.append('hideZZProducts', 'true');
 
@@ -601,6 +608,7 @@ function InventoryTable({
       if (searchTerm) params.append('search', searchTerm);
       if (selectedWarehouse !== 'all') params.append('warehouse', selectedWarehouse);
       if (selectedBranch !== 'all') params.append('branch', selectedBranch);
+      params.append('excludeWarehouse', BODEGAS_OCULTAS.join(','));
 
       const response = await fetch(`${endpoint}?${params}`, {
         credentials: 'include'
