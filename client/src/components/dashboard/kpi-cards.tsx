@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
@@ -9,11 +9,9 @@ import {
   ShoppingCart,
   Package,
   Users,
-  Loader2,
-  X
+  Loader2
 } from "lucide-react";
 import { format } from "date-fns";
-import SalesProjectionCard from "@/components/dashboard/sales-projection-card";
 import MargenResumenCard from "@/components/dashboard/margen-resumen-card";
 import { useFilter } from "@/contexts/FilterContext";
 import { mesEs, mesEsCapitalizado, mesAnioEs } from "@/lib/fecha-es";
@@ -92,7 +90,6 @@ interface NewClientItem {
 
 export default function KPICards({ selectedPeriod, filterType, segment, salesperson, client, product, comparePeriod, onShowNewClients }: KPICardsProps) {
   const [showNewClientsModal, setShowNewClientsModal] = useState(false);
-  const [isProjectionModalOpen, setIsProjectionModalOpen] = useState(false);
   // Modo Facturado / Combinado compartido con la tarjeta de meta (arranca en Combinado)
   const { showCombined, setShowCombined } = useFilter();
 
@@ -923,36 +920,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     );
   };
 
-  /** Ventana de proyección de ventas. Se abre tocando la tarjeta de Ventas Totales. */
-  const renderProyeccionModal = () => (
-    <Dialog open={isProjectionModalOpen} onOpenChange={setIsProjectionModalOpen}>
-      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col items-center justify-center p-6 border-none shadow-none bg-transparent sm:bg-transparent [&>button]:hidden">
-        <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-            <DialogTitle className="flex items-center gap-2 text-xl font-semibold text-slate-800 dark:text-slate-200">
-              <DollarSign className="h-6 w-6 text-emerald-500" />
-              Ventas Totales - Proyección
-            </DialogTitle>
-            <DialogClose asChild>
-              <button className="rounded-full p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" aria-label="Cerrar">
-                <X className="h-5 w-5 text-slate-500 dark:text-slate-400" />
-              </button>
-            </DialogClose>
-          </div>
-          <div className="p-6">
-            <SalesProjectionCard
-              selectedPeriod={selectedPeriod}
-              filterType={filterType}
-              segment={segment}
-              salesperson={salesperson}
-              client={client}
-            />
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-
   const renderNewClientsCard = (kpi: any) => {
     const totalCustomers = metrics?.activeCustomers || 0;
     const totalUnits = metrics?.totalUnits || 0;
@@ -1304,9 +1271,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const kpiAcumulado = kpis.find((k) => k.title === "Total Acumulado del Año");
   const kpiClientes = kpis.find((k) => k.title === "Clientes Nuevos");
 
-  const abreProyeccion = !salesperson && !segment && !client && !product;
-  const alTocarVentas = () => { if (abreProyeccion) setIsProjectionModalOpen(true); };
-
   return (
     <div className="contents md:grid md:grid-cols-1 lg:grid-cols-2 md:gap-4 lg:gap-6">
       {/* Ventas Totales y Total Acumulado van JUNTAS en una sola tarjeta, con un único
@@ -1318,8 +1282,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           En pantalla grande la tarjeta ocupa las dos columnas y las secciones se ponen
           lado a lado; en celular quedan una debajo de la otra. */}
       <div
-        className={`order-[-6] md:order-none lg:col-span-2 modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden ${abreProyeccion ? 'cursor-pointer ring-green-300 hover:ring-2' : ''} transition-all`}
-        onClick={alTocarVentas}
+        className={`order-[-6] md:order-none lg:col-span-2 modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden transition-all`}
       >
         {/* Un solo ícono para toda la tarjeta, en la misma fila del interruptor. Los
             íconos que traía cada sección estaban posicionados sobre la esquina de la
@@ -1343,8 +1306,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           </div>
         </div>
       </div>
-
-      {renderProyeccionModal()}
 
       {kpiClientes && renderNewClientsCard(kpiClientes)}
 
