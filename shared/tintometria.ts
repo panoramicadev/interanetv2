@@ -78,11 +78,12 @@ export const CARTILLAS: Record<string, string> = {
 
 export const nombreCartilla = (codigo: string) => CARTILLAS[codigo] ?? codigo;
 
-/** "1" → "Galón", "5" → "Balde 5 galones", "0.25" → "1/4 galón". */
+/** "1" → "Galón", "4" / "5" → "Balde 4/5 galones", "0.25" → "1/4 galón". */
 export function nombreFormato(galones: string | number): string {
   const n = Number(galones);
   if (n === 1) return "Galón";
   if (n === 0.25) return "1/4 galón";
+  if (n === 4) return "Balde 4 galones";
   if (n === 5) return "Balde 5 galones";
   return `${String(galones).replace(".", ",")} galones`;
 }

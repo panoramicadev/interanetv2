@@ -142,6 +142,7 @@ const EXTRA_GROUPS: ExtraGroupTemplate[] = [
     icon: Palette,
     children: [
       { key: "tintometria.carta", href: "/tintometria/carta", label: "Pantonera Digital", icon: Palette },
+      { key: "tintometria.formulas", href: "/tintometria/libro", label: "Libro de Fórmulas", icon: BookOpen },
       { key: "tintometria.admin", href: "/tintometria/admin", label: "Administrar Datos", icon: Settings },
       // Ocultos por ahora (oct-2026), igual que en sidebar-config: si quedan
       // acá, los "extras" los reponen a quien tenga el permiso.

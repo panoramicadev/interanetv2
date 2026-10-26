@@ -260,6 +260,11 @@ const ADMIN_SIDEBAR: SidebarItem[] = [
         icon: Palette,
       },
       {
+        href: "/tintometria/libro",
+        label: "Libro de Fórmulas",
+        icon: BookOpen,
+      },
+      {
         href: "/tintometria/admin",
         label: "Administrar Datos",
         icon: Settings,
@@ -423,6 +428,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/tintometria/carta",
           label: "Pantonera Digital",
           icon: Palette,
+        },
+        {
+          href: "/tintometria/libro",
+          label: "Libro de Fórmulas",
+          icon: BookOpen,
         },
         {
           href: "/tintometria/admin",
@@ -648,6 +658,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Palette,
         },
         {
+          href: "/tintometria/libro",
+          label: "Libro de Fórmulas",
+          icon: BookOpen,
+        },
+        {
           href: "/tintometria/admin",
           label: "Administrar Datos",
           icon: Settings,
@@ -782,6 +797,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Palette,
         },
         {
+          href: "/tintometria/libro",
+          label: "Libro de Fórmulas",
+          icon: BookOpen,
+        },
+        {
           href: "/tintometria/admin",
           label: "Administrar Datos",
           icon: Settings,
@@ -889,6 +909,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/tintometria/carta",
           label: "Pantonera Digital",
           icon: Palette,
+        },
+        {
+          href: "/tintometria/libro",
+          label: "Libro de Fórmulas",
+          icon: BookOpen,
         },
         {
           href: "/tintometria/admin",

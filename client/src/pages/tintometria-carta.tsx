@@ -62,10 +62,14 @@ export default function TintometriaCartaPage() {
   const [busqueda, setBusqueda] = useState("");
   const [elegido, setElegido] = useState<ColorCarta | null>(null);
 
-  const { data: colores = [], isLoading } = useQuery<ColorCarta[]>({
+  const { data: todos = [], isLoading } = useQuery<ColorCarta[]>({
     queryKey: ["/api/tintometria/carta"],
     staleTime: 5 * 60 * 1000,
   });
+  // La pantonera muestra solo la carta Panorámica (oct-2026). Los colores de
+  // otras cartillas (RAL, SW…) que llegan por solicitudes a laboratorio siguen
+  // guardados, y las fórmulas por producto viven en el Libro de Fórmulas.
+  const colores = useMemo(() => todos.filter((c) => c.cartilla === "PANORAMICA"), [todos]);
 
   const cartillas = useMemo(() => {
     const cuenta = new Map<string, number>();
@@ -338,9 +342,9 @@ function FichaColor({
   );
 }
 
-type FormulaCarta = TintoFormula & { clienteNombre?: string | null; solicitudNumero?: number | null };
+export type FormulaCarta = TintoFormula &{ clienteNombre?: string | null; solicitudNumero?: number | null };
 
-function TarjetaFormula({ formula }: { formula: FormulaCarta }) {
+export function TarjetaFormula({ formula }: { formula: FormulaCarta }) {
   // Se muestran todos los colorantes del libro, también los que en este
   // formato no llegan a media raya ("0Y0-0"): así la ficha dice lo mismo que el
   // libro. Esos van atenuados.
