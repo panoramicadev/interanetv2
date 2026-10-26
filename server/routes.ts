@@ -22,7 +22,7 @@ import {
 import { segmentEq, segmentSqlEq, segmentRawStringCondition, isIndustrialSegment, canonicalSegmentName, canonicalizeSegmentList } from "./utils/segment-normalize";
 import { rutContainsCondition } from "./utils/rut-sql";
 import { invalidateSessionUser } from "./auth";
-import { setupAuth, requireAuth, requireAdminOrSupervisor, requireMailingAccess, requireCommercialAccess, requireMarketingAccess, requireMarketingEdit, requirePlantOperationsAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
+import { setupAuth, requireAuth, requireAdminOrSupervisor, requireMailingAccess, requireCommercialAccess, requireSalesViewAccess, requireMarketingAccess, requireMarketingEdit, requirePlantOperationsAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
 import Papa from "papaparse";
@@ -1454,7 +1454,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Sales metrics endpoint
-  app.get('/api/sales/metrics', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/sales/metrics', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { startDate, endDate, salesperson, segment, client, supplier, period, filterType, product } = req.query;
 
@@ -1597,7 +1597,7 @@ export function registerRoutes(app: Express): Server {
   // startDate/endDate del primero al último, porque la selección puede tener huecos
   // (enero, marzo y abril). Por eso acá se arma la UNIÓN de tramos y se consulta una
   // sola vez sobre esa unión.
-  app.get('/api/sales/metrics/consolidado', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/sales/metrics/consolidado', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { periods, filterType, salesperson, segment, client, supplier, product, branch } = req.query;
 
@@ -1689,7 +1689,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/sales/new-clients', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/sales/new-clients', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { period, filterType, salesperson, segment, client } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -1845,7 +1845,7 @@ export function registerRoutes(app: Express): Server {
 
   // CONSOLIDATED DASHBOARD INIT - reduces ~12 API calls to 1
   // ═══════════════════════════════════════════════════════════
-  app.get('/api/dashboard/init', requireCommercialAccess, requireOwnSalespersonQuery, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/dashboard/init', requireSalesViewAccess, requireOwnSalespersonQuery, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
     const { period, filterType, segment, salesperson, client, product, branch, endDateStr } = req.query;
 
     const dateRange = getDateRange(period as string, filterType as string);
@@ -1910,7 +1910,7 @@ export function registerRoutes(app: Express): Server {
   // ═══════════════════════════════════════════════════════════
   // CONSOLIDATED KPI DATA - reduces ~10 API calls to 1
   // ═══════════════════════════════════════════════════════════
-  app.get('/api/dashboard/kpi-data', requireCommercialAccess, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/dashboard/kpi-data', requireSalesViewAccess, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
     const { period, filterType, segment, salesperson, client, product, comparePeriod, ytdRangeStr, endDateStr } = req.query;
 
     const dateRange = getDateRange(period as string, filterType as string);
@@ -2054,7 +2054,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Available periods endpoint - returns months and years with actual data
-  app.get('/api/sales/available-periods', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/available-periods', requireSalesViewAccess, async (req, res) => {
     try {
       const periods = await storage.getAvailablePeriods();
       res.json(periods);
@@ -2066,7 +2066,7 @@ export function registerRoutes(app: Express): Server {
 
   // Yearly totals endpoint - returns current and previous year totals
   // When current year has minimal data (early in year), shows previous year as main reference
-  app.get('/api/sales/yearly-totals', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/sales/yearly-totals', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { segment, salesperson, client, product, endDateStr } = req.query;
 
@@ -2111,7 +2111,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Best year historical endpoint - returns the best year and its total
-  app.get('/api/sales/best-year', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/sales/best-year', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { segment, salesperson, client } = req.query;
       // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
@@ -2164,7 +2164,7 @@ export function registerRoutes(app: Express): Server {
 
   // GDV Pending global endpoint - returns all pending GDV (no date filters)
   // Returns GDV where esdo IS NULL or esdo != 'C' (open/pending deliveries)
-  app.get('/api/sales/gdv-pending', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/sales/gdv-pending', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { salesperson, segment, client } = req.query;
       // Scope de datos para encargado_area (sucursales asignadas); [] => sin restricción
@@ -2260,7 +2260,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Dashboard específico del vendedor
-  app.get('/api/salesperson/:salespersonId/dashboard', requireCommercialAccess, async (req, res) => {
+  app.get('/api/salesperson/:salespersonId/dashboard', requireSalesViewAccess, async (req, res) => {
     try {
       const { salespersonId } = req.params;
       const { period, filterType = "month" } = req.query;
@@ -2322,7 +2322,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Clients específicos del vendedor por ID
-  app.get('/api/salesperson/:salespersonId/clients', requireCommercialAccess, async (req, res) => {
+  app.get('/api/salesperson/:salespersonId/clients', requireSalesViewAccess, async (req, res) => {
     try {
       const { salespersonId } = req.params;
       const { period, filterType = "month" } = req.query;
@@ -2344,7 +2344,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Goals específicas del vendedor por ID
-  app.get('/api/salesperson/:salespersonId/goals', requireCommercialAccess, async (req, res) => {
+  app.get('/api/salesperson/:salespersonId/goals', requireSalesViewAccess, async (req, res) => {
     try {
       const { salespersonId } = req.params;
       const { period, filterType = "month" } = req.query;
@@ -3994,7 +3994,7 @@ export function registerRoutes(app: Express): Server {
   };
 
   // Sales transactions endpoint
-  app.get('/api/sales/transactions', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/transactions', requireSalesViewAccess, async (req, res) => {
     try {
       const { startDate, endDate, salesperson, segment, limit, offset, period, filterType, client, product } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -4033,7 +4033,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Top salespeople endpoint
-  app.get('/api/sales/top-salespeople', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/top-salespeople', requireSalesViewAccess, async (req, res) => {
     try {
       const { limit, period, filterType, segment, client, product } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -4057,7 +4057,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Salespeople search endpoint (AJAX autocomplete)
-  app.get('/api/salespeople/search', requireCommercialAccess, async (req, res) => {
+  app.get('/api/salespeople/search', requireSalesViewAccess, async (req, res) => {
     try {
       const { q, period, filterType, segment, client, product } = req.query;
 
@@ -4218,7 +4218,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Top products endpoint
-  app.get('/api/sales/top-products', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/top-products', requireSalesViewAccess, async (req, res) => {
     try {
       const { limit, period, filterType, salesperson, segment, client } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -4242,7 +4242,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Product details endpoint
-  app.get('/api/sales/top-products/:productName/details', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/top-products/:productName/details', requireSalesViewAccess, async (req, res) => {
     try {
       const { productName } = req.params;
       const { period, filterType, salesperson, segment } = req.query;
@@ -4268,7 +4268,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Salesperson details endpoint
-  app.get('/api/sales/top-salespeople/:salesperson/details', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/top-salespeople/:salesperson/details', requireSalesViewAccess, async (req, res) => {
     try {
       const { salesperson } = req.params;
       const { period, filterType, segment } = req.query;
@@ -4293,7 +4293,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Top clients endpoint
-  app.get('/api/sales/top-clients', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/sales/top-clients', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { limit, period, filterType, salesperson, segment, product } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -4319,7 +4319,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Top fletes endpoint — flete = nokoprct ILIKE '%flete%'
-  app.get('/api/sales/fletes', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/sales/fletes', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { limit, period, filterType, salesperson, segment, client } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -4446,7 +4446,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Get parent product variants with format/color breakdown
-  app.get('/api/sales/product-parent/:parentName/variants', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/sales/product-parent/:parentName/variants', requireSalesViewAccess, asyncHandler(async (req: any, res: any) => {
     const { parentName } = req.params;
     const { period, filterType } = req.query;
     const dateRange = getDateRange(period as string, filterType as string);
@@ -4459,7 +4459,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get product group sales breakdown (format, color, variant data from fact_ventas)
-  app.get('/api/sales/product-group/:groupId/breakdown', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/sales/product-group/:groupId/breakdown', requireSalesViewAccess, asyncHandler(async (req: any, res: any) => {
     const { groupId } = req.params;
     const { period, filterType } = req.query;
     const dateRange = getDateRange(period as string, filterType as string);
@@ -4472,7 +4472,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Product families (agrupación comercial) endpoint
-  app.get('/api/sales/product-families', requireCommercialAccess, responseCacheMiddleware(300), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/sales/product-families', requireSalesViewAccess, responseCacheMiddleware(300), asyncHandler(async (req: any, res: any) => {
     const { period, filterType } = req.query;
     const dateRange = getDateRange(period as string, filterType as string);
 
@@ -4481,7 +4481,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Product dashboard consolidated endpoint
-  app.get('/api/sales/product-dashboard', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/sales/product-dashboard', requireSalesViewAccess, asyncHandler(async (req: any, res: any) => {
     const { period, filterType, family, segment, salesperson, branch } = req.query;
     const dateRange = getDateRange(period as string, filterType as string);
 
@@ -4497,7 +4497,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Consolidated insights for a single commercial product (dashboard "Por producto" view)
-  app.get('/api/sales/product-insights', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/sales/product-insights', requireSalesViewAccess, asyncHandler(async (req: any, res: any) => {
     const { product, period, filterType } = req.query;
     if (!product || typeof product !== 'string' || !product.trim()) {
       return res.status(400).json({ message: 'product es requerido' });
@@ -4520,7 +4520,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Segment analysis endpoint
-  app.get('/api/sales/segments', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/sales/segments', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { period, filterType, salesperson, segment } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -4542,7 +4542,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Segment analysis by unique clients endpoint
-  app.get('/api/sales/segments-by-clients', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/segments-by-clients', requireSalesViewAccess, async (req, res) => {
     try {
       const { period, filterType } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -4563,7 +4563,7 @@ export function registerRoutes(app: Express): Server {
   // Costo = ppprpm (precio promedio ponderado) por unidad.
   // Margen = (revenue - cost) / revenue.
 
-  app.get('/api/sales/margins', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/sales/margins', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { period, filterType, salesperson, segment, client, startDate, endDate } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -4581,7 +4581,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/sales/margins/by-segment', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/sales/margins/by-segment', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { period, filterType, salesperson, startDate, endDate } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -4597,7 +4597,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/sales/margins/by-salesperson', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/sales/margins/by-salesperson', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { period, filterType, segment, startDate, endDate } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -4613,7 +4613,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/sales/margins/by-product', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/sales/margins/by-product', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { period, filterType, salesperson, segment, sortBy, limit, startDate, endDate } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -4636,7 +4636,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Packaging metrics endpoint
-  app.get('/api/sales/packaging-metrics', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/sales/packaging-metrics', requireSalesViewAccess, asyncHandler(async (req: any, res: any) => {
     const { period, filterType, salesperson, segment, branch, client } = req.query;
     const dateRange = getDateRange(period as string, filterType as string);
 
@@ -4668,7 +4668,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Comunas analysis endpoint
-  app.get('/api/sales/comunas', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/comunas', requireSalesViewAccess, async (req, res) => {
     try {
       const { period, filterType, segment, salesperson, viewType } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -4697,7 +4697,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Sales chart data endpoint
-  app.get('/api/sales/chart-data', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/sales/chart-data', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { period = 'monthly', selectedPeriod, filterType, salesperson, segment, client, product, branch } = req.query;
 
@@ -4757,7 +4757,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Product detail routes - analytics for specific products
-  app.get('/api/sales/product/:productName/details', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/sales/product/:productName/details', requireSalesViewAccess, asyncHandler(async (req: any, res: any) => {
     const { productName } = req.params;
     const { period, filterType } = req.query;
     const dateRange = getDateRange(period as string, filterType as string);
@@ -4769,7 +4769,7 @@ export function registerRoutes(app: Express): Server {
     res.json(details);
   }));
 
-  app.get('/api/sales/product/:productName/formats', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/sales/product/:productName/formats', requireSalesViewAccess, asyncHandler(async (req: any, res: any) => {
     const { productName } = req.params;
     const { period, filterType } = req.query;
     const dateRange = getDateRange(period as string, filterType as string);
@@ -4781,7 +4781,7 @@ export function registerRoutes(app: Express): Server {
     res.json(formats);
   }));
 
-  app.get('/api/sales/product/:productName/colors', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/sales/product/:productName/colors', requireSalesViewAccess, asyncHandler(async (req: any, res: any) => {
     const { productName } = req.params;
     const { period, filterType } = req.query;
     const dateRange = getDateRange(period as string, filterType as string);
@@ -5626,7 +5626,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Goals/Metas endpoints
-  app.get('/api/goals', requireCommercialAccess, async (req, res) => {
+  app.get('/api/goals', requireSalesViewAccess, async (req, res) => {
     try {
       const { type } = req.query;
       const goals = type
@@ -5701,7 +5701,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Goals form data endpoints
-  app.get('/api/goals/data/segments', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/goals/data/segments', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const segments = await storage.getUniqueSegments();
       res.json(segments);
@@ -5711,7 +5711,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/goals/data/salespeople', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/goals/data/salespeople', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { period, filterType } = req.query;
       const dateRange = period && filterType ? getDateRange(period as string, filterType as string) : {};
@@ -5723,7 +5723,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/goals/data/clients', requireCommercialAccess, async (req, res) => {
+  app.get('/api/goals/data/clients', requireSalesViewAccess, async (req, res) => {
     try {
       const clients = await storage.getUniqueClients();
       res.json(clients);
@@ -5733,7 +5733,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/goals/data/suppliers', requireCommercialAccess, async (req, res) => {
+  app.get('/api/goals/data/suppliers', requireSalesViewAccess, async (req, res) => {
     try {
       const suppliers = await storage.getUniqueSuppliers();
       res.json(suppliers);
@@ -5744,7 +5744,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Goals progress endpoint
-  app.get('/api/goals/progress', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
+  app.get('/api/goals/progress', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { selectedPeriod, type, target } = req.query;
       const filterPeriod = selectedPeriod as string;
@@ -6218,7 +6218,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/sales/projection-insight', requireCommercialAccess, responseCacheMiddleware(120), async (req: any, res) => {
+  app.get('/api/sales/projection-insight', requireSalesViewAccess, responseCacheMiddleware(120), async (req: any, res) => {
     try {
       const { period, filterType, salesperson, segment, client, projectionType } = req.query;
       const pType = (projectionType as string) || 'cierre_mes';
@@ -11810,7 +11810,8 @@ export function registerRoutes(app: Express): Server {
   // (todas las del ERP, no solo las del Market). Sirve global o acotado a un
   // cliente por su RUT (clienteIdErp). KPIs por estado + lista paginada.
   // ==========================================================================
-  const TMS_ROLES_INTERNOS = ['admin', 'supervisor', 'encargado_area', 'reception', 'logistica_bodega', 'salesperson'];
+  // planificacion: consulta Logística desde su menú (solo lectura, todo es GET).
+  const TMS_ROLES_INTERNOS = ['admin', 'supervisor', 'encargado_area', 'reception', 'logistica_bodega', 'salesperson', 'planificacion'];
 
   // Resuelve el formato de RUT que el TMS reconoce (prueba con guión y compacto).
   const resolveTmsRut = async (raw: string): Promise<string | null> => {
@@ -16204,7 +16205,7 @@ export function registerRoutes(app: Express): Server {
   // Descarga del PDF oficial (representación impresa del DTE) de una factura FCV.
   // El DTE (XML legal + timbre PDF417 como imagen) vive en el SQL Server de Softland
   // (dbo.FMAEDTE). Se lee en vivo por IDMAEEDO y se arma el PDF con Chromium headless.
-  app.get('/api/erp/facturas/:idmaeedo/pdf', requireCommercialAccess, async (req: any, res) => {
+  app.get('/api/erp/facturas/:idmaeedo/pdf', requireSalesViewAccess, async (req: any, res) => {
     try {
       const user = req.user;
       if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
@@ -16245,7 +16246,7 @@ export function registerRoutes(app: Express): Server {
   // para mostrar el botón "Descargar factura" contra /api/erp/facturas/:idmaeedo/pdf (mismo PDF
   // oficial que la ficha del cliente). El vínculo se infiere por RUT + monto + fecha (ver
   // findFcvForOrder) porque el espejo aún no trae el link exacto pedido→factura.
-  app.get('/api/ecommerce/orders/:id/factura', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/ecommerce/orders/:id/factura', requireSalesViewAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (!['admin', 'supervisor', 'encargado_area'].includes(user.role)) {
@@ -16278,7 +16279,7 @@ export function registerRoutes(app: Express): Server {
   // share docType + client + date + salesperson AND at least one of them hit the cap (overflow
   // evidence) — that avoids fusing two genuinely separate same-day orders. Document shape mirrors
   // the per-client /api/users/clients/:clientId/erp-orders so the UI can reuse the same look.
-  app.get('/api/ecommerce/erp-orders', requireCommercialAccess, async (req: any, res) => {
+  app.get('/api/ecommerce/erp-orders', requireSalesViewAccess, async (req: any, res) => {
     try {
       const user = req.user;
       const { sql } = await import('drizzle-orm');
@@ -16509,7 +16510,7 @@ export function registerRoutes(app: Express): Server {
 
   // Detalle de un pedido ERP: líneas de producto (espejo del ERP) + estado de logística (TMS).
   // Query: docType=NVV|FCV & ids=idmaeedo[,idmaeedo...] (varios cuando el pedido viene splitteado).
-  app.get('/api/ecommerce/erp-orders/detail', requireCommercialAccess, async (req: any, res) => {
+  app.get('/api/ecommerce/erp-orders/detail', requireSalesViewAccess, async (req: any, res) => {
     try {
       const user = req.user;
       const { sql } = await import('drizzle-orm');
@@ -31842,7 +31843,7 @@ export function registerRoutes(app: Express): Server {
   //     (ver server/costo-linea.ts): los conceptos ZZ* van con costo 0.
   //
   // Devuelve además el período anterior del mismo largo para mostrar la variación.
-  app.get('/api/margen/resumen', requireCommercialAccess, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/margen/resumen', requireSalesViewAccess, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
     const { period, periods, filterType, segment, salesperson, client, product, family, branch } = req.query;
 
     // `periods` (lista separada por comas) es el modo consolidado: varios meses, días o
@@ -32463,7 +32464,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get GDV summary (totales por estado)
-  app.get('/api/etl/gdv/summary', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/gdv/summary', requireRoles(['admin', 'supervisor', 'encargado_area', 'planificacion']), asyncHandler(async (req: any, res: any) => {
     try {
       // Normalize sucursales: handle both comma-delimited strings and repeated query params
       let sucursales: string[] | undefined = undefined;
@@ -32488,7 +32489,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get GDV by vendedor
-  app.get('/api/etl/gdv/by-vendedor', requireRoles(['admin', 'supervisor', 'encargado_area']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/gdv/by-vendedor', requireRoles(['admin', 'supervisor', 'encargado_area', 'planificacion']), asyncHandler(async (req: any, res: any) => {
     try {
       const filters = {
         startDate: req.query.startDate as string | undefined,
@@ -32503,7 +32504,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get GDV pending records (all individual records)
-  app.get('/api/etl/gdv/pending-records', requireRoles(['admin', 'supervisor', 'encargado_area', 'logistica_bodega']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/gdv/pending-records', requireRoles(['admin', 'supervisor', 'encargado_area', 'logistica_bodega', 'planificacion']), asyncHandler(async (req: any, res: any) => {
     try {
       const limit = parseInt(req.query.limit as string) || 500;
       const records = await storage.getGdvPendingRecords(limit);

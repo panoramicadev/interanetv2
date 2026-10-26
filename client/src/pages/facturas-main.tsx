@@ -17,13 +17,15 @@ export default function FacturasMainPage() {
   const [activeTab, setActiveTab] = useState("lista-precios");
 
   // Check if the user is authorized
-  if (!user || (user.role !== "admin" && (user.role !== "supervisor" && user.role !== "encargado_area") && user.role !== "logistica_bodega" && user.role !== "salesperson" && user.role !== "client" && user.role !== "reception")) {
+  if (!user || (user.role !== "admin" && (user.role !== "supervisor" && user.role !== "encargado_area") && user.role !== "logistica_bodega" && user.role !== "salesperson" && user.role !== "client" && user.role !== "reception" && user.role !== "planificacion")) {
     setLocation("/dashboard");
     return null;
   }
 
   // Check if user can see proyección tab
-  const canSeeProyeccion = user.role !== 'salesperson';
+  // Planificación solo consulta precios y documentos: sin Proyección ni Presupuesto.
+  const canSeeProyeccion = user.role !== 'salesperson' && user.role !== 'planificacion';
+  const canSeePresupuesto = user.role !== 'planificacion';
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900">
@@ -93,15 +95,17 @@ export default function FacturasMainPage() {
                     <span className="sm:hidden">Proy.</span>
                   </TabsTrigger>
                 )}
-                <TabsTrigger
-                  value="presupuesto-ventas"
-                  className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
-                  data-testid="tab-presupuesto-ventas"
-                >
-                  <FileSpreadsheet className="h-3.5 w-3.5 flex-shrink-0" />
-                  <span className="hidden sm:inline">Presupuesto</span>
-                  <span className="sm:hidden">Presup.</span>
-                </TabsTrigger>
+                {canSeePresupuesto && (
+                  <TabsTrigger
+                    value="presupuesto-ventas"
+                    className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
+                    data-testid="tab-presupuesto-ventas"
+                  >
+                    <FileSpreadsheet className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span className="hidden sm:inline">Presupuesto</span>
+                    <span className="sm:hidden">Presup.</span>
+                  </TabsTrigger>
+                )}
               </TabsList>
             </div>
           </Tabs>
@@ -139,9 +143,11 @@ export default function FacturasMainPage() {
           )}
 
           {/* Presupuesto Ventas Tab */}
-          <TabsContent value="presupuesto-ventas" className="mt-0">
-            <PresupuestoVentas />
-          </TabsContent>
+          {canSeePresupuesto && (
+            <TabsContent value="presupuesto-ventas" className="mt-0">
+              <PresupuestoVentas />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>

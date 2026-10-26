@@ -150,9 +150,17 @@ function enviar(opciones: { to: string[]; cc?: string[]; subject: string; html: 
     .catch((error: any) => console.error('[laboratorio] no se pudo enviar el aviso:', error?.message));
 }
 
+/**
+ * Planificación ve las solicitudes de todos los vendedores, pero de mirón: en
+ * las ajenas no escribe ni marca "visto" (si no, apagaría el aviso de laboratorio).
+ */
+const esObservador = (u: any) => u?.role === 'planificacion';
+const esAjena = (u: any, s: TintoSolicitud) => s.solicitanteId !== u.id && s.supervisorId !== u.id;
+
 /** Lo que el usuario puede ver: laboratorio y admin todo; el resto, lo suyo y lo de su equipo. */
 async function alcance(usuario: any) {
   if (await esLaboratorio(usuario)) return undefined;
+  if (esObservador(usuario)) return undefined;
   return or(eq(tintoSolicitudes.solicitanteId, usuario.id), eq(tintoSolicitudes.supervisorId, usuario.id));
 }
 
@@ -338,6 +346,7 @@ export function registerTintometriaSolicitudesRoutes(app: Express) {
     try {
       const s = await buscar(req.user, req.params.id);
       if (!s) return res.status(404).json({ message: 'Solicitud no encontrada' });
+      if (esObservador(req.user) && esAjena(req.user, s)) return res.json({ ok: true });
       const lado = await ladoDe(req.user, s);
       await db
         .update(tintoSolicitudes)
@@ -412,6 +421,9 @@ export function registerTintometriaSolicitudesRoutes(app: Express) {
     try {
       const s = await buscar(req.user, req.params.id);
       if (!s) return res.status(404).json({ message: 'Solicitud no encontrada' });
+      if (esObservador(req.user) && esAjena(req.user, s)) {
+        return res.status(403).json({ message: 'Solo puedes ver esta solicitud: no es tuya.' });
+      }
       const texto = String(req.body?.texto ?? '').trim().slice(0, 4000);
       const adjuntoUrl = req.body?.adjuntoUrl ? String(req.body.adjuntoUrl) : null;
       const adjuntoNombre = req.body?.adjuntoNombre ? String(req.body.adjuntoNombre).slice(0, 200) : null;

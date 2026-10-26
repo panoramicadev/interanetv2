@@ -106,7 +106,7 @@ export default function GDVPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("dashboard");
 
-  if (!user || (user.role !== "admin" && (user.role !== "supervisor" && user.role !== "encargado_area") && user.role !== "logistica_bodega")) {
+  if (!user || (user.role !== "admin" && (user.role !== "supervisor" && user.role !== "encargado_area") && user.role !== "logistica_bodega" && user.role !== "planificacion")) {
     setLocation("/dashboard");
     return null;
   }

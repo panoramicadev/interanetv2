@@ -835,7 +835,76 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     // DEPRECAR-MANTENCION.md).
   ],
 
+  // Orden pedido por Planificación (oct-2026): Dashboard, los módulos de
+  // consulta sueltos (Pedidos y Logística de Market salen del grupo), luego
+  // Tintometría y Reclamos al final. Cada ítem se filtra por su permiso, y al
+  // estar acá los "extras" no los vuelven a agregar al final.
   planificacion: [
+    // Dashboard primero: si el rol tiene el permiso, es su pantalla de inicio
+    // (ver App.tsx). Sin el permiso, el filtro del sidebar lo esconde.
+    {
+      href: "/",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      href: "/ecommerce-pedidos",
+      label: "Pedidos",
+      icon: PackageSearch,
+    },
+    {
+      href: "/logistica-rutas",
+      label: "Logística",
+      icon: Truck,
+    },
+    {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Warehouse,
+    },
+    // Productos fuera de su menú (ver EXTRAS_OCULTOS_POR_ROL en sidebar-permissions).
+    {
+      href: "/clientes",
+      label: "Clientes",
+      icon: Users,
+    },
+    // Finanzas solo con Lista de Precios, Facturas, NVV y GDV (facturas-main
+    // le esconde Proyección y Presupuesto).
+    {
+      href: "/facturas",
+      label: "Finanzas",
+      icon: Receipt,
+    },
+    {
+      href: "/margen",
+      label: "Margen",
+      icon: TrendingUp,
+    },
+    {
+      href: "/tintometria",
+      label: "Tintometría",
+      icon: Palette,
+      children: [
+        {
+          href: "/tintometria/carta",
+          label: "Pantonera Digital",
+          icon: Palette,
+        },
+        {
+          href: "/tintometria/admin",
+          label: "Administrar Datos",
+          icon: Settings,
+        },
+      ],
+      separator: true,
+    },
+    // Solo laboratorio y muestra: crédito y alta de cliente no son de su área
+    // (además van ocultos en EXTRAS_OCULTOS_POR_ROL para que no se sumen).
+    solicitudesSidebarItem({
+      children: SOLICITUDES_CHILDREN.filter((c) =>
+        c.href === "/tintometria/solicitudes" || c.href === "/solicitud-muestra",
+      ).map((c) => ({ ...c })),
+    }),
     {
       href: "/reclamos-generales",
       label: "Reclamos",

@@ -15,6 +15,7 @@ import { createContext, memo, useCallback, useContext, useEffect, useMemo, useSt
 import { useQuery } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/usePermissions";
 import { buildSidebarItems } from "@/lib/sidebar-permissions";
+import { ROLE_LABELS } from "@shared/permissions";
 import ImportModal from "@/components/dashboard/import-modal";
 import ChangelogDialog from "@/components/ChangelogDialog";
 import { WoobAsistente } from "@/components/WoobAsistente";
@@ -479,9 +480,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return ((firstName?.charAt(0) || "") + (lastName?.charAt(0) || "")).toUpperCase() || "U";
   };
 
-  const getDisplayName = (firstName?: string | null, lastName?: string | null) => {
+  // Sin nombre cargado en la ficha se muestra el correo, que al menos identifica
+  // a la persona (antes quedaba "Usuario", igual que el cargo de los roles sin etiqueta).
+  const getDisplayName = (firstName?: string | null, lastName?: string | null, email?: string | null) => {
     if (firstName && lastName) return `${firstName} ${lastName}`;
-    return firstName || lastName || "Usuario";
+    return firstName || lastName || email || "Usuario";
   };
 
   const getRoleTitle = (role?: string | null) => {
@@ -496,7 +499,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       client: "Cliente",
       reception: "Recepción",
     };
-    return map[role || ""] || "Usuario";
+    // Los roles de planta (planificación, producción, etc.) no están en el mapa
+    // de arriba: toman la etiqueta del catálogo de roles en vez de "Usuario".
+    return map[role || ""] || ROLE_LABELS[role || ""] || "Usuario";
   };
 
   const getSegmentLabel = (u?: typeof user) => {
@@ -761,11 +766,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {collapsed ? (
             <div className="flex flex-col items-center gap-2">
               <div
-                title={`${getDisplayName(user?.firstName, user?.lastName)} · ${getRoleTitle(user?.role)}${getSegmentLabel(user) ? ` · ${getSegmentLabel(user)}` : ""}`}
+                title={`${getDisplayName(user?.firstName, user?.lastName, user?.email)} · ${getRoleTitle(user?.role)}${getSegmentLabel(user) ? ` · ${getSegmentLabel(user)}` : ""}`}
               >
                 <UserAvatar
                   foto={(user as any)?.profileImageUrl}
-                  nombre={getDisplayName(user?.firstName, user?.lastName)}
+                  nombre={getDisplayName(user?.firstName, user?.lastName, user?.email)}
                   iniciales={getInitials(user?.firstName, user?.lastName)}
                 />
               </div>
@@ -785,12 +790,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <div className="flex items-center gap-3">
               <UserAvatar
                   foto={(user as any)?.profileImageUrl}
-                  nombre={getDisplayName(user?.firstName, user?.lastName)}
+                  nombre={getDisplayName(user?.firstName, user?.lastName, user?.email)}
                   iniciales={getInitials(user?.firstName, user?.lastName)}
                 />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white truncate leading-tight">
-                  {getDisplayName(user?.firstName, user?.lastName)}
+                  {getDisplayName(user?.firstName, user?.lastName, user?.email)}
                 </p>
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="text-[11px] font-medium text-[#fd6301]">
