@@ -513,6 +513,7 @@ export default function Dashboard() {
       bodegas: { nombre: string; stock: number; isRelevant?: boolean }[];
       hasQuiebre: boolean;
       stockTotal: number;
+      comprometido?: number;
     }[];
   }>({
     queryKey: ['/api/dashboard/stock-breaks'],
@@ -2273,7 +2274,7 @@ export default function Dashboard() {
               Información importante
             </DialogTitle>
             <DialogDescription>
-              Quiebres de stock de productos de línea — productos con stock 0 en bodegas clave: <strong>Concepción, Del Sur, Productos Terminados y Santiago</strong>.
+              Quiebres de stock de productos de línea — productos con stock 0 en <strong>Bodega Lautaro y Bodega Concepción</strong>. El comprometido suma las notas de venta de todas las bodegas, sin Bodega del Sur.
             </DialogDescription>
           </DialogHeader>
 
@@ -2323,6 +2324,12 @@ export default function Dashboard() {
                   }
                 }
 
+                // Nombre con que se muestra cada bodega del ERP.
+                const nombreBodega: Record<string, string> = {
+                  'PRODUCTOS TERMINADOS': 'Bodega Lautaro',
+                  'BODEGA CONCEPCION': 'Bodega Concepción',
+                };
+
                 return (
                   <div className="overflow-auto max-h-[50vh] space-y-4">
                     {warehouseGroups.map(group => (
@@ -2332,7 +2339,7 @@ export default function Dashboard() {
                           <div className="flex items-center gap-2.5">
                             <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
                             <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100">
-                              {group.warehouse}
+                              {nombreBodega[group.warehouse] || group.warehouse}
                             </h4>
                           </div>
                           <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-700 text-xs px-2">
@@ -2347,6 +2354,7 @@ export default function Dashboard() {
                               <th className="text-left px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Producto</th>
                               <th className="text-left px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Formato</th>
                               <th className="text-center px-3 py-1.5 text-[10px] font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Stock</th>
+                              <th className="text-right px-3 py-1.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Comprometido</th>
                               <th className="text-right px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Stock Total</th>
                             </tr>
                           </thead>
@@ -2364,6 +2372,7 @@ export default function Dashboard() {
                                       {stockInWarehouse}
                                     </span>
                                   </td>
+                                  <td className={`px-3 py-1.5 text-right text-xs tabular-nums ${(item.comprometido || 0) > 0 ? 'font-semibold text-amber-700 dark:text-amber-400' : 'text-gray-400'}`}>{Math.round(item.comprometido || 0)}</td>
                                   <td className="px-3 py-1.5 text-right text-xs font-semibold tabular-nums text-gray-600 dark:text-gray-300">{Math.round(item.stockTotal)}</td>
                                 </tr>
                               );

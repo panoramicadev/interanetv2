@@ -1725,14 +1725,15 @@ export function registerRoutes(app: Express): Server {
   // ═══════════════════════════════════════════════════════════
   app.get('/api/dashboard/stock-breaks', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      // Warehouses that determine quiebre/alert status
-      // Only these 4 warehouses are evaluated for stock breaks
+      // Warehouses that determine quiebre/alert status.
+      // Solo se evalúan Productos Terminados (se muestra como "Bodega Lautaro") y
+      // Concepción (pedido del usuario, oct-2026).
       const RELEVANT_WAREHOUSES = [
-        'BODEGA CONCEPCION',
-        'BODEGA DEL SUR',
         'PRODUCTOS TERMINADOS',
-        'SANTIAGO',
+        'BODEGA CONCEPCION',
       ];
+      // El comprometido en notas de venta se suma de todas las bodegas menos esta.
+      const BODEGA_SIN_COMPROMETIDO = 'BODEGA DEL SUR';
 
       // Helper to check if a warehouse name is relevant for quiebre evaluation
       const isRelevantWarehouse = (name: string): boolean => {
@@ -1747,7 +1748,8 @@ export function registerRoutes(app: Express): Server {
           pl.producto,
           pl.unidad as formato,
           ip.nombre_bodega as bodega_nombre,
-          COALESCE(ip.stock2, 0)::numeric as stock
+          COALESCE(ip.stock2, 0)::numeric as stock,
+          COALESCE(ip.comprometido2, 0)::numeric as comprometido
         FROM price_list pl
         INNER JOIN inventory_products ip ON ip.sku = pl.codigo
         WHERE pl.codigo IS NOT NULL AND pl.codigo != ''
@@ -1764,6 +1766,7 @@ export function registerRoutes(app: Express): Server {
         bodegas: { nombre: string; stock: number; isRelevant: boolean }[];
         hasQuiebre: boolean;
         stockTotal: number;
+        comprometido: number;
       }>();
 
       for (const row of rows) {
@@ -1779,6 +1782,7 @@ export function registerRoutes(app: Express): Server {
             bodegas: [],
             hasQuiebre: false,
             stockTotal: 0,
+            comprometido: 0,
           });
         }
         const entry = skuMap.get(row.sku)!;
@@ -1788,6 +1792,9 @@ export function registerRoutes(app: Express): Server {
           isRelevant: relevant,
         });
         entry.stockTotal += stock;
+        if (bodegaNombre.toUpperCase().trim() !== BODEGA_SIN_COMPROMETIDO) {
+          entry.comprometido += parseFloat(row.comprometido) || 0;
+        }
         // Only mark quiebre if the warehouse is one of the relevant ones
         if (stock <= 0 && relevant) {
           entry.hasQuiebre = true;
@@ -1800,6 +1807,7 @@ export function registerRoutes(app: Express): Server {
         .map(item => ({
           ...item,
           stockTotal: Math.round(item.stockTotal * 100) / 100,
+          comprometido: Math.round(item.comprometido * 100) / 100,
         }));
 
       // Get distinct warehouse names for column headers
