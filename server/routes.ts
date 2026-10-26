@@ -31069,12 +31069,13 @@ export function registerRoutes(app: Express): Server {
   // Get inventory with filters
   app.get('/api/inventory', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { search, warehouse, branch } = req.query;
+      const { search, warehouse, branch, excludeWarehouse } = req.query;
 
       const filters: any = {};
       if (search) filters.search = search;
       if (warehouse) filters.warehouse = warehouse;
       if (branch) filters.branch = branch;
+      if (excludeWarehouse) filters.excludeWarehouseNames = String(excludeWarehouse).split(',').map(s => s.trim()).filter(Boolean);
 
       const inventory = await storage.getInventory(filters);
       res.json(inventory);
@@ -31086,12 +31087,13 @@ export function registerRoutes(app: Express): Server {
   // Get inventory summary
   app.get('/api/inventory/summary', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { search, warehouse, branch } = req.query;
+      const { search, warehouse, branch, excludeWarehouse } = req.query;
 
       const filters: any = {};
       if (search) filters.search = search;
       if (warehouse) filters.warehouse = warehouse;
       if (branch) filters.branch = branch;
+      if (excludeWarehouse) filters.excludeWarehouseNames = String(excludeWarehouse).split(',').map(s => s.trim()).filter(Boolean);
 
       const summary = await storage.getInventorySummary(filters);
       res.json(summary);
@@ -31103,12 +31105,13 @@ export function registerRoutes(app: Express): Server {
   // Get inventory with prices from SQL Server
   app.get('/api/inventory-with-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { search, warehouse, branch } = req.query;
+      const { search, warehouse, branch, excludeWarehouse } = req.query;
 
       const filters: any = {};
       if (search) filters.search = search;
       if (warehouse) filters.warehouse = warehouse;
       if (branch) filters.branch = branch;
+      if (excludeWarehouse) filters.excludeWarehouseNames = String(excludeWarehouse).split(',').map(s => s.trim()).filter(Boolean);
 
       const user = req.user;
 
@@ -31132,12 +31135,13 @@ export function registerRoutes(app: Express): Server {
   // Get inventory summary with prices and total value
   app.get('/api/inventory/summary-with-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { search, warehouse, branch, hideNoStock, hideZZProducts } = req.query;
+      const { search, warehouse, branch, excludeWarehouse, hideNoStock, hideZZProducts } = req.query;
 
       const filters: any = {};
       if (search) filters.search = search;
       if (warehouse) filters.warehouse = warehouse;
       if (branch) filters.branch = branch;
+      if (excludeWarehouse) filters.excludeWarehouseNames = String(excludeWarehouse).split(',').map(s => s.trim()).filter(Boolean);
       if (hideNoStock === 'true') filters.hideNoStock = true;
       if (hideZZProducts === 'true') filters.hideZZProducts = true;
 
