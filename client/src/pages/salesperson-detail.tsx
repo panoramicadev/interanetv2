@@ -155,6 +155,14 @@ interface SalespersonDetailProps {
   dashboardSelectedDate?: Date;
   dashboardSelectedYear?: number;
   dashboardDateRange?: { from?: Date; to?: Date };
+  // Cliente/Producto manejados por el dashboard, que los muestra en su barra
+  // superior junto al Período (escritorio). En celular se sigue viendo la tarjeta propia.
+  scopeFilters?: {
+    client: string;
+    product: string;
+    onClientChange: (value: string) => void;
+    onProductChange: (value: string) => void;
+  };
 }
 
 interface TopSalesperson {
@@ -179,7 +187,8 @@ export default function SalespersonDetail({
   dashboardSelectedPeriod,
   dashboardSelectedDate,
   dashboardSelectedYear,
-  dashboardDateRange
+  dashboardDateRange,
+  scopeFilters
 }: SalespersonDetailProps = {}) {
   const { user } = useAuth();
   const { salespersonName: paramSalespersonName } = useParams();
@@ -211,8 +220,12 @@ export default function SalespersonDetail({
 
   // Filtros Cliente/Producto del vendedor (scopeados a sus propios datos).
   // Alimentan los KPIs (incl. "Total Acumulado del Año") y la tendencia de ventas.
-  const [clientFilter, setClientFilter] = useState<string>("");
-  const [productFilter, setProductFilter] = useState<string>("");
+  const [localClientFilter, setLocalClientFilter] = useState<string>("");
+  const [localProductFilter, setLocalProductFilter] = useState<string>("");
+  const clientFilter = scopeFilters ? scopeFilters.client : localClientFilter;
+  const setClientFilter = scopeFilters ? scopeFilters.onClientChange : setLocalClientFilter;
+  const productFilter = scopeFilters ? scopeFilters.product : localProductFilter;
+  const setProductFilter = scopeFilters ? scopeFilters.onProductChange : setLocalProductFilter;
   const [showNewClientsModal, setShowNewClientsModal] = useState(false);
   const [clientsPanelView, setClientsPanelView] = useState<"top" | "new">("top");
   const handleShowNewClientsInPanel = () => {
@@ -1465,7 +1478,7 @@ export default function SalespersonDetail({
             <>
               {/* Filtros Cliente/Producto — solo para el vendedor, no para el admin */}
               {salespersonName && user?.role === 'salesperson' && (
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-gray-200 bg-white px-3 py-2.5 shadow-sm dark:bg-slate-900 dark:border-gray-700">
+                <div className={`flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-gray-200 bg-white px-3 py-2.5 shadow-sm dark:bg-slate-900 dark:border-gray-700 ${scopeFilters ? 'md:hidden' : ''}`}>
                   <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-200">
                     <Filter className="h-4 w-4 text-gray-400" />
                     <span>Filtrar:</span>

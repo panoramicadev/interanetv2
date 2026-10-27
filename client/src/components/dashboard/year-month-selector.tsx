@@ -545,7 +545,8 @@ export function YearMonthSelector({
      dibuja dentro del Drawer, sin portal, y los años/meses/días vuelven a responder. */
   if (inline) {
     return (
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+      // data-sin-brillo: años, meses, días y "Aplicar" sin el brillo de los botones naranjos (ver index.css)
+      <div data-sin-brillo className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
         {panel}
       </div>
     );
@@ -573,6 +574,7 @@ export function YearMonthSelector({
         className="w-[92vw] sm:w-[440px] max-w-[440px] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-0"
         align="center"
         collisionPadding={12}
+        data-sin-brillo
       >
         {panel}
       </PopoverContent>

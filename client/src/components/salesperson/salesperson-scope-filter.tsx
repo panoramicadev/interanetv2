@@ -96,8 +96,8 @@ export default function SalespersonScopeFilter({ salespersonName, selectedPeriod
   };
 
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-xs font-medium text-gray-600 whitespace-nowrap">{copy.label}:</span>
+    <div className="flex items-center gap-2">
+      <span className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">{copy.label}:</span>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button

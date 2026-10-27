@@ -128,6 +128,8 @@ const NavItem = memo(function NavItem({
   const isMarketingInbox = item.href === "/marketing/solicitudes";
   const isCotizacionesWeb = item.href === "/cotizaciones-b2c";
   const isPremium = item.isPremium;
+  // Novedad: el nombre lleva el naranjo de marca corriendo de lado a lado
+  const isNuevo = item.isNuevo;
   const isExpanded = expandedItems.has(item.href);
   const hasChildren = item.children && item.children.length > 0;
   const hasActiveChild = hasChildren && item.children.some(
@@ -172,7 +174,7 @@ const NavItem = memo(function NavItem({
           data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
           data-tour-children={item.children?.map((c: any) => c.href).join(" ")}
         >
-          <Icon className={`w-5 h-5 flex-shrink-0 ${hasActiveChild ? "text-white" : isPremium ? "text-amber-400" : "text-slate-400"}`} />
+          <Icon className={`w-5 h-5 flex-shrink-0 ${hasActiveChild ? "text-white" : isPremium ? "text-amber-400" : isNuevo ? "text-[#fd6301]" : "text-slate-400"}`} />
           {hasPendingChild && (
             <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse" />
           )}
@@ -196,8 +198,15 @@ const NavItem = memo(function NavItem({
              cuando el submenú está cerrado. */
           data-tour-children={item.children?.map((c: any) => c.href).join(" ")}
         >
-          <Icon className={`w-4 h-4 flex-shrink-0 ${isPremium ? "text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]" : hasActiveChild ? "text-white" : "text-slate-400"}`} />
-          {isPremium ? (
+          <Icon className={`w-4 h-4 flex-shrink-0 ${isPremium ? "text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]" : isNuevo ? "text-[#fd6301] drop-shadow-[0_0_6px_rgba(253,99,1,0.5)]" : hasActiveChild ? "text-white" : "text-slate-400"}`} />
+          {isNuevo && !isPremium ? (
+            <span
+              className="flex-1 text-left font-bold tracking-tight bg-gradient-to-r from-[#fd6301] via-amber-200 to-[#fd6301] bg-clip-text text-transparent bg-[length:200%_100%] animate-[shimmer_2.5s_linear_infinite] motion-reduce:animate-none"
+              style={{ WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
+            >
+              {item.label}
+            </span>
+          ) : isPremium ? (
             <span
               className="flex-1 text-left font-bold tracking-tight bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] animate-[shimmer_3s_ease-in-out_infinite] max-lg:animate-none motion-reduce:animate-none bg-[length:200%_100%]"
               style={{ WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
@@ -226,8 +235,18 @@ const NavItem = memo(function NavItem({
                       ${isChildActive ? "text-white bg-[#fd6301] shadow-sm shadow-[#fd6301]/30" : "text-slate-300 hover:text-white hover:bg-slate-800/70"}`}
                     data-testid={`nav-submenu-${child.label.toLowerCase().replace(/\s+/g, "-")}`}
                   >
-                    <ChildIcon className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="flex-1 text-left">{child.label}</span>
+                    <ChildIcon className={`w-3.5 h-3.5 flex-shrink-0 ${child.isNuevo && !isChildActive ? "text-[#fd6301]" : ""}`} />
+                    <span className={`flex-1 text-left ${child.isNuevo && !isChildActive ? "font-semibold text-white" : ""}`}>{child.label}</span>
+                    {child.isNuevo && (
+                      <span
+                        className={`flex-shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                          isChildActive ? "bg-white text-[#fd6301]" : "bg-[#fd6301] text-white shadow-[0_0_8px_rgba(253,99,1,0.6)] animate-pulse motion-reduce:animate-none"
+                        }`}
+                        data-testid="badge-nuevo"
+                      >
+                        Nuevo
+                      </span>
+                    )}
                     {child.href === "/ecommerce-pedidos" && pendingOrdersCount > 0 && (
                       <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse"></span>
                     )}
@@ -463,7 +482,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const toggleSubmenu = useCallback((itemHref: string) => {
     setExpandedItems(prev => {
       const next = new Set(prev);
-      next.has(itemHref) ? next.delete(itemHref) : next.add(itemHref);
+      const cerrando = next.has(itemHref);
+      cerrando ? next.delete(itemHref) : next.add(itemHref);
+      // Se recuerda que la persona cerró el grupo, para no volver a abrírselo solo
+      // (ver el efecto de los grupos "nuevo" más abajo).
+      try { localStorage.setItem(`sidebar_grupo_cerrado:${itemHref}`, cerrando ? "1" : "0"); } catch {}
       return next;
     });
   }, []);
@@ -485,6 +508,29 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const getDisplayName = (firstName?: string | null, lastName?: string | null, email?: string | null) => {
     if (firstName && lastName) return `${firstName} ${lastName}`;
     return firstName || lastName || email || "Usuario";
+  };
+
+  // En la tarjeta del menú va el primer nombre y el primer apellido, enteros y sin
+  // cortar (pedido del usuario, oct-2026): "MAURICIO CHAPARRO MELO" quedaba en
+  // "MAURICIO CHAP...". Las partículas van con su apellido ("De la Fuente").
+  // El nombre completo sigue en el tooltip.
+  const getShortName = (firstName?: string | null, lastName?: string | null, email?: string | null) => {
+    const capitalizar = (p: string) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
+    const particulas = new Set(["de", "del", "la", "las", "los", "san", "santa", "van", "von", "da", "di", "y"]);
+    const primerNombre = (firstName || "").trim().split(/\s+/)[0] || "";
+    const palabras = (lastName || "").trim().split(/\s+/).filter(Boolean);
+    const apellido: string[] = [];
+    for (const palabra of palabras) {
+      apellido.push(palabra);
+      if (!particulas.has(palabra.toLowerCase())) break;
+    }
+    if (!primerNombre && apellido.length === 0) return email || "Usuario";
+    return [
+      primerNombre && capitalizar(primerNombre),
+      ...apellido.map((p) => (particulas.has(p.toLowerCase()) ? p.toLowerCase() : capitalizar(p))),
+    ]
+      .filter(Boolean)
+      .join(" ");
   };
 
   const getRoleTitle = (role?: string | null) => {
@@ -598,6 +644,26 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     if (!grupoActivo) return;
     setExpandedItems((prev) => (prev.has(grupoActivo.href) ? prev : new Set(prev).add(grupoActivo.href)));
   }, [location, sidebarItems]);
+
+  // Los grupos con novedad (isNuevo, hoy Tintometría por el Libro de Fórmulas) vienen
+  // abiertos para que se vea lo nuevo (pedido del usuario, oct-2026). Si la persona lo
+  // cierra, queda cerrado en ese navegador.
+  useEffect(() => {
+    const nuevos = sidebarItems.filter((item) => item.isNuevo && item.children?.length);
+    if (nuevos.length === 0) return;
+    const abrir = nuevos
+      .map((item) => item.href)
+      .filter((href) => {
+        try { return localStorage.getItem(`sidebar_grupo_cerrado:${href}`) !== "1"; } catch { return true; }
+      });
+    if (abrir.length === 0) return;
+    setExpandedItems((prev) => {
+      if (abrir.every((href) => prev.has(href))) return prev;
+      const next = new Set(prev);
+      abrir.forEach((href) => next.add(href));
+      return next;
+    });
+  }, [sidebarItems]);
 
   return (
     <BotonMenuArribaContext.Provider value={setBotonMenuArriba}>
@@ -794,17 +860,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   iniciales={getInitials(user?.firstName, user?.lastName)}
                 />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate leading-tight">
-                  {getDisplayName(user?.firstName, user?.lastName, user?.email)}
+                <p className="text-sm font-semibold text-white leading-tight break-words">
+                  {getShortName(user?.firstName, user?.lastName, user?.email)}
                 </p>
-                <div className="flex items-center gap-1.5 mt-1">
+                {/* El área también va completa ("Construcción", no "Construcc..."): si no
+                    entra al lado del cargo, baja a la línea siguiente. */}
+                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-1">
                   <span className="text-[11px] font-medium text-[#fd6301]">
                     {getRoleTitle(user?.role)}
                   </span>
                   {getSegmentLabel(user) && (
                     <>
                       <span className="text-slate-600">·</span>
-                      <span className="text-[11px] text-slate-400 truncate">
+                      <span className="text-[11px] text-slate-400">
                         {getSegmentLabel(user)}
                       </span>
                     </>

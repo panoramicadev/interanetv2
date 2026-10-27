@@ -71,6 +71,15 @@ const BODEGAS_OCULTAS = ['BODEGA DEL SUR'];
 const esBodegaOculta = (name?: string) =>
   BODEGAS_OCULTAS.includes((name || '').toUpperCase().trim());
 
+// Vendedores y supervisores solo ven Bodega Concepción (014) y Productos
+// Terminados (006), sin filtro de sucursal. El servidor aplica la misma regla.
+const BODEGAS_COMERCIAL = ['006', '014'];
+const esRolComercial = (role?: string) => role === 'salesperson' || role === 'supervisor';
+
+// En esta pantalla Productos Terminados se muestra como Bodega Lautaro.
+const nombreBodega = (name?: string | null, code?: string) =>
+  (name || '').toUpperCase().trim() === 'PRODUCTOS TERMINADOS' ? 'BODEGA LAUTARO' : (name || code || '');
+
 interface Branch {
   code: string;
   name: string;
@@ -117,7 +126,7 @@ export function InventarioContent() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className={`grid grid-cols-1 gap-4 ${esRolComercial(userRole) ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
@@ -128,14 +137,17 @@ export function InventarioContent() {
                 data-testid="input-search"
               />
             </div>
-            <BranchFilter
-              selectedBranch={selectedBranch}
-              onBranchChange={setSelectedBranch}
-            />
+            {!esRolComercial(userRole) && (
+              <BranchFilter
+                selectedBranch={selectedBranch}
+                onBranchChange={setSelectedBranch}
+              />
+            )}
             <WarehouseFilter
               selectedWarehouse={selectedWarehouse}
               onWarehouseChange={setSelectedWarehouse}
               selectedBranch={selectedBranch}
+              userRole={userRole}
             />
           </div>
 
@@ -248,7 +260,7 @@ export default function Inventario() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className={`grid grid-cols-1 gap-4 ${esRolComercial(userRole) ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
@@ -259,14 +271,17 @@ export default function Inventario() {
                 data-testid="input-search"
               />
             </div>
-            <BranchFilter
-              selectedBranch={selectedBranch}
-              onBranchChange={setSelectedBranch}
-            />
+            {!esRolComercial(userRole) && (
+              <BranchFilter
+                selectedBranch={selectedBranch}
+                onBranchChange={setSelectedBranch}
+              />
+            )}
             <WarehouseFilter
               selectedWarehouse={selectedWarehouse}
               onWarehouseChange={setSelectedWarehouse}
               selectedBranch={selectedBranch}
+              userRole={userRole}
             />
           </div>
 
@@ -371,10 +386,12 @@ function WarehouseFilter({
   selectedWarehouse,
   onWarehouseChange,
   selectedBranch,
+  userRole,
 }: {
   selectedWarehouse: string;
   onWarehouseChange: (warehouse: string) => void;
   selectedBranch: string;
+  userRole: string;
 }) {
   const { data: warehouses, isLoading } = useQuery<Warehouse[]>({
     queryKey: ['/api/warehouses', selectedBranch],
@@ -402,9 +419,11 @@ function WarehouseFilter({
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="all">Todas las bodegas</SelectItem>
-        {warehouses?.filter((warehouse) => !esBodegaOculta(warehouse.name)).map((warehouse) => (
+        {warehouses?.filter((warehouse) =>
+          !esBodegaOculta(warehouse.name) && (!esRolComercial(userRole) || BODEGAS_COMERCIAL.includes(warehouse.code))
+        ).map((warehouse) => (
           <SelectItem key={warehouse.code} value={warehouse.code}>
-            {warehouse.name || warehouse.code}
+            {nombreBodega(warehouse.name, warehouse.code)}
           </SelectItem>
         ))}
       </SelectContent>
@@ -795,7 +814,7 @@ function InventoryTable({
                           </div>
                         </TableCell>
                         <TableCell className="text-xs text-gray-600 dark:text-gray-400 py-1 px-2">
-                          <div className="truncate">{item.warehouseName || item.warehouseCode}</div>
+                          <div className="truncate">{nombreBodega(item.warehouseName, item.warehouseCode)}</div>
                         </TableCell>
                         <TableCell className="text-xs text-right font-semibold text-blue-700 dark:text-blue-400 py-1 px-2 whitespace-nowrap">
                           {item.stock2?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'} <span className="text-[10px] text-gray-500">{item.unit2 || ''}</span>

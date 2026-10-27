@@ -20,6 +20,7 @@ import GoalsProgress from "@/components/dashboard/goals-progress";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import PackagingUnitsMetrics from "@/components/dashboard/packaging-units-metrics";
 import SalespersonDetail from "@/pages/salesperson-detail";
+import SalespersonScopeFilter from "@/components/salesperson/salesperson-scope-filter";
 import SegmentDetail from "@/pages/segment-detail";
 import SucursalDetail from "@/pages/sucursal-detail";
 import { CadenaSucursalesCard } from "@/components/clients/cadena-sucursales-card";
@@ -265,6 +266,9 @@ export default function Dashboard() {
 
   // Filter selector state
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
+  // Cliente/Producto del vendedor: van en la barra de arriba, junto al Período
+  const [scopeClient, setScopeClient] = useState<string>("");
+  const [scopeProduct, setScopeProduct] = useState<string>("");
 
   // Client search state
   const [clientSearchOpen, setClientSearchOpen] = useState(false);
@@ -1623,7 +1627,7 @@ export default function Dashboard() {
           {/* Desktop Layout */}
           <div className="space-y-4 w-full">
             {/* All filters in one line */}
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {/* Vista — oculto para vendedores: las vistas del top-bar
                   (producto/cliente/segmento/vendedor) son a nivel empresa y NO están
                   limitadas a sus datos. El vendedor filtra por producto/cliente dentro
@@ -1855,8 +1859,39 @@ export default function Dashboard() {
                   onChange={(val) => val && setSelection(val)}
                 />
               </div>
-              {/* Stock breaks button */}
-              <div className="flex-shrink-0">
+              {user?.role === 'salesperson' && globalFilter.type === "salesperson" && globalFilter.value && (
+                <>
+                  <SalespersonScopeFilter
+                    salespersonName={globalFilter.value}
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                    kind="client"
+                    value={scopeClient}
+                    onChange={setScopeClient}
+                  />
+                  <SalespersonScopeFilter
+                    salespersonName={globalFilter.value}
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                    kind="product"
+                    value={scopeProduct}
+                    onChange={setScopeProduct}
+                  />
+                  {(scopeClient || scopeProduct) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-xs text-gray-500"
+                      onClick={() => { setScopeClient(""); setScopeProduct(""); }}
+                      data-testid="button-clear-scope-filters"
+                    >
+                      <X className="mr-1 h-3.5 w-3.5" /> Limpiar
+                    </Button>
+                  )}
+                </>
+              )}
+              {/* Stock breaks button — en la vista del vendedor los botones van a la derecha */}
+              <div className={`flex-shrink-0 ${user?.role === 'salesperson' ? 'ml-auto' : ''}`}>
                 <Button
                   variant="outline"
                   size="icon"
@@ -1964,6 +1999,12 @@ export default function Dashboard() {
             embedded={true}
             onBack={user?.role !== 'salesperson' ? handleGenericBack : undefined}
             onSalespersonChange={(val) => setGlobalFilter({ type: "salesperson", value: val })}
+            scopeFilters={user?.role === 'salesperson' ? {
+              client: scopeClient,
+              product: scopeProduct,
+              onClientChange: setScopeClient,
+              onProductChange: setScopeProduct,
+            } : undefined}
             onDateFilterChange={handleDateFilterChange}
             dashboardGlobalFilter={globalFilter}
             dashboardFilterType={filterType}

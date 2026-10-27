@@ -57,37 +57,72 @@ const CHART_COLORS = [
 // NVV: color de estado "pendiente"
 const NVV_COLOR = { border: '#d97706', bg: 'rgba(217, 119, 6, 0.3)' };
 
+// Mismo tramo del año anterior: mismo diseño que la serie del período elegido (línea
+// gruesa, relleno degradado y puntos), en el negro de marca (pedido del usuario, oct-2026).
+const ANIO_ANTERIOR_COLOR = { border: '#0a0a0a', bg: 'rgba(10, 10, 10, 0.18)' };
+
+const dosDigitos = (n: number) => String(n).padStart(2, '0');
+
+// Sin círculo en los días/semanas en cero (pedido del usuario, oct-2026): con todos los
+// puntos marcados, una fila de ceros se leía como actividad. El punto vuelve al pasar el mouse.
+const radioSinCeros = (radio: number) => (ctx: any) => {
+  const v = ctx.raw;
+  return v === null || v === undefined || Math.abs(Number(v)) < 1 ? 0 : radio;
+};
+
 /**
- * Granularidad por defecto de un rango de fechas ("2026-01-05_2026-01-20"), según su
- * largo: hasta ~6 semanas se lee por día, hasta medio año por semana, y de ahí por mes.
- * Si el período no viene con el formato de rango, cae en semanas como antes.
+ * El mismo tramo, un año antes, para cruzarlo en el gráfico (pedido del usuario, oct-2026).
+ * El mes en curso se compara "a la fecha": del 1 al mismo día del año anterior, porque el
+ * servidor también corta el mes actual en hoy. Un mes cerrado se compara completo.
+ * Devuelve null cuando no hay con qué comparar (un día suelto o un período sin formato).
  */
-function granularidadDeRango(selectedPeriod: string): 'weekly' | 'monthly' | 'daily' {
-  const [inicio, fin] = (selectedPeriod || '').split('_');
-  if (!inicio || !fin) return 'weekly';
-  const aFecha = (s: string) => {
-    const [y, m, d] = s.split('-').map(Number);
-    return y && m && d ? new Date(y, m - 1, d) : null;
-  };
-  const a = aFecha(inicio);
-  const b = aFecha(fin);
-  if (!a || !b) return 'weekly';
-  const dias = Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
-  if (dias <= 45) return 'daily';
-  if (dias <= 186) return 'weekly';
-  return 'monthly';
+function periodoAnioAnterior(selectedPeriod: string, filterType: string): { period: string; filterType: string; anio: number } | null {
+  const hoy = new Date();
+  if (filterType === 'month') {
+    const m = (selectedPeriod || '').match(/^(\d{4})-(\d{2})$/);
+    if (!m) return null;
+    const anio = Number(m[1]);
+    const mes = Number(m[2]);
+    if (anio === hoy.getFullYear() && mes === hoy.getMonth() + 1) {
+      // 29 de febrero contra un año que no es bisiesto: hasta el último día de ese mes
+      const ultimoDia = new Date(anio - 1, mes, 0).getDate();
+      const dia = Math.min(hoy.getDate(), ultimoDia);
+      return {
+        period: `${anio - 1}-${m[2]}-01_${anio - 1}-${m[2]}-${dosDigitos(dia)}`,
+        filterType: 'range',
+        anio: anio - 1,
+      };
+    }
+    return { period: `${anio - 1}-${m[2]}`, filterType: 'month', anio: anio - 1 };
+  }
+  if (filterType === 'year') {
+    // El año entero puede llegar como "2026" o como "2026-01"
+    const anio = Number((selectedPeriod || '').slice(0, 4));
+    return Number.isInteger(anio) && anio > 0 ? { period: String(anio - 1), filterType: 'year', anio: anio - 1 } : null;
+  }
+  if (filterType === 'range' && (selectedPeriod || '').includes('_')) {
+    const correr = (f: string) => {
+      const [a, mm, dd] = f.split('-').map(Number);
+      if (!a || !mm || !dd) return null;
+      const ultimoDia = new Date(a - 1, mm, 0).getDate();
+      return `${a - 1}-${dosDigitos(mm)}-${dosDigitos(Math.min(dd, ultimoDia))}`;
+    };
+    const [inicio, fin] = selectedPeriod.split('_');
+    const a = correr(inicio);
+    const b = correr(fin);
+    return a && b ? { period: `${a}_${b}`, filterType: 'range', anio: Number(inicio.slice(0, 4)) - 1 } : null;
+  }
+  return null;
 }
 
 export default function SalesChart({ selectedPeriod, filterType, segment, salesperson, client, product, branch, comparisonPeriods }: SalesChartProps) {
   // Auto-set chart period based on main filter type
   const getDefaultPeriod = (): 'weekly' | 'monthly' | 'daily' => {
-    if (filterType === 'year') return 'monthly'; // Year view → show 12 months
-    if (filterType === 'month') return 'daily';  // Month view → show days
-    // Rango de fechas: la granularidad sale del largo del tramo. Elegir "del 5 al 20 de
-    // enero" en el selector de días llega acá como rango, y en semanas eso eran dos o
-    // tres barras que no dicen nada; se espera el mismo gráfico por día del vista de mes.
-    if (filterType === 'range') return granularidadDeRango(selectedPeriod);
-    return 'weekly'; // Default fallback
+    // El gráfico parte siempre en Diario, para todos (pedido del usuario, oct-2026); después
+    // se cambia con los botones. La única excepción es el año completo: ahí parte en meses,
+    // porque 365 puntos no se leen y no hay botón "Mensual" para volver.
+    if (filterType === 'year') return 'monthly';
+    return 'daily';
   };
   
   const [period, setPeriod] = useState<'weekly' | 'monthly' | 'daily'>(getDefaultPeriod());
@@ -166,6 +201,27 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
     enabled: isComparison,
   });
 
+  // Mismo tramo del año anterior (Facturado o NVV, según lo que se esté mirando)
+  const anterior = filterType !== 'day' ? periodoAnioAnterior(selectedPeriod, filterType) : null;
+  const { data: anteriorData } = useQuery<ChartDataPoint[]>({
+    queryKey: [isNvv ? '/api/nvv/chart-data' : '/api/sales/chart-data', 'anio-anterior', chartPeriod, anterior?.period, anterior?.filterType, segment, salesperson, client, product, branch],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', chartPeriod);
+      params.append('selectedPeriod', anterior!.period);
+      params.append('filterType', anterior!.filterType);
+      if (segment) params.append('segment', segment);
+      if (salesperson) params.append('salesperson', salesperson);
+      if (client) params.append('client', client);
+      if (!isNvv && product) params.append('product', product);
+      if (!isNvv && branch) params.append('branch', branch);
+      const res = await fetch(`${isNvv ? '/api/nvv/chart-data' : '/api/sales/chart-data'}?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !isComparison && !!anterior,
+  });
+
   const isLoading = isComparison ? comparisonLoading : (isNvv ? nvvLoading : singleLoading);
   const activeData = isNvv ? nvvChartData : chartData;
 
@@ -187,6 +243,14 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
   // Active color based on data source
   const activeColor = isNvv ? NVV_COLOR : CHART_COLORS[0];
 
+  // El año anterior se alinea por posición: día 1 con día 1, semana 1 del mes con semana 1.
+  // Las fechas no coinciden (otro día de la semana, otro número de semana), pero lo que se
+  // compara es el mismo tramo del período.
+  const etiquetas = activeData?.map(d => d.period) || [];
+  const mostrarAnterior = !isComparison && !!anterior && !!anteriorData && anteriorData.length > 0;
+  const nombreSerie = isNvv ? 'NVV' : 'Ventas';
+  const anioActual = anterior ? anterior.anio + 1 : undefined;
+
   // Build chart configuration
   const chartConfig = isComparison && comparisonData ? {
     labels: comparisonData[0]?.data?.map((d: ChartDataPoint) => d.period) || [],
@@ -204,7 +268,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
         },
         borderColor: colorSet.border,
         borderWidth: 3,
-        pointRadius: 4,
+        pointRadius: radioSinCeros(4),
         pointHoverRadius: 6,
         pointBackgroundColor: colorSet.border,
         pointBorderColor: '#ffffff',
@@ -216,9 +280,9 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
       };
     })
   } : {
-    labels: activeData?.map(d => d.period) || [],
+    labels: etiquetas,
     datasets: [{
-      label: isNvv ? 'NVV' : 'Ventas',
+      label: mostrarAnterior ? `${nombreSerie} ${anioActual}` : nombreSerie,
       data: activeData?.map(d => d.sales) || [],
       fill: true,
       backgroundColor: (context: any) => {
@@ -229,7 +293,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
       },
       borderColor: activeColor.border,
       borderWidth: 3,
-      pointRadius: 6,
+      pointRadius: radioSinCeros(6),
       pointHoverRadius: 8,
       pointBackgroundColor: activeColor.border,
       pointBorderColor: '#ffffff',
@@ -238,7 +302,28 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
       pointHoverBorderColor: '#ffffff',
       pointHoverBorderWidth: 3,
       tension: 0.4,
-    }]
+    },
+    ...(mostrarAnterior ? [{
+      label: `${nombreSerie} ${anterior!.anio}`,
+      data: etiquetas.map((_, i) => anteriorData![i]?.sales ?? null),
+      fill: true,
+      backgroundColor: (context: any) => {
+        const { ctx, chartArea } = context.chart;
+        if (!chartArea) return null;
+        return createGradient(ctx, ANIO_ANTERIOR_COLOR.bg);
+      },
+      borderColor: ANIO_ANTERIOR_COLOR.border,
+      borderWidth: 3,
+      pointRadius: radioSinCeros(6),
+      pointHoverRadius: 8,
+      pointBackgroundColor: ANIO_ANTERIOR_COLOR.border,
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 2,
+      pointHoverBackgroundColor: ANIO_ANTERIOR_COLOR.border,
+      pointHoverBorderColor: '#ffffff',
+      pointHoverBorderWidth: 3,
+      tension: 0.4,
+    }] : [])]
   };
 
   const options = {
@@ -246,7 +331,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
     maintainAspectRatio: false,
     elements: {
       point: {
-        radius: 4,
+        radius: radioSinCeros(4),
         hoverRadius: 6,
       }
     },
@@ -256,7 +341,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
     },
     plugins: {
       legend: {
-        display: isComparison,
+        display: isComparison || mostrarAnterior,
         position: 'top' as const,
         labels: {
           usePointStyle: true,
@@ -278,6 +363,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
         callbacks: {
           label: (context: any) => {
             const label = context.dataset.label || '';
+            if (context.parsed.y === null || context.parsed.y === undefined) return `${label}: —`;
             const value = formatCurrency(context.parsed.y);
             return `${label}: ${value}`;
           },
@@ -292,12 +378,15 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
         beginAtZero: true,
         ticks: {
           callback: (value: any) => {
-            if (value >= 1000000) {
-              return `$${(value / 1000000).toFixed(1)}M`;
-            } else if (value >= 1000) {
-              return `$${(value / 1000).toFixed(0)}K`;
+            // Las notas de crédito pueden dejar un día bajo cero: mismo formato con signo
+            const signo = value < 0 ? '-' : '';
+            const abs = Math.abs(value);
+            if (abs >= 1000000) {
+              return `${signo}$${(abs / 1000000).toFixed(1)}M`;
+            } else if (abs >= 1000) {
+              return `${signo}$${(abs / 1000).toFixed(0)}K`;
             }
-            return `$${value}`;
+            return `${signo}$${abs}`;
           },
           font: {
             size: 11,
