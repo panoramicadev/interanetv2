@@ -143,7 +143,24 @@ const groupNvvByClient = (records: NVVRecord[]): NVVClientGroup[] => {
     return Object.values(grouped).sort((a, b) => b.totalAmount - a.totalAmount);
 };
 
-const groupGdvByClient = (records: GDVRecord[]): GDVClientGroup[] => {
+// FEEMDO llega como fecha del ERP (sin hora); se corta a YYYY-MM-DD para no correr el día por zona horaria
+const formatFeemdo = (feemdo: string) => {
+    const [y, m, d] = (feemdo || '').slice(0, 10).split('-');
+    return y && m && d ? `${d}-${m}-${y}` : '-';
+};
+
+// NVV distintas de un cliente (un registro por línea de producto), más recientes primero
+const distinctNvvs = (records: NVVRecord[]) => {
+    const byNudo = new Map<string, string>();
+    for (const r of records) {
+        const nudo = r.NUDO?.trim();
+        if (nudo && !byNudo.has(nudo)) byNudo.set(nudo, r.FEEMDO);
+    }
+    return Array.from(byNudo, ([nudo, feemdo]) => ({ nudo, feemdo }))
+        .sort((a, b) => (b.feemdo || '').localeCompare(a.feemdo || ''));
+};
+
+const groupGdvByClient =(records: GDVRecord[]): GDVClientGroup[] => {
     const grouped = records.reduce((acc, record) => {
         const normalizedCode = record.codigoCliente?.trim().toUpperCase() || '';
         const normalizedName = record.cliente?.trim().toUpperCase() || '';
@@ -437,10 +454,18 @@ export default function PendingDocumentsUnified({ selectedPeriod, filterType, sa
                                                                 {clientGroups.map((cg) => (
                                                                     <AccordionItem key={`${sp.salespersonCode}-${cg.uniqueKey}`} value={`${sp.salespersonCode}-${cg.uniqueKey}`} className="border rounded-lg bg-white dark:bg-slate-900">
                                                                         <AccordionTrigger className="px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm">
-                                                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-1">
-                                                                                <div className="text-left min-w-0 flex-1">
+                                                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 gap-1 sm:gap-3">
+                                                                                <div className="text-left min-w-0 sm:w-[38%] sm:shrink-0">
                                                                                     <div className="font-medium text-xs sm:text-sm text-gray-900 dark:text-gray-100 truncate">{cg.clientName}</div>
                                                                                     <div className="text-xs text-gray-500">{cg.totalOrders} docs</div>
+                                                                                </div>
+                                                                                <div className="flex flex-wrap gap-1 min-w-0 flex-1">
+                                                                                    {distinctNvvs(cg.records).map((n) => (
+                                                                                        <span key={n.nudo} className="inline-flex items-center gap-1 rounded-md border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/30 px-1.5 py-0.5 text-[11px] leading-tight">
+                                                                                            <span className="font-semibold text-gray-900 dark:text-gray-100">NVV {n.nudo}</span>
+                                                                                            <span className="text-gray-500 dark:text-gray-400">{formatFeemdo(n.feemdo)}</span>
+                                                                                        </span>
+                                                                                    ))}
                                                                                 </div>
                                                                                 <div className="flex gap-3 shrink-0">
                                                                                     <div className="text-left sm:text-right">
