@@ -1,6 +1,7 @@
-import { ReactNode } from "react";
+import { ReactNode, useRef } from "react";
 import { Target } from "lucide-react";
 import { useFilter } from "@/contexts/FilterContext";
+import { sinMovimiento, useContador, useEnPantalla } from "@/hooks/use-animacion-entrada";
 
 interface MetaGoalCardProps {
   /** Título de la tarjeta: "Meta Global", "Meta del Segmento", "Meta del Vendedor"... */
@@ -20,6 +21,9 @@ interface MetaGoalCardProps {
   targetTestId?: string;
   currentTestId?: string;
 }
+
+// Mismo tiempo que el avance de las cifras (useContador), para que barra y número lleguen juntos
+const TRANSICION_BARRA = "width 1200ms cubic-bezier(0.33, 1, 0.68, 1)";
 
 /**
  * Tarjeta de meta del dashboard (diseño negro + naranjo de marca).
@@ -58,6 +62,16 @@ export default function MetaGoalCard({
   const effectiveCombined = showCombined && isCurrentPeriod && hasCombined;
   const displayPercentage = effectiveCombined ? combinedPercentage : (percentage ?? 0);
 
+  // Animación al pasar por la tarjeta (pedido del usuario, oct-2026): las barras
+  // crecen desde cero y las cifras avanzan hasta su valor cada vez que entra a la vista.
+  const tarjetaRef = useRef<HTMLDivElement>(null);
+  const enPantalla = useEnPantalla(tarjetaRef);
+  const porcentajeAnimado = useContador(displayPercentage, enPantalla);
+  const metaAnimada = useContador(targetAmount, enPantalla);
+  const ventasAnimadas = useContador(effectiveCombined ? combinedTotal : currentSales, enPantalla);
+  const anchoFacturado = enPantalla ? Math.min(percentage ?? 0, 100) : 0;
+  const anchoCombinado = enPantalla ? Math.min(combinedPercentage, 100) : 0;
+
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('es-CL', {
       style: 'currency',
@@ -68,6 +82,7 @@ export default function MetaGoalCard({
 
   return (
     <div
+      ref={tarjetaRef}
       className="rounded-2xl bg-white dark:bg-slate-900 p-5"
       data-testid={testId}
     >
@@ -90,7 +105,7 @@ export default function MetaGoalCard({
               }`}
               data-testid={percentageTestId}
             >
-              {displayPercentage.toFixed(1)}%
+              {porcentajeAnimado.toFixed(1)}%
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Logrado{effectiveCombined ? ' combinado' : ''}
@@ -106,7 +121,7 @@ export default function MetaGoalCard({
           <div className="bg-[#0a0a0a] border border-slate-800/80 rounded-xl p-3">
             <p className="text-[10px] uppercase tracking-wider font-bold text-white mb-1">Meta Mensual</p>
             <p className="text-lg font-normal text-white" data-testid={targetTestId}>
-              {formatCurrency(targetAmount)}
+              {formatCurrency(Math.round(metaAnimada))}
             </p>
           </div>
           <div className="bg-[#fd6301] rounded-xl p-3 shadow-sm shadow-[#fd6301]/25">
@@ -114,7 +129,7 @@ export default function MetaGoalCard({
               {effectiveCombined ? 'Total Combinado' : 'Ventas Actuales'}
             </p>
             <p className="text-lg font-normal text-white" data-testid={currentTestId}>
-              {formatCurrency(effectiveCombined ? combinedTotal : currentSales)}
+              {formatCurrency(Math.round(ventasAnimadas))}
             </p>
           </div>
         </div>
@@ -123,12 +138,12 @@ export default function MetaGoalCard({
         <div className="space-y-1">
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
             <div
-              className={`h-3 rounded-full transition-all duration-500 ${
+              className={`h-3 rounded-full ${
                 (percentage ?? 0) >= 100
                   ? 'bg-gradient-to-r from-emerald-400 to-emerald-600'
                   : 'bg-gradient-to-r from-[#fd6301] to-[#e35400]'
               }`}
-              style={{ width: `${Math.min(percentage ?? 0, 100)}%` }}
+              style={{ width: `${anchoFacturado}%`, transition: sinMovimiento() ? undefined : TRANSICION_BARRA }}
             />
           </div>
 
@@ -136,12 +151,12 @@ export default function MetaGoalCard({
             <div className="space-y-0.5">
               <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
                 <div
-                  className={`h-1.5 rounded-full transition-all duration-500 ${
+                  className={`h-1.5 rounded-full ${
                     combinedPercentage >= 100
                       ? 'bg-gradient-to-r from-emerald-400 to-emerald-600'
                       : 'bg-gradient-to-r from-slate-700 to-[#0a0a0a]'
                   }`}
-                  style={{ width: `${Math.min(combinedPercentage, 100)}%` }}
+                  style={{ width: `${anchoCombinado}%`, transition: sinMovimiento() ? undefined : TRANSICION_BARRA }}
                 />
               </div>
             </div>

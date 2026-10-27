@@ -119,7 +119,8 @@ interface ExtraGroupTemplate {
   label: string;
   icon: any;
   isPremium?: boolean;
-  children: { key: string; href: string; label: string; icon: any }[];
+  isNuevo?: boolean;
+  children: { key: string; href: string; label: string; icon: any; isNuevo?: boolean }[];
 }
 
 const EXTRA_GROUPS: ExtraGroupTemplate[] = [
@@ -140,9 +141,11 @@ const EXTRA_GROUPS: ExtraGroupTemplate[] = [
     href: "/tintometria",
     label: "Tintometría",
     icon: Palette,
+    // Destacado como novedad (oct-2026): el Libro de Fórmulas recién se abrió a vendedores
+    isNuevo: true,
     children: [
       { key: "tintometria.carta", href: "/tintometria/carta", label: "Pantonera Digital", icon: Palette },
-      { key: "tintometria.formulas", href: "/tintometria/libro", label: "Libro de Fórmulas", icon: BookOpen },
+      { key: "tintometria.formulas", href: "/tintometria/libro", label: "Libro de Fórmulas", icon: BookOpen, isNuevo: true },
       { key: "tintometria.admin", href: "/tintometria/admin", label: "Administrar Datos", icon: Settings },
       // Ocultos por ahora (oct-2026), igual que en sidebar-config: si quedan
       // acá, los "extras" los reponen a quien tenga el permiso.
@@ -300,6 +303,7 @@ export function buildSidebarItems(
         label: group.label,
         icon: group.icon,
         isPremium: group.isPremium,
+        isNuevo: group.isNuevo,
         children: newChildren,
       });
     }

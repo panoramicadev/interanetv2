@@ -31066,6 +31066,12 @@ export function registerRoutes(app: Express): Server {
   // INVENTORY routes
   // ==================================================================================
 
+  // Vendedores y supervisores solo ven en Inventario la Bodega Concepción (014)
+  // y Productos Terminados (006, que la pantalla muestra como Bodega Lautaro).
+  const BODEGAS_INVENTARIO_COMERCIAL = ['006', '014'];
+  const bodegasInventarioPorRol = (role?: string) =>
+    role === 'salesperson' || role === 'supervisor' ? BODEGAS_INVENTARIO_COMERCIAL : undefined;
+
   // Get inventory with filters
   app.get('/api/inventory', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
@@ -31076,6 +31082,8 @@ export function registerRoutes(app: Express): Server {
       if (warehouse) filters.warehouse = warehouse;
       if (branch) filters.branch = branch;
       if (excludeWarehouse) filters.excludeWarehouseNames = String(excludeWarehouse).split(',').map(s => s.trim()).filter(Boolean);
+      const onlyWarehouseCodes = bodegasInventarioPorRol(req.user?.role);
+      if (onlyWarehouseCodes) filters.onlyWarehouseCodes = onlyWarehouseCodes;
 
       const inventory = await storage.getInventory(filters);
       res.json(inventory);
@@ -31094,6 +31102,8 @@ export function registerRoutes(app: Express): Server {
       if (warehouse) filters.warehouse = warehouse;
       if (branch) filters.branch = branch;
       if (excludeWarehouse) filters.excludeWarehouseNames = String(excludeWarehouse).split(',').map(s => s.trim()).filter(Boolean);
+      const onlyWarehouseCodes = bodegasInventarioPorRol(req.user?.role);
+      if (onlyWarehouseCodes) filters.onlyWarehouseCodes = onlyWarehouseCodes;
 
       const summary = await storage.getInventorySummary(filters);
       res.json(summary);
@@ -31112,6 +31122,8 @@ export function registerRoutes(app: Express): Server {
       if (warehouse) filters.warehouse = warehouse;
       if (branch) filters.branch = branch;
       if (excludeWarehouse) filters.excludeWarehouseNames = String(excludeWarehouse).split(',').map(s => s.trim()).filter(Boolean);
+      const onlyWarehouseCodes = bodegasInventarioPorRol(req.user?.role);
+      if (onlyWarehouseCodes) filters.onlyWarehouseCodes = onlyWarehouseCodes;
 
       const user = req.user;
 
@@ -31142,6 +31154,8 @@ export function registerRoutes(app: Express): Server {
       if (warehouse) filters.warehouse = warehouse;
       if (branch) filters.branch = branch;
       if (excludeWarehouse) filters.excludeWarehouseNames = String(excludeWarehouse).split(',').map(s => s.trim()).filter(Boolean);
+      const onlyWarehouseCodes = bodegasInventarioPorRol(req.user?.role);
+      if (onlyWarehouseCodes) filters.onlyWarehouseCodes = onlyWarehouseCodes;
       if (hideNoStock === 'true') filters.hideNoStock = true;
       if (hideZZProducts === 'true') filters.hideZZProducts = true;
 

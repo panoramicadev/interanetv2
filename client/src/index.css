@@ -303,3 +303,54 @@
 .module-card .min-h-screen {
   min-height: 100vh;
 }
+
+/* ── Brillo de marca (oct-2026) ─────────────────────────────────────────────
+   Pedido del usuario: todo botón naranjo, en cualquier pantalla y para cualquier
+   rol, lleva el mismo brillo en movimiento que el ítem "Tintometría" del menú. Va
+   acá, global, para no repetirlo en cada componente. Los chips naranjos con ícono
+   (tarjetas KPI, Meta, encabezados) quedan quietos: el usuario pidió sacárselo.
+   Tampoco brillan los botones dentro de una tabla (el "Enviar" de cada cotización):
+   se repiten fila por fila y todos moviéndose a la vez cansan la vista.
+   Ni los de un contenedor con `data-sin-brillo` (el selector de período: años,
+   meses, días y "Aplicar"). Para apagarlo en otro lugar, se le pone ese atributo.
+   El brillo es una capa encima (::after), así el color de fondo, el hover y los
+   degradados de cada botón quedan como estaban. */
+:is(button, a, [role="button"]):is(
+    .bg-\[\#fd6301\], .from-\[\#fd6301\], .bg-primary,
+    .bg-orange-500, .bg-orange-600, .from-orange-500
+  ):not(:disabled):not(td *, [data-sin-brillo] *){
+  isolation: isolate;
+}
+:is(button, a, [role="button"]):is(
+    .bg-\[\#fd6301\], .from-\[\#fd6301\], .bg-primary,
+    .bg-orange-500, .bg-orange-600, .from-orange-500
+  ):not(:disabled):not(td *, [data-sin-brillo] *):not(.absolute, .fixed, .sticky){
+  position: relative;
+}
+:is(button, a, [role="button"]):is(
+    .bg-\[\#fd6301\], .from-\[\#fd6301\], .bg-primary,
+    .bg-orange-500, .bg-orange-600, .from-orange-500
+  ):not(:disabled):not(td *, [data-sin-brillo] *)::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(110deg, rgba(255, 255, 255, 0) 40%, rgba(255, 255, 255, 0.6) 50%, rgba(255, 255, 255, 0) 60%);
+  background-size: 250% 100%;
+  background-repeat: no-repeat;
+  background-position: 130% 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :is(button, a, [role="button"]):is(
+      .bg-\[\#fd6301\], .from-\[\#fd6301\], .bg-primary,
+      .bg-orange-500, .bg-orange-600, .from-orange-500
+    ):not(:disabled):not(td *, [data-sin-brillo] *)::after{
+    animation: brillo-marca 2.5s linear infinite;
+  }
+}
+@keyframes brillo-marca {
+  0% { background-position: 130% 0; }
+  100% { background-position: -30% 0; }
+}

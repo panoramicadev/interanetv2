@@ -58,6 +58,36 @@ diga "el naranjo debe ser el del sidebar", casi siempre significa reemplazar
 
 ## Patrones canónicos (copiar/pegar)
 
+### Brillo de marca en botones naranjos (oct-2026)
+
+Pedido del usuario: **todo botón naranjo, en cualquier pantalla y para cualquier rol,
+lleva un brillo blanco que lo recorre** de lado a lado, igual que el ítem
+"Tintometría" del menú.
+
+Vive en **un solo lugar: el final de `client/src/index.css`** (`brillo-marca`). No
+hay que agregar clases: lo toma solo cualquier `button`/`a` con `bg-[#fd6301]`,
+`from-[#fd6301]`, `bg-primary`, `bg-orange-500/600` o `from-orange-500`.
+Es una capa `::after` encima: el color, el hover y los degradados de cada botón
+siguen igual. No se aplica a botones deshabilitados ni con movimiento reducido.
+
+⚠️ **Los chips naranjos con ícono (`ICONO_CHIP`, tarjetas KPI, Meta, encabezados de
+módulo) van QUIETOS, sin brillo** (corrección del usuario, oct-2026: primero se les
+puso y después se pidió sacarlo de todos). El brillo es solo de botones.
+
+⚠️ **Los botones dentro de una tabla tampoco brillan** (el "Enviar" de cada fila de
+cotizaciones, oct-2026): se repiten fila por fila y todos moviéndose cansan la vista.
+La regla los excluye con `:not(td *)`.
+
+⚠️ **El selector de período tampoco brilla** (años, meses, días y "Aplicar", oct-2026).
+Para apagar el brillo en cualquier otro contenedor, se le pone el atributo
+**`data-sin-brillo`** y todo botón adentro queda quieto.
+
+### Ítem del menú destacado como novedad (`isNuevo`)
+
+`isNuevo: true` en un `SidebarItem`: el grupo lleva el nombre en degradado naranjo
+con brillo en movimiento, y el hijo una etiqueta **NUEVO** naranja que late (se
+invierte a blanca cuando está activo). Hoy: Tintometría → Libro de Fórmulas.
+
 ### Botón primario / CTA (ej. "Nueva Tarea")
 ```
 className="bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all"

@@ -55,6 +55,7 @@ export interface SidebarItem {
   children?: SidebarItem[]; // Para submenús desplegables
   isExternalCatalog?: boolean; // Para el enlace dinámico al catálogo público
   isPremium?: boolean; // Para items con estilo dorado premium (ej: Panorámica Market)
+  isNuevo?: boolean; // Destacado como novedad: grupo con color en movimiento, ítem con etiqueta "Nuevo"
 }
 
 /**
@@ -545,9 +546,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   // Menú estandarizado del vendedor (igual para TODOS los vendedores: se
   // gobierna por el rol RBAC `salesperson`, no usuario por usuario).
   //
-  // El orden es el del trabajo diario: primero vender (tomador, panel, precios,
-  // stock), después lo administrativo (gastos, crédito) y al final el
-  // seguimiento de lo que ya pasó (reclamos, pedidos).
+  // El orden es el del trabajo diario: primero vender (tomador y sus pedidos,
+  // panel, precios, stock), después lo administrativo (gastos, crédito) y al
+  // final el seguimiento de lo que ya pasó (reclamos).
   //
   // Fuera a propósito: Productos (entra solo a Lista de Precios e Inventario),
   // Clientes (la ficha se abre desde el Panel de Trabajo) y Marketing.
@@ -556,12 +557,19 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/",
       label: "Dashboard",
       icon: LayoutDashboard,
+      separator: true,
     },
     {
       href: "/tomador-pedidos-v2",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
       isPremium: true,
+    },
+    {
+      // Junto al Tomador: el vendedor revisa ahí mismo lo que acaba de ingresar
+      href: "/seguimiento-pedidos",
+      label: "Pedidos",
+      icon: PackageSearch,
     },
     {
       href: "/tareas",
@@ -588,7 +596,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Rendición de Gastos",
       icon: Banknote,
     },
-    solicitudesSidebarItem(),
+    { ...solicitudesSidebarItem(), separator: true },
     {
       href: "/visitas-tecnicas",
       label: "Visitas Técnicas",
@@ -598,11 +606,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/reclamos-generales",
       label: "Reclamos",
       icon: AlertTriangle,
-    },
-    {
-      href: "/seguimiento-pedidos",
-      label: "Pedidos",
-      icon: PackageSearch,
+      separator: true,
     },
     // Tintometría oculta temporalmente para vendedores
     // {

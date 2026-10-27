@@ -23147,6 +23147,8 @@ export class DatabaseStorage implements IStorage {
     warehouse?: string;
     branch?: string;
     excludeWarehouseNames?: string[];
+    // Si viene, solo estas bodegas (por código); lo fija el servidor según el rol
+    onlyWarehouseCodes?: string[];
   }): Promise<any[]> {
     const rows = await this.getInventoryWithPrices(filters);
     return rows.map(({ averagePrice, totalValue, ...stock }) => stock);
@@ -23157,6 +23159,8 @@ export class DatabaseStorage implements IStorage {
     warehouse?: string;
     branch?: string;
     excludeWarehouseNames?: string[];
+    // Si viene, solo estas bodegas (por código); lo fija el servidor según el rol
+    onlyWarehouseCodes?: string[];
   }): Promise<{
     totalProducts: number;
     totalQuantity: number;
@@ -23272,6 +23276,8 @@ export class DatabaseStorage implements IStorage {
     branch?: string;
     // Bodegas que la pantalla no quiere ver, por nombre (p. ej. 'BODEGA DEL SUR')
     excludeWarehouseNames?: string[];
+    // Si viene, solo estas bodegas (por código); lo fija el servidor según el rol
+    onlyWarehouseCodes?: string[];
   }): Promise<any[]> {
     // Create cache key from filters (sorted to ensure consistency)
     const cacheKey = JSON.stringify(filters || {}, Object.keys(filters || {}).sort());
@@ -23320,6 +23326,10 @@ export class DatabaseStorage implements IStorage {
 
         if (filters?.branch && filters.branch !== 'all') {
           conditions.push(eq(inventoryProducts.sucursal, filters.branch));
+        }
+
+        if (filters?.onlyWarehouseCodes) {
+          conditions.push(inArray(inventoryProducts.bodega, filters.onlyWarehouseCodes));
         }
 
         for (const name of filters?.excludeWarehouseNames || []) {
@@ -23489,6 +23499,8 @@ export class DatabaseStorage implements IStorage {
     warehouse?: string;
     branch?: string;
     excludeWarehouseNames?: string[];
+    // Si viene, solo estas bodegas (por código); lo fija el servidor según el rol
+    onlyWarehouseCodes?: string[];
     hideNoStock?: boolean;
     hideZZProducts?: boolean;
   }): Promise<{
