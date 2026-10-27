@@ -13,6 +13,11 @@ export const RECLAMOS_AREAS = {
   ETIQUETA: 'etiqueta',
   MATERIA_PRIMA: 'materia_prima',
   COLORES: 'colores',
+  // Cliente y Comercial (oct-2026): no tienen equipo propio. Ningún rol de área los
+  // tiene en ROLE_TO_AREA_MAP, así que los trabajan quienes ven todos los reclamos:
+  // técnico de obra, supervisor/encargado y el vendedor que lo registró.
+  CLIENTE: 'cliente',
+  COMERCIAL: 'comercial',
 } as const;
 
 export type ReclamoArea = typeof RECLAMOS_AREAS[keyof typeof RECLAMOS_AREAS];
@@ -128,6 +133,8 @@ export const AREA_LABELS: Record<ReclamoArea, string> = {
   [RECLAMOS_AREAS.ETIQUETA]: 'Etiqueta',
   [RECLAMOS_AREAS.MATERIA_PRIMA]: 'Materia Prima',
   [RECLAMOS_AREAS.COLORES]: 'Colores',
+  [RECLAMOS_AREAS.CLIENTE]: 'Cliente',
+  [RECLAMOS_AREAS.COMERCIAL]: 'Comercial',
 };
 
 /**

@@ -358,7 +358,10 @@ function Router() {
             <Route path="/ayuda-memoria" component={guarded("clientes.ayuda_memoria", AyudaMemoriaPage)} />
             <Route path="/presupuestos-avanzados" component={PresupuestosAvanzados} />
             <Route path="/tareas" component={TareasPage} />
+            <Route path="/tareas/:tab" component={TareasPage} />
             <Route path="/visitas-tecnicas" component={guarded("postventa.visitas", VisitasTecnicasPage)} />
+            <Route path="/visitas-tecnicas/visitas" component={guarded("postventa.visitas", VisitasTecnicasPage)} />
+            <Route path="/visitas-tecnicas/obras" component={guarded("postventa.visitas", VisitasTecnicasPage)} />
             <Route path="/reclamos-generales" component={guarded("postventa.reclamos", ReclamosGeneralesPage)} />
             <Route path="/reclamos/resolucion/:id" component={guarded("postventa.reclamos", ReclamoResolucionPage)} />
             <Route path="/mantenciones" component={guarded("cmms.ordenes", MantencionesPage)} />

@@ -194,6 +194,21 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS ix_gri_price_history_sku ON gri_price_history(sku)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS ix_gri_price_history_snapshot ON gri_price_history(snapshot_at DESC)`);
 
+    // Chat de los reclamos (solo se crea si no existe: no toca lo ya guardado).
+    console.log('  📋 Verificando tabla reclamos_generales_mensajes...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS reclamos_generales_mensajes (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        reclamo_id VARCHAR NOT NULL,
+        user_id VARCHAR NOT NULL,
+        user_name TEXT NOT NULL,
+        user_role VARCHAR,
+        mensaje TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_reclamos_gen_mensajes_reclamo_id" ON reclamos_generales_mensajes(reclamo_id)`);
+
     // 3. Crear tablas staging de GDV
     console.log('  📋 Verificando tablas de GDV...');
     

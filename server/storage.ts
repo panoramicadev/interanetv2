@@ -14511,9 +14511,27 @@ export class DatabaseStorage implements IStorage {
             )
           `);
           break;
-        case 'tecnico_obra':
-          // Tecnico de obra sees: tasks they created OR tasks assigned to them
+        case 'tecnico_obra': {
+          // Técnico de obra ve el panel de TODA su área (ej: Matías Flores, Construcción):
+          // las tareas del segmento de su área, las asignadas a cualquier persona activa
+          // de esa área (las guardadas sin segmento se ubican por quien las tiene), y
+          // además las que creó o le asignaron desde otras áreas.
+          const [yo] = await db.select({ assignedSegment: salespeopleUsers.assignedSegment })
+            .from(salespeopleUsers)
+            .where(eq(salespeopleUsers.id, userId));
+          const area = (yo?.assignedSegment ?? '').trim().toLowerCase();
+          const delArea = area
+            ? sql`${tasks.segmento} = ${area} OR
+              EXISTS (
+                SELECT 1 FROM ${taskAssignments}
+                JOIN ${salespeopleUsers} ON ${salespeopleUsers.id} = ${taskAssignments.assigneeId}
+                WHERE ${taskAssignments.taskId} = ${tasks.id}
+                AND ${salespeopleUsers.isActive} = true
+                AND lower(${salespeopleUsers.assignedSegment}) = ${area}
+              ) OR`
+            : sql``;
           taskConditions.push(sql`(
+            ${delArea}
             ${tasks.createdByUserId} = ${userId} OR
             EXISTS (
               SELECT 1 FROM ${taskAssignments}
@@ -14526,6 +14544,7 @@ export class DatabaseStorage implements IStorage {
             )
           )`);
           break;
+        }
         case 'marketing':
           // Marketing ve: todas las tareas del segmento "marketing" (su área) MÁS
           // las que creó o le asignaron desde otras áreas ("las que le van asociando").
@@ -17934,7 +17953,7 @@ export class DatabaseStorage implements IStorage {
   // VISITAS TÉCNICAS METHODS
   // ==============================================
 
-  async getEstadisticasVisitasTecnicas(options: { periodo?: string } = {}): Promise<{
+  async getEstadisticasVisitasTecnicas(options: { periodo?: string; desde?: string; hasta?: string } = {}): Promise<{
     totalVisitas: number;
     visitasCompletadas: number;
     visitasBorrador: number;
@@ -17983,67 +18002,47 @@ export class DatabaseStorage implements IStorage {
       // Set endDate to end of day for inclusive range
       endDate.setHours(23, 59, 59, 999);
 
-      const visitas = await db.select().from(visitasTecnicas)
-        .where(
-          and(
-            sql`${visitasTecnicas.createdAt}::date >= ${startDate.toISOString().split('T')[0]}::date`,
-            sql`${visitasTecnicas.createdAt}::date <= ${endDate.toISOString().split('T')[0]}::date`
-          )
-        );
+      // Rango explícito (YYYY-MM-DD) del selector de período: manda sobre `periodo`.
+      const fecha = /^\d{4}-\d{2}-\d{2}$/;
+      const rangoExplicito = !!options.desde && !!options.hasta && fecha.test(options.desde) && fecha.test(options.hasta);
+      const desde = rangoExplicito ? options.desde! : startDate.toISOString().split('T')[0];
+      const hasta = rangoExplicito ? options.hasta! : endDate.toISOString().split('T')[0];
 
-      const totalVisitas = visitas.length;
-      const visitasCompletadas = visitas.filter(v => v.estado === 'completada').length;
-      const visitasBorrador = visitas.filter(v => v.estado === 'borrador').length;
-
-      // Get productos evaluados for statistics
-      const visitaIds = visitas.map(v => v.id);
-      let aplicacionesCorrectas = 0;
-      let aplicacionesDeficientes = 0;
-      let reclamosPendientes = 0;
-      let totalProgreso = 0;
-      let productosCount = 0;
-
-      if (visitaIds.length > 0) {
-        const productos = await db.select().from(productosEvaluados)
-          .where(inArray(productosEvaluados.visitaId, visitaIds));
-
-        // Only count products that have valid porcentaje_avance for the average
-        productos.forEach(p => {
-          if (p.porcentajeAvance && p.porcentajeAvance.toString().trim() !== '') {
-            const avance = parseFloat(p.porcentajeAvance.toString());
-            if (!isNaN(avance) && avance > 0) {
-              totalProgreso += avance;
-              productosCount++;
-            }
-          }
-        });
-
-        // Get evaluaciones to count aplicaciones correctas/deficientes
-        const evaluaciones = await db.select().from(evaluacionesTecnicas)
-          .where(
-            inArray(
-              evaluacionesTecnicas.productoEvaluadoId,
-              productos.map(p => p.id)
-            )
-          );
-
-        evaluaciones.forEach(e => {
-          if (e.aplicacion === 'correcta') aplicacionesCorrectas++;
-          if (e.aplicacion === 'deficiente') aplicacionesDeficientes++;
-        });
-
-        // Count reclamos pendientes
-        const reclamosResult = await db.select().from(reclamos)
-          .where(
-            and(
-              inArray(reclamos.visitaId, visitaIds),
-              eq(reclamos.estado, 'pendiente')
-            )
-          );
-        reclamosPendientes = reclamosResult.length;
-      }
-
-      const promedioProgreso = productosCount > 0 ? Math.round(totalProgreso / productosCount) : 0;
+      // Todo se cuenta en la base de datos en una sola consulta. Antes se traían las
+      // visitas, sus productos y sus evaluaciones completos (fotos y textos incluidos)
+      // para contarlos acá, y con el historial actual la consulta se cortaba por tiempo
+      // y el dashboard mostraba todo en 0.
+      const resultado = await db.execute(sql`
+        WITH v AS (
+          SELECT id, estado FROM ${visitasTecnicas}
+          WHERE ${visitasTecnicas.createdAt}::date >= ${desde}::date
+            AND ${visitasTecnicas.createdAt}::date <= ${hasta}::date
+        ),
+        p AS (
+          SELECT pe.id, pe.porcentaje_avance FROM ${productosEvaluados} pe
+          WHERE pe.visita_id IN (SELECT id FROM v)
+        )
+        SELECT
+          (SELECT count(*) FROM v)::int AS total_visitas,
+          (SELECT count(*) FROM v WHERE estado = 'completada')::int AS visitas_completadas,
+          (SELECT count(*) FROM v WHERE estado = 'borrador')::int AS visitas_borrador,
+          (SELECT count(*) FROM ${evaluacionesTecnicas} e
+             WHERE e.producto_evaluado_id IN (SELECT id FROM p) AND e.aplicacion = 'correcta')::int AS aplicaciones_correctas,
+          (SELECT count(*) FROM ${evaluacionesTecnicas} e
+             WHERE e.producto_evaluado_id IN (SELECT id FROM p) AND e.aplicacion = 'deficiente')::int AS aplicaciones_deficientes,
+          (SELECT count(*) FROM ${reclamos} r
+             WHERE r.visita_id IN (SELECT id FROM v) AND r.estado = 'pendiente')::int AS reclamos_pendientes,
+          (SELECT coalesce(round(avg(porcentaje_avance)), 0) FROM p
+             WHERE porcentaje_avance > 0)::int AS promedio_progreso
+      `);
+      const fila: any = (resultado as any).rows?.[0] ?? {};
+      const totalVisitas = Number(fila.total_visitas ?? 0);
+      const visitasCompletadas = Number(fila.visitas_completadas ?? 0);
+      const visitasBorrador = Number(fila.visitas_borrador ?? 0);
+      const aplicacionesCorrectas = Number(fila.aplicaciones_correctas ?? 0);
+      const aplicacionesDeficientes = Number(fila.aplicaciones_deficientes ?? 0);
+      const reclamosPendientes = Number(fila.reclamos_pendientes ?? 0);
+      const promedioProgreso = Number(fila.promedio_progreso ?? 0);
 
       return {
         totalVisitas,

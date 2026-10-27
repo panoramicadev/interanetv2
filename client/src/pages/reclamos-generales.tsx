@@ -44,11 +44,15 @@ import {
   Edit,
   CheckCheck,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Download,
+  ArrowLeft
 } from "lucide-react";
 import type { ReclamoGeneral, ReclamoGeneralPhoto } from "@shared/schema";
 import { RECLAMOS_AREAS, AREA_LABELS, getAreaLabel, getRoleArea } from "@shared/reclamosAreas";
 import { format } from "date-fns";
+import { ICONO_CHIP, ICONO_CHIP_ICONO } from "@/lib/icono-chip";
+import { ReclamoChat } from "@/components/reclamos/reclamo-chat";
 import { es } from "date-fns/locale";
 
 interface Client {
@@ -69,6 +73,10 @@ interface ReclamoWithDetails extends ReclamoGeneral {
   }>;
 }
 
+// Quiénes cierran un reclamo (pedido oct-2026): el supervisor del área, el técnico
+// de obra y el administrador. El servidor aplica la misma regla.
+const ROLES_CIERRAN_RECLAMO = ['admin', 'supervisor', 'encargado_area', 'tecnico_obra'];
+
 const MOTIVO_OPTIONS = [
   { value: 'etiquetado', label: 'Etiquetado', area: 'produccion' },
   { value: 'sellado', label: 'Sellado', area: 'produccion' },
@@ -80,23 +88,26 @@ const MOTIVO_OPTIONS = [
   { value: 'producto_expirado', label: 'Producto expirado', area: 'logistica' },
   { value: 'estado_envase', label: 'Estado del envase no adecuado', area: 'logistica' },
   { value: 'producto_cambiado', label: 'Producto cambiado', area: 'logistica' },
-  { value: 'mal_aplicacion', label: 'Mal aplicación', area: 'aplicacion' },
+  { value: 'mal_aplicacion', label: 'Mal aplicación', area: 'cliente' },
   { value: 'otro', label: 'Otro', area: null },
 ];
 
+// Áreas que se eligen al registrar o validar un reclamo (oct-2026): solo estas cinco.
+// Los reclamos antiguos con otras áreas (Aplicación, Materia Prima…) se siguen
+// mostrando con su nombre a través de AREA_LABELS.
 const AREA_ASIGNADA_OPTIONS = [
-  { value: RECLAMOS_AREAS.PRODUCCION, label: AREA_LABELS[RECLAMOS_AREAS.PRODUCCION] },
   { value: RECLAMOS_AREAS.LABORATORIO, label: AREA_LABELS[RECLAMOS_AREAS.LABORATORIO] },
+  { value: RECLAMOS_AREAS.PRODUCCION, label: AREA_LABELS[RECLAMOS_AREAS.PRODUCCION] },
   { value: RECLAMOS_AREAS.LOGISTICA, label: AREA_LABELS[RECLAMOS_AREAS.LOGISTICA] },
-  { value: RECLAMOS_AREAS.APLICACION, label: AREA_LABELS[RECLAMOS_AREAS.APLICACION] },
-  { value: RECLAMOS_AREAS.MATERIA_PRIMA, label: AREA_LABELS[RECLAMOS_AREAS.MATERIA_PRIMA] },
+  { value: RECLAMOS_AREAS.CLIENTE, label: AREA_LABELS[RECLAMOS_AREAS.CLIENTE] },
+  { value: RECLAMOS_AREAS.COMERCIAL, label: AREA_LABELS[RECLAMOS_AREAS.COMERCIAL] },
 ];
 
 const GRAVEDAD_OPTIONS = [
   { value: 'baja', label: 'Baja', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
   { value: 'media', label: 'Media', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
   { value: 'alta', label: 'Alta', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
-  { value: 'critica', label: 'Crítica', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
+  // "Crítica" salió (oct-2026): la gravedad es Baja / Media / Alta.
 ];
 
 const TIPO_RECLAMO_OPTIONS = [
@@ -117,16 +128,8 @@ const CATEGORIA_RESPONSABLE_OPTIONS = [
   { value: RECLAMOS_AREAS.APLICACION, label: AREA_LABELS[RECLAMOS_AREAS.APLICACION] },
 ];
 
-const VALIDACION_AREA_OPTIONS = [
-  { value: RECLAMOS_AREAS.PRODUCCION, label: AREA_LABELS[RECLAMOS_AREAS.PRODUCCION] },
-  { value: RECLAMOS_AREAS.LABORATORIO, label: AREA_LABELS[RECLAMOS_AREAS.LABORATORIO] },
-  { value: RECLAMOS_AREAS.LOGISTICA, label: AREA_LABELS[RECLAMOS_AREAS.LOGISTICA] },
-  { value: RECLAMOS_AREAS.APLICACION, label: AREA_LABELS[RECLAMOS_AREAS.APLICACION] },
-  { value: RECLAMOS_AREAS.ENVASE, label: AREA_LABELS[RECLAMOS_AREAS.ENVASE] },
-  { value: RECLAMOS_AREAS.ETIQUETA, label: AREA_LABELS[RECLAMOS_AREAS.ETIQUETA] },
-  { value: RECLAMOS_AREAS.MATERIA_PRIMA, label: AREA_LABELS[RECLAMOS_AREAS.MATERIA_PRIMA] },
-  { value: RECLAMOS_AREAS.COLORES, label: AREA_LABELS[RECLAMOS_AREAS.COLORES] },
-];
+// La validación técnica deriva a las mismas cinco áreas del formulario.
+const VALIDACION_AREA_OPTIONS = AREA_ASIGNADA_OPTIONS;
 
 const ESTADO_LABELS: Record<string, { label: string; color: string; icon: any }> = {
   'registrado': { 
@@ -267,6 +270,24 @@ export default function ReclamosGeneralesPage() {
   const [clientSearchTerm, setClientSearchTerm] = useState("");
   const [debouncedClientSearchTerm, setDebouncedClientSearchTerm] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
+
+  // Producto afectado: se busca entre los productos que aparecen en facturas. Si no
+  // está, queda escrito a mano (el nombre que se tipeó, sin SKU).
+  const [showProductoDropdown, setShowProductoDropdown] = useState(false);
+  const [productoBusqueda, setProductoBusqueda] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setProductoBusqueda(formData.productName.trim()), 300);
+    return () => clearTimeout(t);
+  }, [formData.productName]);
+  const { data: productosFacturados = [], isFetching: buscandoProductos } = useQuery<Array<{ name: string; code: string }>>({
+    queryKey: ['/api/products/search', productoBusqueda],
+    queryFn: async () => {
+      const res = await fetch(`/api/products/search?q=${encodeURIComponent(productoBusqueda)}`, { credentials: 'include' });
+      return res.ok ? res.json() : [];
+    },
+    enabled: showProductoDropdown && productoBusqueda.length >= 2,
+    staleTime: 60_000,
+  });
   const [manualClientEntry, setManualClientEntry] = useState(false);
   const clientDropdownRef = useRef<HTMLDivElement>(null);
   
@@ -1319,18 +1340,77 @@ export default function ReclamosGeneralesPage() {
     );
   }
 
+  // Diseño actual de la intranet (pestañas con subrayado negro, campos y tarjetas
+  // rounded-2xl, naranjo de marca). Solo cambia el aspecto, no cómo funciona.
+  const TAB_PRINCIPAL =
+    "group inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 text-xs sm:text-sm font-medium text-[#0a0a0a] dark:text-slate-200 hover:text-[#fd6301] dark:hover:text-white border-b-2 border-transparent bg-transparent -mb-px rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:font-semibold data-[state=active]:text-[#0a0a0a] data-[state=active]:border-[#0a0a0a] dark:data-[state=active]:bg-transparent dark:data-[state=active]:text-white dark:data-[state=active]:border-slate-100 whitespace-nowrap shrink-0";
+  const TABS_RIEL =
+    "flex w-full justify-start overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden h-auto gap-1.5 bg-transparent dark:bg-transparent p-0 border-0 border-b border-slate-200 dark:border-slate-800 rounded-none";
+  const CAMPO =
+    "h-11 rounded-2xl border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm";
+  const PANEL = "rounded-2xl border border-slate-200/70 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900";
+  const CHIP_META = "inline-flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg";
+  // Formulario de Nuevo/Editar Reclamo: bloques numerados, campos rounded-xl con
+  // foco naranjo, y opciones cortas en chips que se eligen de un toque.
+  const CAMPO_FORM =
+    "rounded-xl bg-slate-50/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 focus-visible:border-[#fd6301] focus-visible:ring-orange-500/20";
+  const BLOQUE_FORM = "rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-4";
+  const chipOpcion = (activo: boolean) =>
+    `px-3 py-2 rounded-xl text-sm font-medium border transition-all ${
+      activo
+        ? "bg-[#fd6301] border-[#fd6301] text-white shadow-sm shadow-[#fd6301]/25"
+        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-orange-200 hover:text-[#fd6301]"
+    }`;
+  const tituloBloque = (n: number, texto: string) => (
+    <div className="flex items-center gap-2.5">
+      <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#fd6301] text-xs font-bold text-white">{n}</span>
+      <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{texto}</span>
+    </div>
+  );
+
+  const abrirReclamo = (id: string) => {
+    setSelectedReclamoId(id);
+    setShowDetailModal(true);
+    window.scrollTo({ top: 0 });
+  };
+
+  // PDF del reclamo. El generador se carga recién al pedirlo: pesa y no hace falta para listar.
+  const descargarReclamo = async (id: string) => {
+    try {
+      toast({ title: "Generando PDF", description: "Por favor espere..." });
+      const res = await fetch(`/api/reclamos-generales/${id}/details`, { credentials: 'include' });
+      if (!res.ok) throw new Error('No se pudo obtener el reclamo');
+      const datos = await res.json();
+      const { descargarReclamoPdf } = await import("@/components/reclamos/reclamo-pdf");
+      await descargarReclamoPdf(datos, {
+        estado: (v) => (v && ESTADO_LABELS[v]?.label) || v || '—',
+        gravedad: (v) => GRAVEDAD_OPTIONS.find((g) => g.value === v)?.label || v || '—',
+        motivo: (v) => MOTIVO_OPTIONS.find((m) => m.value === v)?.label || v || null,
+      });
+    } catch (error) {
+      console.error('Error al generar PDF del reclamo:', error);
+      toast({ title: "Error", description: "No se pudo generar el PDF", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="container mx-auto p-4 sm:p-6 space-y-6">
+      {!showDetailModal && (<>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Reclamos de Clientes</h1>
-          <p className="text-muted-foreground">Gestión de reclamos y seguimiento</p>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={ICONO_CHIP}>
+            <AlertTriangle className={ICONO_CHIP_ICONO} />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-slate-100">Reclamos de Clientes</h1>
+            <p className="hidden sm:block text-muted-foreground">Gestión de reclamos y seguimiento</p>
+          </div>
         </div>
         {(user?.role === 'salesperson' || user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'tecnico_obra') && (
           <Button 
             onClick={() => setShowNewReclamoModal(true)}
             data-testid="button-create-reclamo"
-            className="w-full sm:w-auto"
+            className="w-full sm:w-auto h-10 px-4 rounded-2xl font-semibold bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all"
           >
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Reclamo
@@ -1339,21 +1419,21 @@ export default function ReclamosGeneralesPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        {user?.role !== 'salesperson' ? (
-          <TabsList className="grid w-full grid-cols-2" data-testid="tabs-reclamos">
-            <TabsTrigger value="mis-reclamos" data-testid="tab-mis-reclamos">
-              <FileText className="h-4 w-4 mr-2" />
+        {user?.role !== 'salesperson' && user?.role !== 'tecnico_obra' ? (
+          <TabsList className={TABS_RIEL} data-testid="tabs-reclamos">
+            <TabsTrigger value="mis-reclamos" data-testid="tab-mis-reclamos" className={TAB_PRINCIPAL}>
+              <FileText className="h-4 w-4 shrink-0" />
               Mis Reclamos
             </TabsTrigger>
-            <TabsTrigger value="estadisticas" data-testid="tab-estadisticas">
-              <BarChart3 className="h-4 w-4 mr-2" />
+            <TabsTrigger value="estadisticas" data-testid="tab-estadisticas" className={TAB_PRINCIPAL}>
+              <BarChart3 className="h-4 w-4 shrink-0" />
               Estadísticas
             </TabsTrigger>
           </TabsList>
         ) : (
-          <TabsList className="grid w-full grid-cols-1" data-testid="tabs-reclamos">
-            <TabsTrigger value="mis-reclamos" data-testid="tab-mis-reclamos">
-              <FileText className="h-4 w-4 mr-2" />
+          <TabsList className={TABS_RIEL} data-testid="tabs-reclamos">
+            <TabsTrigger value="mis-reclamos" data-testid="tab-mis-reclamos" className={TAB_PRINCIPAL}>
+              <FileText className="h-4 w-4 shrink-0" />
               Mis Reclamos
             </TabsTrigger>
           </TabsList>
@@ -1362,29 +1442,26 @@ export default function ReclamosGeneralesPage() {
         <TabsContent value="mis-reclamos" className="space-y-4">
           {/* Filters - hidden for salesperson */}
           {user?.role !== 'salesperson' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Filtros</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr] gap-3">
                 <div>
-                  <Label>Buscar</Label>
+                  <Label className="sr-only">Buscar</Label>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#fd6301]" />
                     <Input
-                      placeholder="Cliente, descripción..."
+                      placeholder="Buscar por cliente o descripción..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-9"
+                      className={`pl-10 ${CAMPO} focus-visible:border-[#fd6301] focus-visible:ring-orange-500/20`}
                       data-testid="input-search-reclamos"
                     />
                   </div>
                 </div>
                 <div>
-                  <Label>Estado</Label>
+                  <Label className="sr-only">Estado</Label>
                   <Select value={filterEstado} onValueChange={setFilterEstado}>
-                    <SelectTrigger data-testid="select-filter-estado">
+                    <SelectTrigger data-testid="select-filter-estado" className={`${CAMPO} font-semibold text-sm text-slate-700 dark:text-slate-200 hover:border-orange-200 focus:ring-orange-500/20`}>
                       <SelectValue placeholder="Todos los estados" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1396,9 +1473,9 @@ export default function ReclamosGeneralesPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label>Gravedad</Label>
+                  <Label className="sr-only">Gravedad</Label>
                   <Select value={filterGravedad} onValueChange={setFilterGravedad}>
-                    <SelectTrigger data-testid="select-filter-gravedad">
+                    <SelectTrigger data-testid="select-filter-gravedad" className={`${CAMPO} font-semibold text-sm text-slate-700 dark:text-slate-200 hover:border-orange-200 focus:ring-orange-500/20`}>
                       <SelectValue placeholder="Todas las gravedades" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1410,14 +1487,14 @@ export default function ReclamosGeneralesPage() {
                   </Select>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
           )}
 
-          {/* Filter Tabs - Modernized */}
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+          {/* Filtro por bandeja: mismo riel de subrayado, con el contador naranjo */}
+          <div>
             <Tabs value={filterTab} onValueChange={setFilterTab} className="w-full">
-              <TabsList className="w-full justify-start h-auto gap-0 bg-transparent p-0 border-b border-gray-200 dark:border-gray-800 rounded-none">
+              <TabsList className={TABS_RIEL}>
                 {getAvailableTabs().map((tab) => {
                   const Icon = tab.icon;
                   const count = getTabCount(tab.value);
@@ -1426,13 +1503,11 @@ export default function ReclamosGeneralesPage() {
                       key={tab.value}
                       value={tab.value}
                       data-testid={`tab-filter-${tab.value}`}
-                      className="relative flex items-center gap-2 px-6 py-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:text-primary hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200"
+                      className={TAB_PRINCIPAL}
                     >
-                      <Icon className="h-4 w-4" />
-                      <span className="font-medium">{tab.label}</span>
-                      <span 
-                        className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
-                      >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span>{tab.label}</span>
+                      <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-[#fd6301] text-white">
                         {count}
                       </span>
                     </TabsTrigger>
@@ -1443,22 +1518,25 @@ export default function ReclamosGeneralesPage() {
           </div>
 
           {/* Reclamos list */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Lista de Reclamos</CardTitle>
-              <CardDescription>
-                {filteredReclamos.length} reclamo(s) encontrado(s)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Lista de Reclamos</h2>
+              <Badge className="bg-gradient-to-r from-orange-500 to-[#fd6301] text-white border-0 text-xs font-semibold px-3 py-1 shadow-sm shadow-orange-500/25 rounded-full">
+                {filteredReclamos.length} reclamo{filteredReclamos.length !== 1 ? 's' : ''}
+              </Badge>
+            </div>
+            <div>
               {reclamosLoading ? (
                 <div className="flex justify-center p-8">
-                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <Loader2 className="h-8 w-8 animate-spin text-[#fd6301]" />
                 </div>
               ) : filteredReclamos.length === 0 ? (
-                <p className="text-center text-muted-foreground p-8">
-                  No hay reclamos registrados
-                </p>
+                <div className={`${PANEL} p-8 text-center`}>
+                  <div className={`${ICONO_CHIP} inline-flex mb-3`}>
+                    <AlertTriangle className={ICONO_CHIP_ICONO} />
+                  </div>
+                  <p className="text-muted-foreground">No hay reclamos registrados</p>
+                </div>
               ) : (
                 <div className="space-y-3">
                   {filteredReclamos.map((reclamo) => {
@@ -1468,13 +1546,21 @@ export default function ReclamosGeneralesPage() {
                     const Icon = estadoInfo?.icon || FileText;
                     
                     return (
-                      <Card key={reclamo.id} className="hover:bg-accent/50 transition-colors">
+                      <Card
+                        key={reclamo.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => abrirReclamo(reclamo.id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') abrirReclamo(reclamo.id); }}
+                        className={`${PANEL} cursor-pointer hover:border-orange-200 hover:shadow-md transition-all`}
+                        data-testid={`button-view-reclamo-${reclamo.id}`}
+                      >
                         <CardContent className="p-4">
                           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                             <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <h3 className="font-semibold" data-testid={`text-reclamo-cliente-${reclamo.id}`}>
-                                  {reclamo.clientName} {reclamo.clientRut && <span className="text-muted-foreground font-normal">- {reclamo.clientRut}</span>}
+                                <h3 className="font-semibold text-slate-800 dark:text-slate-100" data-testid={`text-reclamo-cliente-${reclamo.id}`}>
+                                  {reclamo.clientName} {reclamo.clientRut && <span className="font-semibold">- {reclamo.clientRut}</span>}
                                 </h3>
                                 <Badge className={gravedadInfo?.color} data-testid={`badge-gravedad-${reclamo.id}`}>
                                   {gravedadInfo?.label}
@@ -1485,27 +1571,24 @@ export default function ReclamosGeneralesPage() {
                                 </Badge>
                               </div>
                               
-                              <p className="text-sm text-muted-foreground line-clamp-2">
-                                {reclamo.description}
-                              </p>
                               
-                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs text-muted-foreground">
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                <span className={CHIP_META}>
+                                  <Calendar className="h-3.5 w-3.5 text-[#fd6301]" />
                                   {format(new Date(reclamo.fechaRegistro || ''), "dd MMM yyyy", { locale: es })}
                                 </span>
                                 {reclamo.productName && (
-                                  <span>Producto: {reclamo.productName}</span>
+                                  <span className={CHIP_META}>Producto: {reclamo.productName}</span>
                                 )}
                                 {reclamo.vendedorName && (
-                                  <span className="flex items-center gap-1">
-                                    <User className="h-3 w-3" />
+                                  <span className={CHIP_META}>
+                                    <User className="h-3.5 w-3.5 text-[#fd6301]" />
                                     Creado por: {reclamo.vendedorName}
                                   </span>
                                 )}
                                 {reclamo.tecnicoName && (
-                                  <span className="flex items-center gap-1">
-                                    <User className="h-3 w-3" />
+                                  <span className={CHIP_META}>
+                                    <User className="h-3.5 w-3.5 text-[#fd6301]" />
                                     Técnico: {reclamo.tecnicoName}
                                   </span>
                                 )}
@@ -1521,57 +1604,31 @@ export default function ReclamosGeneralesPage() {
                               )}
                             </div>
                             
-                            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedReclamoId(reclamo.id);
-                                  setShowDetailModal(true);
-                                }}
-                                data-testid={`button-view-reclamo-${reclamo.id}`}
-                                className="w-full sm:w-auto"
-                              >
-                                <Eye className="h-4 w-4 mr-1" />
-                                Ver Detalle
-                              </Button>
+                            <div
+                              className="flex gap-2 self-end sm:self-start"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            >
 
                               {/* Menú desplegable de acciones */}
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" data-testid={`button-actions-${reclamo.id}`}>
+                                  <Button variant="ghost" size="sm" className="rounded-2xl hover:bg-orange-50 hover:text-[#fd6301] dark:hover:bg-orange-950/30" data-testid={`button-actions-${reclamo.id}`}>
                                     <MoreVertical className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuContent align="end" className="w-48" onClick={(e) => e.stopPropagation()}>
+                                  <DropdownMenuItem
+                                    onClick={() => descargarReclamo(reclamo.id)}
+                                    data-testid={`menu-descargar-reclamo-${reclamo.id}`}
+                                  >
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Descargar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
                                   {/* Opciones para Técnico de Obra */}
                                   {user?.role === 'tecnico_obra' && reclamo.estado === 'registrado' && (
                                     <>
-                                      <DropdownMenuItem
-                                        onClick={() => {
-                                          setSelectedReclamoId(reclamo.id);
-                                          setIsEditMode(true);
-                                          setFormData({
-                                            clientName: reclamo.clientName,
-                                            clientRut: reclamo.clientRut || '',
-                                            clientEmail: reclamo.clientEmail || '',
-                                            clientPhone: reclamo.clientPhone || '',
-                                            clientAddress: reclamo.clientAddress || '',
-                                            productName: reclamo.productName,
-                                            productSku: reclamo.productSku || '',
-                                            lote: reclamo.lote || '',
-                                            motivo: reclamo.motivo || '',
-                                            areaAsignadaInicial: reclamo.areaAsignadaInicial || '',
-                                            description: reclamo.description,
-                                            gravedad: reclamo.gravedad,
-                                          });
-                                          setShowNewReclamoModal(true);
-                                        }}
-                                        data-testid={`menu-edit-reclamo-${reclamo.id}`}
-                                      >
-                                        <Edit className="h-4 w-4 mr-2" />
-                                        Editar
-                                      </DropdownMenuItem>
                                       <DropdownMenuItem
                                         onClick={() => {
                                           setSelectedReclamoId(reclamo.id);
@@ -1621,29 +1678,10 @@ export default function ReclamosGeneralesPage() {
                                     </>
                                   )}
                                   
-                                  {/* Opción de Cerrar - disponible para técnicos de obra, laboratorio, áreas y roles organizacionales */}
-                                  {reclamo.estado !== 'cerrado' && (
-                                    user?.role === 'tecnico_obra' ||
-                                    user?.role === 'laboratorio' ||
-                                    user?.role?.startsWith('area_') ||
-                                    organizationalRoles.includes(user?.role || '')
-                                  ) && (
-                                    <DropdownMenuItem
-                                      onClick={() => {
-                                        setSelectedReclamoId(reclamo.id);
-                                        setShowCerrarModal(true);
-                                      }}
-                                      data-testid={`menu-cerrar-reclamo-${reclamo.id}`}
-                                    >
-                                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                                      Cerrar
-                                    </DropdownMenuItem>
-                                  )}
-
                                   {/* Opción de Eliminar para Admin y Técnico */}
                                   {(user?.role === 'admin' || user?.role === 'tecnico_obra') && (
                                     <>
-                                      {(reclamo.estado !== 'cerrado' && user?.role === 'tecnico_obra') && <DropdownMenuSeparator />}
+                                      <DropdownMenuSeparator />
                                       <DropdownMenuItem
                                         onClick={() => {
                                           if (window.confirm('¿Está seguro que desea eliminar este reclamo? Esta acción no se puede deshacer.')) {
@@ -1669,8 +1707,8 @@ export default function ReclamosGeneralesPage() {
                   })}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="estadisticas" className="space-y-4">
@@ -1722,6 +1760,7 @@ export default function ReclamosGeneralesPage() {
           </div>
         </TabsContent>
       </Tabs>
+      </>)}
 
       {/* Create/Edit Reclamo Dialog */}
       <Dialog open={showNewReclamoModal} onOpenChange={(open) => {
@@ -1731,9 +1770,9 @@ export default function ReclamosGeneralesPage() {
           setSelectedReclamoId(null);
         }
       }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full overflow-hidden">
+        <DialogContent className="max-w-3xl max-h-[90vh] w-[95vw] sm:w-full overflow-hidden rounded-2xl" data-sin-brillo>
           <DialogHeader>
-            <DialogTitle>{isEditMode ? 'Editar Reclamo' : 'Nuevo Reclamo de Cliente'}</DialogTitle>
+            <DialogTitle className="text-slate-800 dark:text-slate-100">{isEditMode ? 'Editar Reclamo' : 'Nuevo Reclamo de Cliente'}</DialogTitle>
             <DialogDescription>
               {isEditMode ? 'Modifique la información del reclamo' : 'Complete la información del reclamo y adjunte fotos'}
             </DialogDescription>
@@ -1741,14 +1780,19 @@ export default function ReclamosGeneralesPage() {
           
           <ScrollArea className="h-[calc(90vh-200px)] pr-4">
           <div className="space-y-4">
-            {/* Cliente */}
+            {/* 1 · Cliente */}
+            <div className={BLOQUE_FORM}>
+              {tituloBloque(1, 'Cliente')}
             <div className="space-y-2">
-              <Label htmlFor="cliente">Cliente <span className="text-red-500">*</span></Label>
+              <Label htmlFor="cliente" className="sr-only">Cliente</Label>
               {!manualClientEntry ? (
                 <div className="relative" ref={clientDropdownRef}>
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#fd6301] pointer-events-none" />
                   <Input
                     id="cliente"
-                    placeholder="Buscar cliente..."
+                    className={`pl-9 h-11 ${CAMPO_FORM}`}
+                    autoFocus={!isEditMode}
+                    placeholder="Busca por nombre o RUT del cliente..."
                     value={clientSearchTerm}
                     onChange={(e) => {
                       setClientSearchTerm(e.target.value);
@@ -1759,12 +1803,12 @@ export default function ReclamosGeneralesPage() {
                     data-testid="input-cliente"
                   />
                   {showClientDropdown && clients.length > 0 && (
-                    <Card className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto shadow-lg border-2">
+                    <Card className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto shadow-lg rounded-xl border-slate-200">
                       <CardContent className="p-2">
                         {clients.map((client) => (
                           <div
                             key={client.id}
-                            className="p-2 hover:bg-accent cursor-pointer rounded"
+                            className="p-2.5 hover:bg-orange-50 dark:hover:bg-orange-950/30 cursor-pointer rounded-lg"
                             onClick={() => {
                               setFormData(prev => ({
                                 ...prev,
@@ -1784,7 +1828,7 @@ export default function ReclamosGeneralesPage() {
                     </Card>
                   )}
                   {showClientDropdown && clients.length === 0 && debouncedClientSearchTerm.length > 0 && (
-                    <Card className="absolute z-50 w-full mt-1 shadow-lg border-2">
+                    <Card className="absolute z-50 w-full mt-1 shadow-lg rounded-xl border-slate-200">
                       <CardContent className="p-4 text-center">
                         <p className="text-sm text-muted-foreground mb-3">
                           No se encontraron clientes con ese nombre
@@ -1809,8 +1853,8 @@ export default function ReclamosGeneralesPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md p-3">
-                    <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  <div className="flex items-center justify-between bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900 rounded-xl p-3">
+                    <span className="text-sm font-medium text-[#fd6301]">
                       Ingresando cliente manualmente
                     </span>
                     <Button
@@ -1833,6 +1877,7 @@ export default function ReclamosGeneralesPage() {
                     <Input
                       id="manual-client-name"
                       placeholder="Ingrese nombre del cliente"
+                      className={CAMPO_FORM}
                       value={formData.clientName}
                       onChange={(e) => setFormData(prev => ({ ...prev, clientName: e.target.value }))}
                       data-testid="input-manual-client-name"
@@ -1843,6 +1888,7 @@ export default function ReclamosGeneralesPage() {
                     <Input
                       id="manual-client-rut"
                       placeholder="Ingrese RUT (opcional)"
+                      className={CAMPO_FORM}
                       value={formData.clientRut}
                       onChange={(e) => setFormData(prev => ({ ...prev, clientRut: e.target.value }))}
                       data-testid="input-manual-client-rut"
@@ -1851,59 +1897,63 @@ export default function ReclamosGeneralesPage() {
                 </div>
               )}
             </div>
+            </div>
+
+            {/* 2 · Problema */}
+            <div className={BLOQUE_FORM}>
+              {tituloBloque(2, 'Problema')}
 
             {/* Gravedad */}
             <div className="space-y-2">
-              <Label htmlFor="gravedad">Gravedad <span className="text-red-500">*</span></Label>
-              <Select 
-                value={formData.gravedad} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, gravedad: value }))}
-              >
-                <SelectTrigger data-testid="select-gravedad">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {GRAVEDAD_OPTIONS.map(({ value, label }) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Gravedad <span className="text-red-500">*</span></Label>
+              <div className="grid grid-cols-3 gap-2" role="radiogroup" data-testid="select-gravedad">
+                {GRAVEDAD_OPTIONS.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={formData.gravedad === value}
+                    onClick={() => setFormData(prev => ({ ...prev, gravedad: value }))}
+                    className={chipOpcion(formData.gravedad === value)}
+                    data-testid={`option-gravedad-${value}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Motivo */}
+            {/* Motivo: al elegirlo se completa el área responsable */}
             <div className="space-y-2">
-              <Label htmlFor="motivo">Motivo del Reclamo <span className="text-red-500">*</span></Label>
-              <Select 
-                value={formData.motivo} 
-                onValueChange={(value) => {
-                  setFormData(prev => ({ ...prev, motivo: value }));
-                  const selectedMotivo = MOTIVO_OPTIONS.find(m => m.value === value);
-                  if (selectedMotivo?.area) {
-                    setFormData(prev => ({ ...prev, areaAsignadaInicial: selectedMotivo.area || '' }));
-                  } else {
-                    setFormData(prev => ({ ...prev, areaAsignadaInicial: '' }));
-                  }
-                }}
-              >
-                <SelectTrigger data-testid="select-motivo">
-                  <SelectValue placeholder="Seleccione el motivo del reclamo" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MOTIVO_OPTIONS.map(({ value, label }) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Motivo del Reclamo <span className="text-red-500">*</span></Label>
+              <div className="flex flex-wrap gap-2" role="radiogroup" data-testid="select-motivo">
+                {MOTIVO_OPTIONS.map(({ value, label, area }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={formData.motivo === value}
+                    onClick={() => setFormData(prev => ({ ...prev, motivo: value, areaAsignadaInicial: area || '' }))}
+                    className={chipOpcion(formData.motivo === value)}
+                    data-testid={`option-motivo-${value}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Área Asignada Inicial */}
             <div className="space-y-2">
               <Label htmlFor="areaAsignadaInicial">Área Responsable Inicial <span className="text-red-500">*</span></Label>
-              <Select 
-                value={formData.areaAsignadaInicial} 
+              {formData.motivo && MOTIVO_OPTIONS.find(m => m.value === formData.motivo)?.area === formData.areaAsignadaInicial && formData.areaAsignadaInicial && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">Se completó según el motivo. Puedes cambiarla si corresponde a otra área.</p>
+              )}
+              <Select
+                value={formData.areaAsignadaInicial}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, areaAsignadaInicial: value }))}
               >
-                <SelectTrigger data-testid="select-area-asignada-inicial">
+                <SelectTrigger data-testid="select-area-asignada-inicial" className={`h-11 ${CAMPO_FORM}`}>
                   <SelectValue placeholder="Seleccione el área responsable" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1919,31 +1969,96 @@ export default function ReclamosGeneralesPage() {
               <Label htmlFor="description">Descripción del Reclamo <span className="text-red-500">*</span></Label>
               <Textarea
                 id="description"
-                placeholder="Describa detalladamente el reclamo del cliente..."
+                placeholder="Qué pasó, dónde y cuándo: obra, superficie, cómo se aplicó el producto..."
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 rows={4}
+                className={CAMPO_FORM}
                 data-testid="textarea-description"
               />
+              {/* El servidor pide al menos 10 caracteres: se avisa antes de enviar. */}
+              <p className={`text-xs ${formData.description.trim().length < 10 ? 'text-slate-500 dark:text-slate-400' : 'text-emerald-600'}`}>
+                {formData.description.trim().length < 10
+                  ? `Faltan ${10 - formData.description.trim().length} caracteres (mínimo 10)`
+                  : `${formData.description.trim().length} caracteres`}
+              </p>
+            </div>
             </div>
 
-            {/* Producto Afectado */}
+            {/* 3 · Producto */}
+            <div className={BLOQUE_FORM}>
+              {tituloBloque(3, 'Producto')}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="productName">Producto Afectado <span className="text-red-500">*</span></Label>
-                <Input
-                  id="productName"
-                  placeholder="Nombre del producto"
-                  value={formData.productName}
-                  onChange={(e) => setFormData(prev => ({ ...prev, productName: e.target.value }))}
-                  data-testid="input-product-name"
-                />
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#fd6301] pointer-events-none" />
+                  <Input
+                    id="productName"
+                    className={`pl-9 h-11 ${CAMPO_FORM}`}
+                    placeholder="Busca en productos facturados..."
+                    value={formData.productName}
+                    autoComplete="off"
+                    onChange={(e) => {
+                      // Al escribir, el SKU elegido antes ya no corresponde.
+                      setFormData(prev => ({ ...prev, productName: e.target.value, productSku: '' }));
+                      setShowProductoDropdown(true);
+                    }}
+                    onFocus={() => setShowProductoDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowProductoDropdown(false), 150)}
+                    data-testid="input-product-name"
+                  />
+                  {showProductoDropdown && productoBusqueda.length >= 2 && (
+                    <div className="absolute z-50 left-0 right-0 md:right-auto md:w-[28rem] mt-1 max-h-64 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-1.5">
+                      {buscandoProductos && productosFacturados.length === 0 ? (
+                        <div className="flex items-center gap-2 p-2.5 text-sm text-slate-500">
+                          <Loader2 className="h-4 w-4 animate-spin text-[#fd6301]" /> Buscando en facturas...
+                        </div>
+                      ) : productosFacturados.length > 0 ? (
+                        productosFacturados.map((prod) => (
+                          <button
+                            key={`${prod.code}-${prod.name}`}
+                            type="button"
+                            // onMouseDown: alcanza a elegir antes del blur que cierra la lista.
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setFormData(prev => ({ ...prev, productName: prod.name, productSku: prod.code || '' }));
+                              setShowProductoDropdown(false);
+                            }}
+                            className="w-full text-left p-2.5 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-950/30"
+                            data-testid={`option-producto-${prod.code}`}
+                          >
+                            <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{prod.name}</div>
+                            {prod.code && <div className="text-xs text-muted-foreground">SKU {prod.code}</div>}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="p-2.5 text-sm">
+                          <p className="text-slate-600 dark:text-slate-300">No aparece en facturas.</p>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => { e.preventDefault(); setShowProductoDropdown(false); }}
+                            className="mt-1.5 inline-flex items-center gap-1.5 text-sm font-semibold text-[#fd6301] hover:text-[#e35400]"
+                            data-testid="button-producto-manual"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Usar "{formData.productName.trim()}" como producto manual
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {formData.productName && !formData.productSku && !showProductoDropdown && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Ingresado a mano (no está en facturas).</p>
+                )}
               </div>
               
               <div className="space-y-2">
                 <Label htmlFor="lote">Lote</Label>
                 <Input
                   id="lote"
+                  className={`h-11 ${CAMPO_FORM}`}
                   placeholder="Número de lote"
                   value={formData.lote}
                   onChange={(e) => setFormData(prev => ({ ...prev, lote: e.target.value }))}
@@ -1955,6 +2070,7 @@ export default function ReclamosGeneralesPage() {
                 <Label htmlFor="productSku">SKU</Label>
                 <Input
                   id="productSku"
+                  className={`h-11 ${CAMPO_FORM}`}
                   placeholder="SKU del producto"
                   value={formData.productSku}
                   onChange={(e) => setFormData(prev => ({ ...prev, productSku: e.target.value }))}
@@ -1963,24 +2079,28 @@ export default function ReclamosGeneralesPage() {
               </div>
             </div>
 
-            {/* Photos Upload - Only show when creating new reclamo */}
+            </div>
+
+            {/* 4 · Fotos (solo al crear) */}
             {!isEditMode && (
-              <div className="space-y-2">
-                <Label>Fotos <span className="text-red-500">*</span></Label>
-                <div className="border-2 border-dashed rounded-lg p-6 text-center">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    data-testid="button-upload-photos"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Seleccionar Fotos
-                  </Button>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Se requiere al menos una foto del reclamo
+              <div className={BLOQUE_FORM}>
+                {tituloBloque(4, 'Fotos')}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-6 text-center hover:border-[#fd6301] hover:bg-orange-50/50 dark:hover:bg-orange-950/20 transition-all"
+                  data-testid="button-upload-photos"
+                >
+                  <Upload className="h-6 w-6 mx-auto text-[#fd6301]" />
+                  <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    {previewUrls.length > 0 ? 'Agregar más fotos' : 'Toca para agregar fotos'}
                   </p>
-                </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {previewUrls.length > 0
+                      ? `${previewUrls.length} foto${previewUrls.length !== 1 ? 's' : ''} lista${previewUrls.length !== 1 ? 's' : ''}`
+                      : 'Se requiere al menos una foto del reclamo'}
+                  </p>
+                </button>
                 
                 {previewUrls.length > 0 && (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
@@ -1989,13 +2109,13 @@ export default function ReclamosGeneralesPage() {
                         <img
                           src={url}
                           alt={`Preview ${index + 1}`}
-                          className="w-full h-32 object-cover rounded border"
+                          className="w-full h-32 object-cover rounded-xl border border-slate-200 dark:border-slate-700"
                         />
                         <Button
                           type="button"
                           variant="destructive"
                           size="icon"
-                          className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-1.5 right-1.5 h-7 w-7 rounded-lg sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                           onClick={() => removeFile(index)}
                           data-testid={`button-remove-photo-${index}`}
                         >
@@ -2020,6 +2140,7 @@ export default function ReclamosGeneralesPage() {
                 setSelectedReclamoId(null);
               }}
               data-testid="button-cancel-reclamo"
+              className="rounded-2xl"
             >
               Cancelar
             </Button>
@@ -2027,6 +2148,7 @@ export default function ReclamosGeneralesPage() {
               onClick={handleSubmit}
               disabled={createReclamoMutation.isPending || updateReclamoMutation.isPending}
               data-testid="button-submit-reclamo"
+              className="rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 font-semibold"
             >
               {(createReclamoMutation.isPending || updateReclamoMutation.isPending) && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -2044,20 +2166,33 @@ export default function ReclamosGeneralesPage() {
       </Dialog>
 
       {/* Detail Dialog — Modern SaaS Style */}
-      <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full p-0">
+      {showDetailModal && (
+        <div className="space-y-4">
+          <button
+            type="button"
+            onClick={() => setShowDetailModal(false)}
+            className="inline-flex items-center gap-2 h-10 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-orange-200 hover:text-[#fd6301] transition-all"
+            data-testid="button-volver-reclamos"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Volver a Reclamos
+          </button>
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-4 items-start">
+        <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900 overflow-hidden">
           {detailsLoading ? (
             <div className="flex justify-center p-12">
-              <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+              <Loader2 className="h-8 w-8 animate-spin text-[#fd6301]" />
             </div>
           ) : reclamoDetails ? (
             <>
               {/* ── Header strip with gradient ── */}
-              <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-900 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 px-5 py-4 rounded-t-lg">
+              <div className="bg-[#0a0a0a] px-5 sm:px-6 py-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <h2 className="text-white font-semibold text-lg truncate">{reclamoDetails.clientName}</h2>
+                      <h2 className="text-white font-semibold text-lg truncate">
+                        {reclamoDetails.clientName}{reclamoDetails.clientRut ? ` - ${reclamoDetails.clientRut}` : ''}
+                      </h2>
                     </div>
                     <p className="text-slate-300 text-xs">
                       {format(new Date(reclamoDetails.fechaRegistro || ''), "dd MMM yyyy · HH:mm", { locale: es })}
@@ -2073,6 +2208,54 @@ export default function ReclamosGeneralesPage() {
                     </Badge>
                   </div>
                 </div>
+
+                {/* Editar y Cerrar viven acá, con el reclamo abierto (pedido oct-2026): en el
+                    listado solo quedan Descargar y las acciones de cada área. */}
+                {((user?.role === 'tecnico_obra' && reclamoDetails.estado === 'registrado') ||
+                  (reclamoDetails.estado !== 'cerrado' && ROLES_CIERRAN_RECLAMO.includes(user?.role || ''))) && (
+                  <div className="mt-3 flex gap-2">
+                    {user?.role === 'tecnico_obra' && reclamoDetails.estado === 'registrado' && (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setIsEditMode(true);
+                          setFormData({
+                            clientName: reclamoDetails.clientName,
+                            clientRut: reclamoDetails.clientRut || '',
+                            clientEmail: reclamoDetails.clientEmail || '',
+                            clientPhone: reclamoDetails.clientPhone || '',
+                            clientAddress: reclamoDetails.clientAddress || '',
+                            productName: reclamoDetails.productName,
+                            productSku: reclamoDetails.productSku || '',
+                            lote: reclamoDetails.lote || '',
+                            motivo: reclamoDetails.motivo || '',
+                            areaAsignadaInicial: reclamoDetails.areaAsignadaInicial || '',
+                            description: reclamoDetails.description,
+                            gravedad: reclamoDetails.gravedad,
+                          });
+                          setShowDetailModal(false);
+                          setShowNewReclamoModal(true);
+                        }}
+                        className="flex-1 text-xs font-medium rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/20"
+                        data-testid="button-editar-reclamo-modal"
+                      >
+                        <Edit className="h-3.5 w-3.5 mr-1.5" />
+                        Editar
+                      </Button>
+                    )}
+                    {reclamoDetails.estado !== 'cerrado' && ROLES_CIERRAN_RECLAMO.includes(user?.role || '') && (
+                      <Button
+                        size="sm"
+                        onClick={() => setShowCerrarModal(true)}
+                        className="flex-1 text-xs font-medium rounded-2xl bg-[#fd6301] hover:bg-[#e35400] text-white border-0"
+                        data-testid="button-cerrar-reclamo-modal"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                        Cerrar reclamo
+                      </Button>
+                    )}
+                  </div>
+                )}
 
                 {/* Action button strip */}
                 {((user?.role === 'laboratorio' && reclamoDetails.estado === 'en_laboratorio') ||
@@ -2151,7 +2334,7 @@ export default function ReclamosGeneralesPage() {
                     <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 px-3 py-2">
                       <p className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium mb-0.5">Área Asignada</p>
                       <p className="text-sm font-medium text-indigo-700 dark:text-indigo-300">
-                        {AREA_ASIGNADA_OPTIONS.find(a => a.value === reclamoDetails.areaAsignadaInicial)?.label || reclamoDetails.areaAsignadaInicial}
+                        {getAreaLabel(reclamoDetails.areaAsignadaInicial)}
                       </p>
                     </div>
                   )}
@@ -2278,8 +2461,11 @@ export default function ReclamosGeneralesPage() {
           ) : (
             <div className="p-6 text-center text-muted-foreground">No se encontró el reclamo</div>
           )}
-        </DialogContent>
-      </Dialog>
+        </div>
+        {selectedReclamoId && <ReclamoChat reclamoId={selectedReclamoId} userId={user?.id} />}
+        </div>
+        </div>
+      )}
 
 
       {/* Cerrar Reclamo Modal */}

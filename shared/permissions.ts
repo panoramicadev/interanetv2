@@ -521,6 +521,15 @@ for (const seccion of ["hoy", "solicitudes", "mis-tareas", "inventario", "gastos
 }
 PERMISSION_BY_HREF["/marketing/email"] = "market.campanas";
 
+// Visitas y Obras de Visitas Técnicas: módulos sueltos en el sidebar del técnico
+// de obra, gobernados por el mismo permiso del módulo.
+PERMISSION_BY_HREF["/visitas-tecnicas/visitas"] = "postventa.visitas";
+PERMISSION_BY_HREF["/visitas-tecnicas/obras"] = "postventa.visitas";
+
+// Secciones del Panel de Trabajo como módulos sueltos (técnico de obra): el CRM
+// pide su permiso; las demás, igual que /tareas, no llevan permiso propio.
+PERMISSION_BY_HREF["/tareas/crm"] = "clientes.seguimiento";
+
 /** Etiquetas legibles de cada rol */
 export const ROLE_LABELS: Record<string, string> = {
   admin: "Administrador",
