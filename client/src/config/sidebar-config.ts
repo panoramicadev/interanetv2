@@ -757,15 +757,50 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   ],
 
   tecnico_obra: [
+    // Dashboard primero (pedido oct-2026); antes llegaba como "extra" al final.
     {
-      href: "/visitas-tecnicas",
-      label: "Visitas Técnicas",
-      icon: Wrench,
+      href: "/",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    // Las pestañas de Visitas Técnicas, como módulos sueltos (pedido oct-2026). El
+    // dashboard de visitas no va aparte: es lo que abre "Dashboard" para este rol (App.tsx).
+    {
+      href: "/visitas-tecnicas/visitas",
+      label: "Visitas",
+      icon: FileText,
+    },
+    // El Panel de Trabajo de su área, con cada sección como módulo suelto
+    // (pedido oct-2026): /tareas/<pestaña> abre esa pestaña sin la barra de pestañas.
+    {
+      href: "/tareas/seguimiento",
+      label: "Seguimiento",
+      icon: UserCheck,
+    },
+    {
+      href: "/tareas/obras",
+      label: "Obras",
+      icon: Building2,
+    },
+    {
+      href: "/tareas/crm",
+      label: "CRM",
+      icon: Users,
+    },
+    {
+      href: "/tareas/calendario",
+      label: "Calendario",
+      icon: Calendar,
     },
     {
       href: "/reclamos-generales",
       label: "Reclamos",
       icon: AlertTriangle,
+    },
+    {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Package,
     },
     {
       href: "/clientes",

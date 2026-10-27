@@ -243,6 +243,9 @@ const EXTRAS_OCULTOS_POR_ROL: Record<string, Set<string>> = {
   // Planificación consulta los pedidos desde "Pedidos" de Market; el
   // seguimiento de pedidos y "Mis Pedidos" sueltos sobraban en su menú.
   // Productos (catálogo con edición de precios) tampoco va en su menú.
+  // Técnico de obra: su menú es Visitas Técnicas / Visitas / Obras, Reclamos,
+  // Panel de Trabajo e Inventario; Pedidos y CRM sobraban (pedido oct-2026).
+  tecnico_obra: new Set(["seguimiento_pedidos", "clientes.seguimiento"]),
   planificacion: new Set(["seguimiento_pedidos", "mis_pedidos", "productos", "solicitud_credito", "nuevo_cliente"]),
 };
 

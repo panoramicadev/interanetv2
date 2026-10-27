@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useLocation } from "wouter";
+import { YearMonthSelector, type YearMonthSelection } from "@/components/dashboard/year-month-selector";
+import { gastosDatesFromSelection } from "@/contexts/FilterContext";
+import TarjetaKpi from "@/components/dashboard/kpi-simple-card";
+import { ICONO_CHIP, ICONO_CHIP_ICONO } from "@/lib/icono-chip";
+import { Wrench as WrenchIcon, FlaskConical } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -668,6 +674,21 @@ export default function VisitasTecnicasPage() {
   return <VisitasTecnicasContent />;
 }
 
+const TAB_POR_RUTA: Record<string, string> = {
+  "/visitas-tecnicas/visitas": "listado",
+  "/visitas-tecnicas/obras": "obras",
+};
+const RUTA_POR_TAB: Record<string, string> = {
+  dashboard: "/visitas-tecnicas",
+  listado: "/visitas-tecnicas/visitas",
+  obras: "/visitas-tecnicas/obras",
+};
+const TITULO_POR_TAB: Record<string, string> = {
+  dashboard: "Visitas Técnicas",
+  listado: "Visitas",
+  obras: "Obras",
+};
+
 /**
  * Contenido reutilizable de Visitas Técnicas.
  * Se usa como página standalone (ruta /visitas-tecnicas, que sigue activa aunque
@@ -692,10 +713,22 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
     );
   }
   
-  const [activeTab, setActiveTab] = useState("dashboard");
+  // Fuera del Panel de Trabajo la pestaña sale de la ruta: /visitas-tecnicas es el
+  // dashboard, /visitas-tecnicas/visitas el listado y /visitas-tecnicas/obras las obras.
+  // El técnico de obra las tiene como módulos sueltos en su sidebar (sin la barra de
+  // pestañas); el resto de los roles conserva las pestañas, que también navegan.
+  const [location, navigate] = useLocation();
+  const [tabEmbebido, setTabEmbebido] = useState("dashboard");
+  const activeTab = embedded ? tabEmbebido : (TAB_POR_RUTA[location] ?? "dashboard");
+  const setActiveTab = (tab: string) =>
+    embedded ? setTabEmbebido(tab) : navigate(RUTA_POR_TAB[tab] ?? "/visitas-tecnicas");
+  const modulosSueltos = !embedded && user.role === "tecnico_obra";
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEstado, setFilterEstado] = useState<string>("all");
-  const [filtroMes, setFiltroMes] = useState<string>("all");
+  // Período del dashboard con el mismo selector que usan los vendedores (año / mes / días).
+  // Sin elección = histórico completo.
+  const [periodoSel, setPeriodoSel] = useState<YearMonthSelection | null>(null);
+  const rangoPeriodo = periodoSel ? gastosDatesFromSelection(periodoSel) : null;
   const [showNewVisitModal, setShowNewVisitModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
@@ -1118,13 +1151,47 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
 
   // Query para estadísticas del dashboard
   const { data: estadisticas, isLoading: loadingStats } = useQuery<EstadisticasVisitas>({
-    queryKey: ['/api/visitas-tecnicas/estadisticas', filtroMes],
+    queryKey: ['/api/visitas-tecnicas/estadisticas', rangoPeriodo?.diaDesde ?? 'all', rangoPeriodo?.diaHasta ?? 'all'],
     queryFn: async () => {
-      const response = await apiRequest(`/api/visitas-tecnicas/estadisticas/${filtroMes}`);
+      const response = await apiRequest(
+        rangoPeriodo
+          ? `/api/visitas-tecnicas/estadisticas/all?desde=${rangoPeriodo.diaDesde}&hasta=${rangoPeriodo.diaHasta}`
+          : '/api/visitas-tecnicas/estadisticas/all',
+      );
       return response.json();
     },
     enabled: activeTab === 'dashboard',
   });
+
+  // Reclamos para el bloque "Reclamos" del dashboard (antes, pestaña Estadísticas de
+  // Reclamos). Mismo listado y mismas cuentas que hacía esa pestaña.
+  const { data: reclamosDashboard, isLoading: loadingReclamos } = useQuery<Array<{
+    estado: string;
+    derivadoLaboratorio?: boolean | null;
+    fechaRespuestaLaboratorio?: string | null;
+    fechaEnvioLaboratorio?: string | null;
+    fechaRegistro?: string | null;
+  }>>({
+    queryKey: ['/api/reclamos-generales'],
+    enabled: activeTab === 'dashboard',
+  });
+  const resumenReclamos = (() => {
+    const lista = reclamosDashboard ?? [];
+    const dia = 24 * 60 * 60 * 1000;
+    // SLA vencido: derivado a laboratorio, sin respuesta y con más de 3 días desde el envío.
+    const slaVencido = lista.filter((r) => {
+      if (r.estado === 'cerrado' || !r.derivadoLaboratorio || r.fechaRespuestaLaboratorio) return false;
+      const desde = r.fechaEnvioLaboratorio || r.fechaRegistro;
+      return !!desde && Math.floor((Date.now() - new Date(desde).getTime()) / dia) > 3;
+    }).length;
+    return {
+      total: lista.length,
+      abiertos: lista.filter((r) => r.estado !== 'cerrado').length,
+      enLaboratorio: lista.filter((r) => r.estado === 'en_laboratorio').length,
+      slaVencido,
+    };
+  })();
+  const cifraReclamos = (v: number) => (loadingReclamos ? "…" : String(v));
 
   // Query para estadísticas mensuales (gráfico de barras)
   const { data: estadisticasMensuales, isLoading: loadingMensual } = useQuery<EstadisticasMensuales>({
@@ -1462,124 +1529,86 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
     return matchesSearch && matchesCliente && matchesEstado;
   });
 
+  const BOTON_CTA =
+    "w-full justify-start rounded-2xl bg-gradient-to-r from-[#fd6301] to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white shadow-md shadow-orange-500/25 transition-all";
+  const BOTON_SECUNDARIO =
+    "w-full justify-start rounded-2xl border-slate-200 dark:border-slate-700 hover:border-orange-200 hover:text-[#fd6301]";
+  const PANEL = "rounded-2xl border border-slate-200/70 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900";
+  const cargando = (valor: number | undefined) => (loadingStats ? "…" : String(valor ?? 0));
+
   const DashboardContent = () => (
     <div className="space-y-6">
-      {/* Filtros del dashboard */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Dashboard de Visitas Técnicas</h2>
-          <p className="text-muted-foreground">Estadísticas y resumen de inspecciones técnicas</p>
-        </div>
-        <Select value={filtroMes} onValueChange={setFiltroMes}>
-          <SelectTrigger className="w-48" data-testid="select-filter-month">
-            <SelectValue placeholder="Seleccionar período" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Histórico (Todo)</SelectItem>
-            <SelectItem value="current">Mes actual</SelectItem>
-            <SelectItem value="last">Mes anterior</SelectItem>
-            <SelectItem value="quarter">Último trimestre</SelectItem>
-            <SelectItem value="year">Año actual</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       {/* Acciones Rápidas - Primero en móvil */}
-      <Card className="lg:hidden">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Acciones Rápidas
-          </CardTitle>
-          <CardDescription>
-            Gestionar visitas técnicas y reportes
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Button 
-            className="w-full justify-start" 
-            onClick={handleNewVisit}
-            data-testid="button-nueva-visita"
-          >
+      <Card className={`lg:hidden ${PANEL}`}>
+        <CardContent className="space-y-3 p-4">
+          <Button className={BOTON_CTA} onClick={handleNewVisit} data-testid="button-nueva-visita">
             <Plus className="w-4 h-4 mr-2" />
             Nueva Visita Técnica
           </Button>
-          <Button variant="outline" className="w-full justify-start" data-testid="button-exportar-reportes">
+          <Button variant="outline" className={BOTON_SECUNDARIO} data-testid="button-exportar-reportes">
             <FileText className="w-4 h-4 mr-2" />
             Exportar Reportes
           </Button>
         </CardContent>
       </Card>
 
-      {/* Cards de estadísticas principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Visitas</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="stat-total-visitas">
-              {loadingStats ? "..." : estadisticas?.totalVisitas ?? 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {loadingStats ? "..." : `${estadisticas?.visitasCompletadas ?? 0} completadas`}
-            </p>
-          </CardContent>
-        </Card>
+      {/* Indicadores principales: misma tarjeta que el resto de los dashboards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <TarjetaKpi
+          titulo="Total Visitas"
+          valor={cargando(estadisticas?.totalVisitas)}
+          icono={Calendar}
+          variacionEtiqueta={loadingStats ? "…" : `${estadisticas?.visitasCompletadas ?? 0} completadas`}
+          testId="stat-total-visitas"
+        />
+        <TarjetaKpi
+          titulo="Aplicaciones Correctas"
+          valor={cargando(estadisticas?.aplicacionesCorrectas)}
+          icono={CheckCircle2}
+          variacionEtiqueta="Productos aplicados correctamente"
+          testId="stat-aplicaciones-correctas"
+        />
+        <TarjetaKpi
+          titulo="Aplicaciones Deficientes"
+          valor={cargando(estadisticas?.aplicacionesDeficientes)}
+          icono={AlertTriangle}
+          variacionEtiqueta="Requieren atención técnica"
+          testId="stat-aplicaciones-deficientes"
+        />
+        <TarjetaKpi
+          titulo="Reclamos Pendientes"
+          valor={cargando(estadisticas?.reclamosPendientes)}
+          icono={AlertTriangle}
+          variacionEtiqueta="Requieren seguimiento"
+          testId="stat-reclamos-pendientes"
+        />
+      </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aplicaciones Correctas</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600" data-testid="stat-aplicaciones-correctas">
-              {loadingStats ? "..." : estadisticas?.aplicacionesCorrectas ?? 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Productos aplicados correctamente
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aplicaciones Deficientes</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600" data-testid="stat-aplicaciones-deficientes">
-              {loadingStats ? "..." : estadisticas?.aplicacionesDeficientes ?? 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Requieren atención técnica
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Reclamos Pendientes</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600" data-testid="stat-reclamos-pendientes">
-              {loadingStats ? "..." : estadisticas?.reclamosPendientes ?? 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Requieren seguimiento
-            </p>
-          </CardContent>
-        </Card>
+      {/* Reclamos (venía de la pestaña Estadísticas del módulo Reclamos) */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Reclamos</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <TarjetaKpi titulo="Total Reclamos" valor={cifraReclamos(resumenReclamos.total)} icono={AlertTriangle} testId="stat-reclamos-total" />
+          <TarjetaKpi titulo="Abiertos" valor={cifraReclamos(resumenReclamos.abiertos)} icono={Clock} testId="stat-reclamos-abiertos" />
+          <TarjetaKpi titulo="En Laboratorio" valor={cifraReclamos(resumenReclamos.enLaboratorio)} icono={FlaskConical} testId="stat-reclamos-laboratorio" />
+          <TarjetaKpi
+            titulo="SLA Vencido"
+            valor={cifraReclamos(resumenReclamos.slaVencido)}
+            icono={AlertTriangle}
+            variacionEtiqueta="Más de 3 días sin respuesta de laboratorio"
+            testId="stat-reclamos-sla"
+          />
+        </div>
       </div>
 
       {/* Gráfico de barras y progreso */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card className={PANEL}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-3 text-slate-800 dark:text-slate-100">
+              <div className={ICONO_CHIP}>
+                <BarChart3 className={ICONO_CHIP_ICONO} />
+              </div>
               Visitas por Mes
             </CardTitle>
             <CardDescription>
@@ -1589,7 +1618,7 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
           <CardContent>
             {loadingMensual ? (
               <div className="h-64 flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                <Loader2 className="h-8 w-8 animate-spin text-[#fd6301]" />
               </div>
             ) : estadisticasMensuales?.visitasPorMes && estadisticasMensuales.visitasPorMes.length > 0 ? (
               <div className="h-64">
@@ -1600,14 +1629,14 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
                       {
                         label: 'Completadas',
                         data: estadisticasMensuales.visitasPorMes.map(m => m.completadas),
-                        backgroundColor: 'rgba(34, 197, 94, 0.8)',
-                        borderRadius: 4,
+                        backgroundColor: '#fd6301',
+                        borderRadius: 6,
                       },
                       {
                         label: 'Pendientes',
                         data: estadisticasMensuales.visitasPorMes.map(m => m.pendientes),
-                        backgroundColor: 'rgba(251, 191, 36, 0.8)',
-                        borderRadius: 4,
+                        backgroundColor: '#94a3b8',
+                        borderRadius: 6,
                       },
                     ],
                   }}
@@ -1617,17 +1646,21 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
                     plugins: {
                       legend: {
                         position: 'top' as const,
+                        labels: { usePointStyle: true, boxWidth: 8, color: 'rgba(100,116,139,0.9)' },
                       },
                     },
                     scales: {
                       x: {
                         stacked: false,
+                        grid: { display: false },
+                        border: { display: false },
+                        ticks: { color: 'rgba(100,116,139,0.9)' },
                       },
                       y: {
                         beginAtZero: true,
-                        ticks: {
-                          stepSize: 1,
-                        },
+                        grid: { color: 'rgba(148,163,184,0.16)' },
+                        border: { display: false },
+                        ticks: { stepSize: 1, color: 'rgba(100,116,139,0.9)' },
                       },
                     },
                   }}
@@ -1642,10 +1675,12 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={PANEL}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-3 text-slate-800 dark:text-slate-100">
+              <div className={ICONO_CHIP}>
+                <Building2 className={ICONO_CHIP_ICONO} />
+              </div>
               Progreso Promedio
             </CardTitle>
             <CardDescription>
@@ -1654,36 +1689,32 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
           </CardHeader>
           <CardContent className="space-y-6">
             <div>
-              <div className="text-3xl font-bold mb-2" data-testid="stat-progreso-promedio">
-                {loadingStats ? "..." : `${estadisticas?.promedioProgreso ?? 0}%`}
+              <div className="text-3xl font-bold mb-2 text-gray-900 dark:text-white" data-testid="stat-progreso-promedio">
+                {loadingStats ? "…" : `${estadisticas?.promedioProgreso ?? 0}%`}
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div 
-                  className="bg-blue-600 h-3 rounded-full transition-all"
-                  style={{ width: `${estadisticas?.promedioProgreso ?? 0}%` }}
+              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3">
+                <div
+                  className="bg-gradient-to-r from-[#fd6301] to-[#e35400] h-3 rounded-full transition-all"
+                  style={{ width: `${Math.min(estadisticas?.promedioProgreso ?? 0, 100)}%` }}
                 ></div>
               </div>
             </div>
 
-            <div className="pt-4 border-t">
+            <div className="pt-4 border-t border-slate-200/70 dark:border-slate-800">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Reclamos Resueltos (último mes)</span>
-                <span className="font-semibold text-green-600" data-testid="stat-reclamos-resueltos">
-                  {loadingMensual ? "..." : estadisticasMensuales?.reclamosResueltosUltimoMes ?? 0}
+                <span className="text-sm text-gray-500 dark:text-gray-400">Reclamos Resueltos (último mes)</span>
+                <span className="font-semibold text-[#fd6301]" data-testid="stat-reclamos-resueltos">
+                  {loadingMensual ? "…" : estadisticasMensuales?.reclamosResueltosUltimoMes ?? 0}
                 </span>
               </div>
             </div>
 
-            <div className="space-y-3 pt-4 border-t">
-              <Button 
-                className="w-full justify-start" 
-                onClick={handleNewVisit}
-                data-testid="button-nueva-visita-desktop"
-              >
+            <div className="hidden lg:block space-y-3 pt-4 border-t border-slate-200/70 dark:border-slate-800">
+              <Button className={BOTON_CTA} onClick={handleNewVisit} data-testid="button-nueva-visita-desktop">
                 <Plus className="w-4 h-4 mr-2" />
                 Nueva Visita Técnica
               </Button>
-              <Button variant="outline" className="w-full justify-start" data-testid="button-exportar-reportes-desktop">
+              <Button variant="outline" className={BOTON_SECUNDARIO} data-testid="button-exportar-reportes-desktop">
                 <FileText className="w-4 h-4 mr-2" />
                 Exportar Reportes
               </Button>
@@ -1696,32 +1727,37 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
 
   const ListadoContent = () => (
     <div className="space-y-6">
-      {/* Header con filtros */}
+      {/* Encabezado del listado */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Listado de Visitas</h2>
-          <p className="text-muted-foreground">Gestiona y revisa todas las visitas técnicas</p>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={ICONO_CHIP}>
+            <FileText className={ICONO_CHIP_ICONO} />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Listado de Visitas</h2>
+            <p className="hidden sm:block text-muted-foreground">Gestiona y revisa todas las visitas técnicas</p>
+          </div>
         </div>
-        <Button onClick={handleNewVisit} data-testid="button-crear-visita">
+        <Button onClick={handleNewVisit} className={`${BOTON_CTA} w-full sm:w-auto justify-center h-10 px-4 font-semibold`} data-testid="button-crear-visita">
           <Plus className="w-4 h-4 mr-2" />
           Nueva Visita
         </Button>
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#fd6301] h-4 w-4" />
           <Input
             placeholder="Buscar por nombre de obra..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-10 h-11 rounded-2xl border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm focus-visible:border-[#fd6301] focus-visible:ring-orange-500/20"
             data-testid="input-search-obra"
           />
         </div>
         <Select value={filterEstado} onValueChange={setFilterEstado}>
-          <SelectTrigger className="w-48" data-testid="select-filter-estado">
+          <SelectTrigger className="w-full sm:w-52 h-11 rounded-2xl border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm font-semibold text-sm text-slate-700 dark:text-slate-200 hover:border-orange-200 focus:ring-orange-500/20" data-testid="select-filter-estado">
             <SelectValue placeholder="Filtrar por estado" />
           </SelectTrigger>
           <SelectContent>
@@ -1732,12 +1768,12 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
         </Select>
       </div>
 
-      {/* Lista de visitas */}
-      <div className="space-y-4">
+      {/* Lista de visitas. Sin brillo: los botones naranjos se repiten fila por fila. */}
+      <div className="space-y-3" data-sin-brillo>
         {loadingVisitas ? (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
-              <Card key={i} className="animate-pulse">
+              <Card key={i} className={`animate-pulse ${PANEL}`}>
                 <CardContent className="p-6">
                   <div className="h-6 bg-gray-200 rounded mb-2"></div>
                   <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
@@ -1748,38 +1784,34 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
           </div>
         ) : visitas && visitas.length > 0 ? (
           visitas.map((visita) => (
-            <Card key={visita.id} className="hover:shadow-lg transition-all border-l-4 border-l-primary/20 hover:border-l-primary" data-testid={`card-visita-${visita.id}`}>
+            <Card key={visita.id} className={`${PANEL} hover:border-orange-200 hover:shadow-md transition-all`} data-testid={`card-visita-${visita.id}`}>
               <CardContent className="p-4">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="font-semibold text-base truncate" data-testid={`text-obra-${visita.id}`}>
+                      <h3 className="font-semibold text-base text-slate-800 dark:text-slate-100 truncate" data-testid={`text-obra-${visita.id}`}>
                         {visita.nombreObra}
                       </h3>
                       {getEstadoBadge(visita.estado)}
                     </div>
                     <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mb-2">
-                      <span className="inline-flex items-center gap-1 bg-muted/50 px-2 py-1 rounded">
-                        <Calendar className="w-3 h-3" />
+                      <span className="inline-flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
+                        <Calendar className="w-3.5 h-3.5 text-[#fd6301]" />
                         <span data-testid={`text-fecha-${visita.id}`}>
                           {new Date(visita.fechaVisita).toLocaleDateString('es-CL')}
                         </span>
                       </span>
-                      <span className="inline-flex items-center gap-1 bg-muted/50 px-2 py-1 rounded">
-                        <User className="w-3 h-3" />
-                        <span data-testid={`text-tecnico-${visita.id}`} className="truncate max-w-[120px]">
-                          {visita.tecnico}
-                        </span>
-                      </span>
-                      <span className="inline-flex items-center gap-1 bg-muted/50 px-2 py-1 rounded">
-                        <Building2 className="w-3 h-3" />
-                        <span data-testid={`text-cliente-${visita.id}`} className="truncate max-w-[150px]">
-                          {visita.cliente}
+                      {/* Sin el técnico (pedido oct-2026: casi siempre decía "Sin asignar") y la
+                          empresa sin el RUT de adelante y completa, sin recortar. */}
+                      <span className="inline-flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
+                        <Building2 className="w-3.5 h-3.5 text-[#fd6301] flex-shrink-0" />
+                        <span data-testid={`text-cliente-${visita.id}`}>
+                          {(visita.cliente || "").replace(/^[\d.]+-[\dkK]\s*-\s*/, "")}
                         </span>
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <Badge variant="secondary" className="font-normal" data-testid={`text-productos-${visita.id}`}>
+                      <Badge variant="secondary" className="font-normal rounded-full bg-orange-50 text-[#fd6301] dark:bg-orange-950/30 border-0" data-testid={`text-productos-${visita.id}`}>
                         <Package className="w-3 h-3 mr-1" />
                         {visita.productosEvaluados} productos
                       </Badge>
@@ -1791,9 +1823,9 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
                     </div>
                   </div>
                   <div className="flex flex-wrap lg:flex-nowrap gap-2">
-                    <Button 
-                      variant="default" 
-                      size="sm" 
+                    <Button
+                      size="sm"
+                      className="rounded-2xl bg-[#fd6301] hover:bg-[#e35400] text-white shadow-sm shadow-[#fd6301]/25"
                       onClick={() => handleOpenSignatureModal(visita.id)}
                       data-testid={`button-firmar-${visita.id}`}
                     >
@@ -1801,9 +1833,10 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
                       Firmar
                     </Button>
                     {canEditVisit && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-2xl border-slate-200 dark:border-slate-700 hover:border-orange-200 hover:text-[#fd6301]"
                         onClick={() => handleEditVisit(visita.id)}
                         data-testid={`button-editar-${visita.id}`}
                       >
@@ -1811,9 +1844,10 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
                         Editar
                       </Button>
                     )}
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-2xl hover:bg-orange-50 hover:text-[#fd6301] dark:hover:bg-orange-950/30"
                       onClick={() => {
                         setSelectedVisitId(visita.id);
                         setShowDetailModal(true);
@@ -1822,9 +1856,10 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
                     >
                       Ver Detalle
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-2xl hover:bg-orange-50 hover:text-[#fd6301] dark:hover:bg-orange-950/30"
                       onClick={() => handleDownloadPDF(visita.id)}
                       data-testid={`button-pdf-${visita.id}`}
                     >
@@ -1837,9 +1872,11 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
             </Card>
           ))
         ) : (
-          <Card>
+          <Card className={PANEL}>
             <CardContent className="p-8 text-center">
-              <MapPin className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <div className={`${ICONO_CHIP} inline-flex mb-4`}>
+                <MapPin className={ICONO_CHIP_ICONO} />
+              </div>
               <h3 className="text-lg font-medium mb-2">No hay visitas técnicas</h3>
               <p className="text-muted-foreground mb-4">
                 {searchTerm || filterEstado !== 'all' 
@@ -1847,7 +1884,7 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
                   : 'Comienza creando tu primera visita técnica.'
                 }
               </p>
-              <Button onClick={handleNewVisit} data-testid="button-primera-visita">
+              <Button onClick={handleNewVisit} className={`${BOTON_CTA} w-auto justify-center`} data-testid="button-primera-visita">
                 <Plus className="w-4 h-4 mr-2" />
                 Nueva Visita Técnica
               </Button>
@@ -1861,15 +1898,30 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
   return (
     <div className={embedded ? "" : "min-h-screen bg-background"}>
       <div className={embedded ? "space-y-6" : "container mx-auto p-6 space-y-6"}>
-        {/* Header principal — embebido en el Panel de Trabajo lo aporta el panel */}
-        {!embedded && (
+        {/* Header principal — embebido en el Panel de Trabajo lo aporta el panel. En el
+            módulo suelto "Visitas" del técnico tampoco va: el listado trae su propio
+            encabezado y los dos seguidos repetían lo mismo. */}
+        {!embedded && !(modulosSueltos && activeTab === "listado") && (
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold">Visitas Técnicas</h1>
-              <p className="text-muted-foreground">
-                Sistema de inspecciones técnicas para evaluación de productos
-              </p>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={ICONO_CHIP}>
+                <WrenchIcon className={ICONO_CHIP_ICONO} />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-slate-100">
+                  {modulosSueltos ? (TITULO_POR_TAB[activeTab] ?? "Visitas Técnicas") : "Visitas Técnicas"}
+                </h1>
+                <p className="hidden sm:block text-muted-foreground">
+                  Sistema de inspecciones técnicas para evaluación de productos
+                </p>
+              </div>
             </div>
+
+            {/* Selector de período: mismo lugar y mismo control que el panel del vendedor.
+                Solo filtra el dashboard, así que solo se muestra ahí. */}
+            {activeTab === "dashboard" && (
+              <YearMonthSelector value={periodoSel} onChange={setPeriodoSel} placeholder="Histórico (Todo)" />
+            )}
           </div>
         )}
 
@@ -1902,7 +1954,7 @@ export function VisitasTecnicasContent({ embedded = false }: { embedded?: boolea
 
         {/* Tabs principales */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className={modulosSueltos ? "hidden" : "grid w-full grid-cols-3"}>
             <TabsTrigger value="dashboard" data-testid="tab-dashboard">
               <BarChart3 className="w-4 h-4 mr-2" />
               Dashboard

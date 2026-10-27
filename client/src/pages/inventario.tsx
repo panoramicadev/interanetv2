@@ -71,10 +71,10 @@ const BODEGAS_OCULTAS = ['BODEGA DEL SUR'];
 const esBodegaOculta = (name?: string) =>
   BODEGAS_OCULTAS.includes((name || '').toUpperCase().trim());
 
-// Vendedores y supervisores solo ven Bodega Concepción (014) y Productos
-// Terminados (006), sin filtro de sucursal. El servidor aplica la misma regla.
+// Vendedores, supervisores y el técnico de obra solo ven Bodega Concepción (014) y
+// Productos Terminados (006), sin filtro de sucursal. El servidor aplica la misma regla.
 const BODEGAS_COMERCIAL = ['006', '014'];
-const esRolComercial = (role?: string) => role === 'salesperson' || role === 'supervisor';
+const esRolComercial = (role?: string) => role === 'salesperson' || role === 'supervisor' || role === 'tecnico_obra';
 
 // En esta pantalla Productos Terminados se muestra como Bodega Lautaro.
 const nombreBodega = (name?: string | null, code?: string) =>
@@ -222,7 +222,7 @@ export default function Inventario() {
   }
 
   // All authenticated users with plant/commercial roles can access inventory
-  const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'salesperson', 'jefe_planta', 'mantencion', 'produccion', 'laboratorio', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
+  const allowedRoles = ['admin', 'supervisor', 'encargado_area', 'salesperson', 'tecnico_obra', 'jefe_planta', 'mantencion', 'produccion', 'laboratorio', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
   if (!user.role || !allowedRoles.includes(user.role)) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -449,7 +449,8 @@ function StockSummary({
 }) {
   const hasAccess = hasInventoryAccess(userRole);
   // Los vendedores no ven la valorización del inventario (el server la devuelve en 0)
-  const showTotalValue = hasAccess && userRole !== 'salesperson';
+  // Vendedores y técnico de obra no ven valores en pesos (mismo inventario acotado).
+  const showTotalValue = hasAccess && userRole !== 'salesperson' && userRole !== 'tecnico_obra';
   const endpoint = hasAccess ? '/api/inventory/summary-with-prices' : '/api/inventory/summary';
 
   const { data: summary } = useQuery<{
@@ -617,7 +618,7 @@ function InventoryTable({
 
   const hasAccess = hasInventoryAccess(userRole);
   // Los vendedores ven el inventario pero sin precios, costos GRI ni valorización
-  const showValueColumns = hasAccess && userRole !== 'salesperson';
+  const showValueColumns = hasAccess && userRole !== 'salesperson' && userRole !== 'tecnico_obra';
   const endpoint = hasAccess ? '/api/inventory-with-prices' : '/api/inventory';
 
   const { data: inventory, isLoading, refetch } = useQuery<ProductStock[]>({
@@ -850,7 +851,7 @@ function InventoryTable({
                         )}
                         {MOSTRAR_AGREGAR_A_LISTA && (
                         <TableCell className="py-1 px-2">
-                          {userRole === 'salesperson' ? null : existingSkus.has(item.productSku?.toUpperCase()) ? (
+                          {userRole === 'salesperson' || userRole === 'tecnico_obra' ? null : existingSkus.has(item.productSku?.toUpperCase()) ? (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <span className="text-[10px] text-green-600 font-medium cursor-help">

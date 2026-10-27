@@ -5367,6 +5367,22 @@ export const reclamosGeneralesPhotos = pgTable("reclamos_generales_photos", {
   reclamoIdIdx: index("IDX_reclamos_gen_photos_reclamo_id").on(table.reclamoId),
 }));
 
+// Chat de cada reclamo: los involucrados conversan sobre el caso desde su ficha
+// (oct-2026). Se guarda el nombre de quien escribe para no depender de un join.
+export const reclamosGeneralesMensajes = pgTable("reclamos_generales_mensajes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reclamoId: varchar("reclamo_id").notNull(), // FK to reclamosGenerales.id
+  userId: varchar("user_id").notNull(),
+  userName: text("user_name").notNull(),
+  userRole: varchar("user_role"),
+  mensaje: text("mensaje").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  reclamoIdIdx: index("IDX_reclamos_gen_mensajes_reclamo_id").on(table.reclamoId),
+}));
+
+export type ReclamoGeneralMensaje = typeof reclamosGeneralesMensajes.$inferSelect;
+
 // Tabla de fotos de resolución del laboratorio
 export const reclamosGeneralesResolucionPhotos = pgTable("reclamos_generales_resolucion_photos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -5455,11 +5471,12 @@ export const insertReclamoGeneralSchema = createInsertSchema(reclamosGenerales).
   clientName: z.string().min(1, "El nombre del cliente es requerido"),
   productName: z.string().min(1, "El nombre del producto es requerido"),
   description: z.string().min(10, "La descripción debe tener al menos 10 caracteres"),
-  gravedad: z.enum(["baja", "media", "alta", "critica"]),
+  // Solo Baja / Media / Alta (oct-2026): "crítica" salió y los reclamos que la tenían pasaron a alta.
+  gravedad: z.enum(["baja", "media", "alta"]),
   estado: z.enum(["registrado", "en_revision_tecnica", "en_area_responsable", "en_laboratorio", "en_produccion", "resuelto", "cerrado"]).optional(),
   motivo: z.string().optional(),
   // Expanded to include all valid area values
-  areaAsignadaInicial: z.enum(["produccion", "laboratorio", "logistica", "aplicacion", "envase", "etiqueta", "materia_prima", "colores"]).optional(),
+  areaAsignadaInicial: z.enum(["produccion", "laboratorio", "logistica", "aplicacion", "envase", "etiqueta", "materia_prima", "colores", "cliente", "comercial"]).optional(),
 });
 
 export const insertReclamoGeneralPhotoSchema = createInsertSchema(reclamosGeneralesPhotos).omit({

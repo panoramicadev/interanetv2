@@ -453,6 +453,7 @@ import { sendPushForNotification } from './push';
 import { encodeScopeSucursal } from './utils/sucursal-scope';
 import { marcarCadenas, sucursalesDeCadenasQueCalzan, condicionNombreCliente, nombresParaFiltrarCliente } from './utils/sucursal-por-prefijo';
 import { warehouses, ecommerceOrders, informesRendicion } from "@shared/schema";
+import { reclamosGeneralesMensajes } from "@shared/schema";
 import { normalizeTrackingCode, looksLikeUuid } from "./utils/tracking-code";
 import { fetchTmsShipping, fetchTmsOrdersByClient, fetchTmsOrderDetail, fetchTmsOrders, fetchTmsEstadoCounts, fetchTmsRutas, fetchTmsRutaDetail, isTmsConfigured, TMS_ETAPAS, TMS_ESTADOS_ALL, TMS_RUTA_ESTADOS } from "./utils/tms-logistica";
 import { matchEcommerceOrdersToErp } from "./utils/erp-match";
@@ -14465,8 +14466,9 @@ export function registerRoutes(app: Express): Server {
     const user = req.user;
     const { segmento } = req.query;
     const userSegments = user.assignedSegment ? [user.assignedSegment] : [];
-    // Admin y supervisores/encargados ven todos los grupos del segmento activo (los cree quien los cree).
-    const canSeeSegmentGroups = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area';
+    // Admin, supervisores/encargados y el técnico de obra ven todos los grupos del segmento activo
+    // (los cree quien los cree): el técnico trabaja el panel de toda su área.
+    const canSeeSegmentGroups = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || user.role === 'tecnico_obra';
 
     const [taskGroups, tasks, salespeople, supervisors] = await Promise.all([
       storage.getTaskGroups(user.id, segmento as string, { sharedSegmentView: canSeeSegmentGroups }),
@@ -15283,8 +15285,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const segmento = req.query.segmento as string | undefined;
-      // Admin y supervisores/encargados ven todos los grupos del segmento activo (los cree quien los cree).
-      const canSeeSegmentGroups = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area';
+      // Admin, supervisores/encargados y el técnico de obra ven todos los grupos del segmento activo (los cree quien los cree).
+      const canSeeSegmentGroups = user.role === 'admin' || user.role === 'supervisor' || user.role === 'encargado_area' || user.role === 'tecnico_obra';
       const groups = await storage.getTaskGroups(user.id, segmento, { sharedSegmentView: canSeeSegmentGroups });
       res.json(groups);
     } catch (error) {
@@ -24997,6 +24999,20 @@ export function registerRoutes(app: Express): Server {
           incluirSinVendedor: true,
           supervisorId: usuario.id,
         };
+      } else if (usuario?.role === 'tecnico_obra') {
+        // Técnico de obra: las obras de toda su área (las personas activas con su mismo
+        // segmento) y las que no tienen vendedor. Antes caía en "todas", de cualquier área.
+        const [yo] = await db.select({ assignedSegment: salespeopleUsers.assignedSegment })
+          .from(salespeopleUsers).where(eq(salespeopleUsers.id, usuario.id));
+        const area = (yo?.assignedSegment ?? '').trim().toLowerCase();
+        const delArea = area
+          ? await db.select({ id: salespeopleUsers.id }).from(salespeopleUsers)
+              .where(and(eq(salespeopleUsers.isActive, true), sql`lower(${salespeopleUsers.assignedSegment}) = ${area}`))
+          : [];
+        alcance = {
+          vendedorIds: Array.from(new Set([usuario.id, ...delArea.map((v) => v.id)])),
+          incluirSinVendedor: true,
+        };
       }
       // Admin (y cualquier otro rol con acceso al panel): alcance null = todas.
 
@@ -25686,7 +25702,10 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/visitas-tecnicas/estadisticas/:periodo?', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const { periodo = 'current' } = req.params;
-      const estadisticas = await storage.getEstadisticasVisitasTecnicas({ periodo });
+      // ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD: rango del selector de período (año / mes / días).
+      const desde = typeof req.query.desde === 'string' ? req.query.desde : undefined;
+      const hasta = typeof req.query.hasta === 'string' ? req.query.hasta : undefined;
+      const estadisticas = await storage.getEstadisticasVisitasTecnicas({ periodo, desde, hasta });
       res.json(estadisticas);
     } catch (error: any) {
       console.error('❌ Error al obtener estadísticas de visitas técnicas:', error);
@@ -26734,6 +26753,38 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Chat del reclamo: lo lee y lo escribe cualquiera que pueda abrir la ficha
+  // (mismo acceso que /details).
+  app.get('/api/reclamos-generales/:id/mensajes', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const mensajes = await db.select().from(reclamosGeneralesMensajes)
+      .where(eq(reclamosGeneralesMensajes.reclamoId, req.params.id))
+      .orderBy(reclamosGeneralesMensajes.createdAt);
+    res.json(mensajes);
+  }));
+
+  app.post('/api/reclamos-generales/:id/mensajes', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    const mensaje = typeof req.body?.mensaje === 'string' ? req.body.mensaje.trim() : '';
+    if (!mensaje) return res.status(400).json({ message: 'El mensaje está vacío' });
+    if (mensaje.length > 4000) return res.status(400).json({ message: 'El mensaje es demasiado largo' });
+
+    const reclamo = await storage.getReclamoGeneralWithDetails(req.params.id);
+    if (!reclamo) return res.status(404).json({ message: 'Reclamo no encontrado' });
+
+    const nombre = user.salespersonName
+      || [user.firstName, user.lastName].filter(Boolean).join(' ')
+      || user.email
+      || 'Usuario';
+    const [nuevo] = await db.insert(reclamosGeneralesMensajes).values({
+      reclamoId: req.params.id,
+      userId: user.id,
+      userName: nombre,
+      userRole: user.role ?? null,
+      mensaje,
+    }).returning();
+    res.status(201).json(nuevo);
+  }));
+
   // Create reclamo
   app.post('/api/reclamos-generales', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
@@ -27031,6 +27082,13 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { notas, photos } = req.body;
+
+      // Cierran el caso solo el admin, el supervisor/encargado y el técnico de obra
+      // (pedido oct-2026). Antes no había control acá: cualquiera con sesión podía.
+      const PUEDEN_CERRAR = ['admin', 'supervisor', 'encargado_area', 'tecnico_obra'];
+      if (!PUEDEN_CERRAR.includes(user?.role)) {
+        return res.status(403).json({ message: 'Solo el supervisor, el técnico de obra o el administrador pueden cerrar el reclamo' });
+      }
 
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
       const reclamo = await storage.cerrarReclamoGeneral(req.params.id, user.id, userName, notas, photos);
@@ -31066,11 +31124,11 @@ export function registerRoutes(app: Express): Server {
   // INVENTORY routes
   // ==================================================================================
 
-  // Vendedores y supervisores solo ven en Inventario la Bodega Concepción (014)
-  // y Productos Terminados (006, que la pantalla muestra como Bodega Lautaro).
+  // Vendedores, supervisores y el técnico de obra solo ven en Inventario la Bodega
+  // Concepción (014) y Productos Terminados (006, que la pantalla muestra como Bodega Lautaro).
   const BODEGAS_INVENTARIO_COMERCIAL = ['006', '014'];
   const bodegasInventarioPorRol = (role?: string) =>
-    role === 'salesperson' || role === 'supervisor' ? BODEGAS_INVENTARIO_COMERCIAL : undefined;
+    role === 'salesperson' || role === 'supervisor' || role === 'tecnico_obra' ? BODEGAS_INVENTARIO_COMERCIAL : undefined;
 
   // Get inventory with filters
   app.get('/api/inventory', requireAuth, asyncHandler(async (req: any, res: any) => {
@@ -39247,6 +39305,23 @@ export function registerRoutes(app: Express): Server {
         .from(salespeopleUsers)
         .where(eq(salespeopleUsers.supervisorId, self.id));
       vendedorIds = Array.from(new Set([self.id, ...team.map(t => t.id)]));
+    }
+    // Técnico de obra: trabaja el CRM de toda su área como el supervisor de ella
+    // (pedido oct-2026) — los clientes de las personas activas de su segmento y los
+    // del segmento mismo, con las mismas facultades de edición.
+    const area = (self.assignedSegment || '').trim();
+    if (user.role === 'tecnico_obra' && area) {
+      const delArea = await db
+        .select({ id: salespeopleUsers.id })
+        .from(salespeopleUsers)
+        .where(and(eq(salespeopleUsers.isActive, true), sql`lower(${salespeopleUsers.assignedSegment}) = ${area.toLowerCase()}`));
+      return {
+        id: self.id,
+        name: self.salespersonName,
+        vendedorIds: Array.from(new Set([self.id, ...delArea.map(t => t.id)])),
+        isSupervisor: true,
+        segmento: area,
+      };
     }
     return {
       id: self.id,

@@ -351,8 +351,12 @@ export default function TareasPage() {
   const isSalesperson = user?.role === 'salesperson';
   // Quién ve más de una cartera: los mismos roles que ya podían filtrar por vendedor
   // dentro de Estimación de ventas, ahora que ese selector subió al encabezado.
+  // El técnico de obra trabaja el panel de toda su área (Construcción) con las secciones
+  // como módulos sueltos en su menú (/tareas/<pestaña>), sin barra de pestañas, y
+  // filtra por vendedor igual que el supervisor del área.
+  const esTecnico = user?.role === 'tecnico_obra';
   const puedeFiltrarPorVendedor =
-    user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'encargado_area';
+    user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'encargado_area' || esTecnico;
   // El rol marketing solo trabaja el segmento "marketing": sin pestañas de categoría.
   const isMarketing = user?.role === 'marketing';
   // Marketing: sub-vista dentro del Panel de Trabajo. Antes el panel de solicitudes y
@@ -523,10 +527,30 @@ export default function TareasPage() {
   // Seguimiento está siempre visible —es una de las tres pestañas fijas—, así que no
   // hay rol que aterrice en una pestaña que no existe para él.
   const [activeTab, setActiveTab] = useState(() => {
-    const tab = new URLSearchParams(window.location.search).get("tab");
+    const tab =
+      window.location.pathname.match(/^\/tareas\/([a-z-]+)/)?.[1] ??
+      new URLSearchParams(window.location.search).get("tab");
     const validas = ["tareas", "seguimiento", "estimacion", "obras", "crm", "rutas-comerciales", "calendario"];
     return tab && validas.includes(tab) ? tab : "seguimiento";
   });
+
+  // Técnico de obra: la pestaña vive en la ruta (/tareas/<pestaña>), que es lo que
+  // eligen los módulos de su menú. Al tocar otro módulo cambia la pestaña; cuando el
+  // panel salta de pestaña por su cuenta (ej. "Nueva obra" desde Seguimiento), la ruta
+  // lo acompaña para que el menú marque el módulo correcto.
+  const [rutaPanel, irARuta] = useLocation();
+  const rutaPanelRef = useRef(rutaPanel);
+  rutaPanelRef.current = rutaPanel;
+  useEffect(() => {
+    if (user?.role !== 'tecnico_obra') return;
+    const tab = rutaPanel.match(/^\/tareas\/([a-z-]+)/)?.[1];
+    if (tab) setActiveTab(tab);
+  }, [rutaPanel, user?.role]);
+  useEffect(() => {
+    if (user?.role !== 'tecnico_obra') return;
+    const destino = `/tareas/${activeTab}`;
+    if (rutaPanelRef.current !== destino) irARuta(destino, { replace: true });
+  }, [activeTab, user?.role, irARuta]);
 
   // Sub-pestaña del Seguimiento. En Construcción no alcanza con seguir clientes:
   // lo que se sigue es la obra, así que la pestaña se abre en dos vistas —los
@@ -1106,7 +1130,7 @@ export default function TareasPage() {
 
   // Construcción cambia "Estimación de ventas" por "Obras".
   const showEstimacionTab = showExtraSegmentTabs && esFerreterias;
-  const showObrasTab = showExtraSegmentTabs && esConstruccion;
+  const showObrasTab = (showExtraSegmentTabs || esTecnico) && esConstruccion;
   // Rutas Comerciales es de las áreas que salen a la calle a visitar cartera:
   // Construcción sigue su trabajo por obra e Industrial por proyectos, así que
   // ninguna de las dos la muestra.
@@ -2512,7 +2536,7 @@ export default function TareasPage() {
                   </div>
                 )}
               </div>
-              {selectorSeccionMovil}
+              {!esTecnico && selectorSeccionMovil}
               {/* Celular: la Sección va ARRIBA del Vendedor (corrección del usuario,
                   sep-2026). El orden de la pila queda Área → Sección → Vendedor → acción:
                   primero dónde estoy parado, y recién ahí con qué cartera lo miro. */}
@@ -3163,7 +3187,7 @@ export default function TareasPage() {
             negro y la activa marcada con una línea negra abajo, sin relleno): de
             tablet para arriba. La línea base gris corre bajo TODAS las pestañas
             para que el riel se lea como una sola barra en cualquier área. */}
-        <div className={`hidden sm:block ${isMarketing ? 'hidden' : ''}`}>
+        <div className={`hidden sm:block ${isMarketing || esTecnico ? 'hidden' : ''}`}>
           <TabsList
             ref={tabsListRef}
             className={`flex w-full justify-start overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:overflow-visible h-auto gap-1.5 bg-transparent dark:bg-transparent p-0 border-0 border-b border-slate-200 dark:border-slate-800 rounded-none ${tabsGridClass}`}
