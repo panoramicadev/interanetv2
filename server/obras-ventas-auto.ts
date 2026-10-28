@@ -8,19 +8,20 @@
  * El problema de fondo es que el documento del ERP no dice de qué obra es: trae
  * el cliente, los productos, la fecha y la orden de compra, nada más. Por eso
  * acá se vincula solo lo que no deja dudas y el resto se SUGIERE en la obra,
- * para confirmarlo con un clic. Las reglas, de la más firme a la más floja:
+ * para confirmarlo con un clic. Se vincula solo:
  *
  *   nvv_recepcion  recepción anotó la nota de venta al ingresar a Random una
  *                  cotización que ya sabía de qué obra era;
- *   oc_cotizacion  la factura trae la misma orden de compra que esa cotización;
- *   obra_unica     la constructora tiene una sola obra activa y el documento
- *                  trae algún producto proyectado en ella;
- *   sku_exclusivo  tiene varias obras, pero los productos del documento solo
- *                  están proyectados en una.
+ *   oc_cotizacion  la factura trae la misma orden de compra que esa cotización.
  *
- * Las dos últimas miran solo lo FACTURADO: el espejo de notas de venta guarda
- * nada más que lo pendiente de despacho y el de guías solo las abiertas del
- * mes, así que un vínculo ahí quedaría con las líneas a medias.
+ * Hubo dos reglas más por productos —obra_unica (la constructora tiene una sola
+ * obra activa y el documento trae algo proyectado en ella) y sku_exclusivo (los
+ * productos solo están proyectados en una de sus obras)— y se sacaron
+ * (oct-2026): que una constructora tenga una sola obra EN EL SISTEMA no quiere
+ * decir que tenga una sola obra. Brisas de Labranza (Pocuro) se quedó con 98
+ * facturas de todas las obras de Pocuro, porque los productos proyectados
+ * (blanco, pastas, látex) son los de cualquier obra. Esos documentos ahora
+ * llegan como sugeridos, con los que traen productos proyectados primero.
  *
  * Lo que una persona sacó de una obra, o marcó como "no es de esta obra", no se
  * vuelve a vincular: cualquier fila que ya exista para el documento —activa o
@@ -38,9 +39,17 @@ import { computeDv, rutMatchKey } from "@shared/rut";
 import { FILTRO_TIPO, type DocumentoVenta, type OrigenVenta } from "./obras-ventas";
 import { actualizarCantidadesObra, actualizarCantidadesObrasActivas } from "./obras-cantidades";
 
+// obra_unica y sku_exclusivo ya no se aplican, pero siguen en filas antiguas.
 export type ReglaAuto = "nvv_recepcion" | "oc_cotizacion" | "obra_unica" | "sku_exclusivo";
 
 const AUTOMATICO = "Automático";
+
+/**
+ * Quién figura como que sacó de la obra lo que habían vinculado las reglas por
+ * productos. Esas filas no son un "no es de esta obra" de una persona: el
+ * documento vuelve a ofrecerse como sugerido.
+ */
+export const DEVUELTO_A_SUGERIDOS = "Revisión automática (devuelto a sugeridos)";
 
 /** Un documento facturado, con lo que hace falta para decidir de qué obra es. */
 interface DocumentoCandidato extends DocumentoVenta {
@@ -149,18 +158,22 @@ function fechaIso(valor: unknown): string {
  * Devuelve un mapa por idmaeedo.
  */
 async function vinculosExistentes(origen: OrigenVenta, ids: string[]) {
-  const mapa = new Map<string, Array<{ obraId: string; activo: boolean }>>();
+  const mapa = new Map<string, Array<{ obraId: string; activo: boolean; devuelto: boolean }>>();
   // De a tandas: un cliente grande trae miles de documentos.
   for (let i = 0; i < ids.length; i += 1000) {
     const tanda = ids.slice(i, i + 1000);
     const filas = filasDe(await db.execute(sql`
-      SELECT obra_id, idmaeedo, activo
+      SELECT obra_id, idmaeedo, activo, desasociado_por_nombre
       FROM obra_ventas
       WHERE origen = ${origen} AND idmaeedo IN (${lista(tanda)})
     `));
     for (const f of filas) {
       const previos = mapa.get(String(f.idmaeedo));
-      const vinculo = { obraId: String(f.obra_id), activo: !!f.activo };
+      const vinculo = {
+        obraId: String(f.obra_id),
+        activo: !!f.activo,
+        devuelto: !f.activo && f.desasociado_por_nombre === DEVUELTO_A_SUGERIDOS,
+      };
       if (previos) previos.push(vinculo);
       else mapa.set(String(f.idmaeedo), [vinculo]);
     }
@@ -301,53 +314,15 @@ async function vincularPorCotizaciones(soloCotizacion?: string): Promise<number>
 }
 
 /**
- * Las facturas de cada constructora contra sus obras activas: se vincula la
- * que solo puede ser de una.
- */
-async function vincularPorProductos(): Promise<number> {
-  const obras = await obrasDeCartera(sql`o.estado = 'activa'`);
-  const porConstructora = new Map<string, ObraDeCartera[]>();
-  for (const obra of obras) {
-    const grupo = porConstructora.get(obra.rut);
-    if (grupo) grupo.push(obra);
-    else porConstructora.set(obra.rut, [obra]);
-  }
-
-  let vinculados = 0;
-  for (const [rut, grupo] of Array.from(porConstructora.entries())) {
-    // Sin productos con SKU no hay contra qué reconocer un documento.
-    if (!grupo.some((o) => o.skus.size > 0)) continue;
-
-    const desde = grupo.map((o) => o.desde).sort()[0];
-    const documentos = await documentosFacturados(formasDeRut(rut), desde);
-    if (documentos.length === 0) continue;
-    const yaEstan = await vinculosExistentes("facturado", documentos.map((d) => d.idmaeedo));
-
-    for (const doc of documentos) {
-      if (yaEstan.has(doc.idmaeedo)) continue;
-      const posibles = grupo.filter(
-        (o) => (!doc.fechaEmision || o.desde <= doc.fechaEmision) && comparte(doc, o),
-      );
-      if (posibles.length !== 1) continue;
-      await vincular(posibles[0].id, doc, grupo.length === 1 ? "obra_unica" : "sku_exclusivo");
-      vinculados += 1;
-    }
-  }
-  return vinculados;
-}
-
-/**
  * Corre todas las reglas y después refresca Pedidas y Entregadas de las obras
  * activas: además de lo recién vinculado, una factura pudo haber recibido su
  * guía o una nota de venta haberse cerrado desde la última pasada.
  * Devuelve cuántos documentos vinculó.
  */
 export async function autoAsociarVentasObras(): Promise<number> {
-  const porCotizacion = await vincularPorCotizaciones();
-  const porProductos = await vincularPorProductos();
-  const total = porCotizacion + porProductos;
+  const total = await vincularPorCotizaciones();
   if (total > 0) {
-    console.log(`🏗️ Obras: ${total} documento(s) vinculados solos (${porCotizacion} por cotización, ${porProductos} por productos)`);
+    console.log(`🏗️ Obras: ${total} documento(s) vinculados solos por cotización`);
   }
   try {
     await actualizarCantidadesObrasActivas();
@@ -389,8 +364,9 @@ export async function sugerirDocumentosParaObra(
   const libres = documentos
     .filter((d) => {
       const vinculos = yaEstan.get(d.idmaeedo) ?? [];
-      // Fuera los que ya son de alguna obra y los que acá se descartaron.
-      return !vinculos.some((v) => v.activo || v.obraId === obraId);
+      // Fuera los que ya son de alguna obra y los que acá se descartaron (salvo
+      // los que devolvió la revisión de las reglas por productos).
+      return !vinculos.some((v) => v.activo || (v.obraId === obraId && !v.devuelto));
     })
     .map(({ oc, skus, ...doc }) => ({ ...doc, coincide: comparte({ skus }, obra) }))
     .sort(

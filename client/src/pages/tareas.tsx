@@ -1310,6 +1310,9 @@ export default function TareasPage() {
   };
   const [showMarketingDialog, setShowMarketingDialog] = useState(false);
   const seguimientoMode = taskFlow === 'seguimiento';
+  // Quien no gestiona equipo (vendedor, técnico de obra) igual puede sumar sus propios
+  // clientes a seguimiento: el seguimiento queda a su nombre, sin elegir responsable.
+  const seguimientoPropio = isSalesperson || esTecnico;
   // Al cerrarse el formulario (guardado o cancelado) se olvida que vino de la agenda,
   // para que el próximo "Añadir proyecto" de Industrial vuelva a ser un proyecto.
   useEffect(() => {
@@ -1982,6 +1985,8 @@ export default function TareasPage() {
   // queda preseleccionado como responsable para asignarle su primer cliente en un paso.
   const openNuevoSeguimiento = (member?: { id: string; type: 'supervisor' | 'salesperson' }) => {
     setTaskFlow('seguimiento');
+    // Vendedor y técnico de obra suman SUS clientes: el responsable son ellos mismos
+    // (más su supervisor, como en sus tareas) y no eligen equipo en pantalla.
     setSelectedClienteTask(null);
     setSearchClienteTask("");
     form.reset({
@@ -1991,7 +1996,9 @@ export default function TareasPage() {
       // Acá el asignado es el responsable del seguimiento, no el equipo que se
       // entera: si no vino elegido de antes, la lista arranca vacía para que se
       // elija en pantalla (no se le aplica la asignación automática de las tareas).
-      assignments: member ? [{ assigneeType: member.type, assigneeId: member.id }] : [],
+      assignments: member
+        ? [{ assigneeType: member.type, assigneeId: member.id }]
+        : seguimientoPropio ? asignacionesPorDefecto() : [],
     });
     setShowCreateDialog(true);
   };
@@ -2275,7 +2282,7 @@ export default function TareasPage() {
   // sacó de las dos vistas (pedido del usuario, oct-2026).
   const accionesSeguimientoArriba =
     activeTab === 'seguimiento' && seguimientoVista === 'clientes' && !isSalesperson &&
-    (user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'encargado_area');
+    (user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'encargado_area' || esTecnico);
   const botonNuevoSeguimiento = (
     <button
       onClick={() => openNuevoSeguimiento()}
@@ -2922,7 +2929,7 @@ export default function TareasPage() {
 
                       {/* Section: Equipo — el vendedor no asigna trabajo a terceros:
                           lo que crea queda a su nombre, así que no ve el selector. */}
-                      <div className={`space-y-3 ${seguimientoMode ? 'order-1' : 'order-4'} ${!seguimientoMode ? 'hidden' : ''}`}>
+                      <div className={`space-y-3 ${seguimientoMode ? 'order-1' : 'order-4'} ${!seguimientoMode || seguimientoPropio ? 'hidden' : ''}`}>
                         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                           <span className="w-6 h-6 text-[#fd6301] flex items-center justify-center">
                             <Users className="w-3.5 h-3.5" />
@@ -3461,6 +3468,8 @@ export default function TareasPage() {
               <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium px-3 py-1">
                 {filteredTasks.length} cliente{filteredTasks.length !== 1 ? 's' : ''}
               </Badge>
+              {/* El vendedor suma sus propios clientes a seguimiento. */}
+              {seguimientoVista === 'clientes' && botonNuevoSeguimiento}
             </div>
           )}
 
@@ -4347,7 +4356,7 @@ export default function TareasPage() {
                     </div>
 
                     {/* Buscador para sumar puntualmente cualquier colaborador del sistema */}
-                    {canManageTeam && (
+                    {(canManageTeam || esTecnico) && (
                       // En reposo los dos botones van sueltos, sin tarjeta que los
                       // encierre (corrección del usuario, ago-2026): la caja blanca con
                       // borde parecía una sección más y competía con las tarjetas de
@@ -4490,7 +4499,7 @@ export default function TareasPage() {
                         <p className="text-sm text-slate-500 mb-4 max-w-sm mx-auto">
                           Elige un colaborador de tu equipo y asígnale sus clientes para empezar a hacerle seguimiento.
                         </p>
-                        {canManageTeam && (
+                        {(canManageTeam || esTecnico) && (
                           <button
                             onClick={() => openNuevoSeguimiento()}
                             className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-[#fd6301] hover:bg-[#e35400] rounded-lg px-4 py-2 transition-colors"
@@ -4519,6 +4528,25 @@ export default function TareasPage() {
               // VISTA POR GRUPOS (pestaña Tareas): las tareas se agrupan en secciones
               // colapsables según su grupo (proyecto), con las "Sin grupo" al final.
               // Si no hay grupos definidos, degrada a una lista plana simple.
+              // Vendedor sin clientes en seguimiento: el vacío invita a sumar el primero.
+              if (viewTasks.length === 0 && activeTab === 'seguimiento' && isSalesperson && !seguimientoSearchDebounced.trim()) {
+                return (
+                  <div className="text-center py-16">
+                    <div className="w-14 h-14 rounded-2xl bg-[#fd6301] flex items-center justify-center mx-auto mb-4 shadow-md shadow-[#fd6301]/25">
+                      <Users className="h-7 w-7 text-white" />
+                    </div>
+                    <h3 className="text-base font-bold text-slate-700 dark:text-white mb-1">Aún no sigues a ningún cliente</h3>
+                    <p className="text-sm text-slate-500 mb-4 max-w-sm mx-auto">Agrega tus clientes para llevar su seguimiento desde acá.</p>
+                    <button
+                      onClick={() => openNuevoSeguimiento()}
+                      className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-[#fd6301] hover:bg-[#e35400] rounded-lg px-4 py-2 transition-colors"
+                      data-testid="button-nuevo-seguimiento-vacio"
+                    >
+                      <Plus className="h-4 w-4" /> Nuevo seguimiento
+                    </button>
+                  </div>
+                );
+              }
               if (viewTasks.length === 0) {
                 return (
                   <div className="text-center py-16">
