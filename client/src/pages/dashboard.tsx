@@ -14,6 +14,7 @@ import SalespersonChart from "@/components/dashboard/salesperson-chart";
 import ComunasChart from "@/components/dashboard/comunas-chart";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
 import FletesPanel from "@/components/dashboard/fletes-panel";
+import SinCargoPanel from "@/components/dashboard/sin-cargo-panel";
 import TopSalespeoplePanel from "@/components/dashboard/top-salespeople-panel";
 import TransactionsTable from "@/components/dashboard/transactions-table";
 import GoalsProgress from "@/components/dashboard/goals-progress";
@@ -2217,6 +2218,19 @@ export default function Dashboard() {
             {globalFilter.type !== "product" && (
               <CardWrapper>
                 <FletesPanel
+                  selectedPeriod={selectedPeriod}
+                  filterType={filterType}
+                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                  client={selectedClient}
+                />
+              </CardWrapper>
+            )}
+
+            {/* Sin cargo (OC "SIN CARGO") - respeta filtros */}
+            {globalFilter.type !== "product" && (
+              <CardWrapper>
+                <SinCargoPanel
                   selectedPeriod={selectedPeriod}
                   filterType={filterType}
                   segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
