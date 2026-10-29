@@ -26,6 +26,7 @@ import PendingDocumentsUnified from "@/components/dashboard/pending-documents-un
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
 import FletesPanel from "@/components/dashboard/fletes-panel";
+import SinCargoPanel from "@/components/dashboard/sin-cargo-panel";
 import SalesChart from "@/components/dashboard/sales-chart";
 import KPICards from "@/components/dashboard/kpi-cards";
 import MetaGoalCard from "@/components/dashboard/meta-goal-card";
@@ -1731,6 +1732,17 @@ export default function SegmentDetail({
               {segmentName && (
                 <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                   <FletesPanel
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                    segment={segmentName}
+                  />
+                </div>
+              )}
+
+              {/* Sin cargo del segmento */}
+              {segmentName && (
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <SinCargoPanel
                     selectedPeriod={selectedPeriod}
                     filterType={filterType}
                     segment={segmentName}

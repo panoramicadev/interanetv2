@@ -26,6 +26,7 @@ import KPICards from "@/components/dashboard/kpi-cards";
 import SalespersonScopeFilter from "@/components/salesperson/salesperson-scope-filter";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
 import FletesPanel from "@/components/dashboard/fletes-panel";
+import SinCargoPanel from "@/components/dashboard/sin-cargo-panel";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerTrigger, DrawerFooter } from "@/components/ui/drawer";
@@ -1905,6 +1906,14 @@ export default function SalespersonDetail({
 
               {/* Fletes del vendedor */}
               <FletesPanel
+                selectedPeriod={selectedPeriod}
+                filterType={filterType}
+                salesperson={salespersonName}
+                segment={selectedSegment ?? undefined}
+              />
+
+              {/* Sin cargo del vendedor */}
+              <SinCargoPanel
                 selectedPeriod={selectedPeriod}
                 filterType={filterType}
                 salesperson={salespersonName}

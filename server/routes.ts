@@ -4386,6 +4386,69 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Ventas sin cargo — OCDO es texto libre en el ERP: "SIN CARGO", "SIIN CARGO", "sin  cargo"...
+  // Se agrupan por vendedor, segmento o cliente. GDV fuera, igual que el resto del dashboard.
+  app.get('/api/sales/sin-cargo', requireSalesViewAccess, responseCacheMiddleware(120), async (req, res) => {
+    try {
+      const { limit, period, filterType, salesperson, segment, client, groupBy } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      const limitNum = limit ? parseInt(limit as string) : 10;
+
+      const groupCol =
+        groupBy === 'segmento' ? factVentas.noruen :
+        groupBy === 'cliente' ? factVentas.nokoen :
+        factVentas.nokofu;
+
+      const conditions = [
+        sql`${factVentas.tido} != 'GDV'`,
+        sql`${factVentas.ocdo} ~* 's+i+n+\\s*c+a+r+g+o'`,
+      ];
+      if (dateRange.startDate) conditions.push(sql`${factVentas.feemdo} >= ${dateRange.startDate}::date`);
+      if (dateRange.endDate) conditions.push(sql`${factVentas.feemdo} <= ${dateRange.endDate}::date`);
+      if (salesperson) conditions.push(sql`${factVentas.nokofu} = ${salesperson as string}`);
+      if (segment) conditions.push(segmentSqlEq(sql`${factVentas.noruen}`, segment as string));
+      if (client) conditions.push(await condicionNombreCliente(factVentas.nokoen, client as string));
+
+      const whereClause = and(...conditions);
+      const nameExpr = sql<string>`COALESCE(NULLIF(btrim(${groupCol}), ''), 'Sin asignar')`;
+
+      const [totalsRow, items] = await Promise.all([
+        db.select({
+            total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+            docs: sql<number>`COUNT(DISTINCT ${factVentas.idmaeedo})`,
+            groups: sql<number>`COUNT(DISTINCT ${nameExpr})`,
+          })
+          .from(factVentas)
+          .where(whereClause)
+          .then(r => r[0]),
+        db.select({
+            name: nameExpr,
+            total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+            docs: sql<number>`COUNT(DISTINCT ${factVentas.idmaeedo})`,
+          })
+          .from(factVentas)
+          .where(whereClause)
+          .groupBy(nameExpr)
+          .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+          .limit(limitNum),
+      ]);
+
+      res.json({
+        items: items.map(r => ({
+          name: r.name || 'Sin asignar',
+          total: Number(r.total),
+          docs: Number(r.docs),
+        })),
+        periodTotal: Number(totalsRow?.total || 0),
+        totalDocs: Number(totalsRow?.docs || 0),
+        totalCount: Number(totalsRow?.groups || 0),
+      });
+    } catch (error) {
+      console.error("Error fetching sin cargo:", error);
+      res.status(500).json({ message: "Failed to fetch sin cargo" });
+    }
+  });
+
   // Product search endpoint (AJAX autocomplete)
   app.get('/api/products/search', requireAuth, async (req, res) => {
     try {
