@@ -19720,16 +19720,29 @@ export function registerRoutes(app: Express): Server {
       if (validatedData.unidad) {
         validatedData.unidad = normalizeFormat(validatedData.unidad) || validatedData.unidad;
       }
+
+      // El código es único: avisar cuál producto lo está usando en vez de fallar con un error genérico
+      const existing = await storage.getPriceListByCodigo(validatedData.codigo);
+      if (existing) {
+        const detalle = existing.unidad ? `${existing.producto} (${existing.unidad})` : existing.producto;
+        return res.status(409).json({
+          message: `Ya existe un producto con el código ${validatedData.codigo}: ${detalle}. Usa otro código o edita el producto existente.`
+        });
+      }
+
       const item = await storage.createPriceListItem(validatedData);
 
       res.status(201).json(item);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating price list item:", error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({
           message: "Validation error",
           errors: error.errors
         });
+      }
+      if (error.code === '23505') { // PostgreSQL unique violation
+        return res.status(409).json({ message: "Ya existe un producto con ese código. Usa otro código o edita el producto existente." });
       }
       res.status(500).json({ message: "Failed to create price list item" });
     }
