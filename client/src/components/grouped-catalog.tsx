@@ -12,6 +12,7 @@ import {
     DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import {
     Search, Package, Palette, ChevronDown, ChevronRight, ChevronUp,
     Weight, Ruler, Truck, Loader2, Upload, Trash2, Box, Tag, ArrowUp, ArrowDown, ImageIcon, Check, Plus, AlertTriangle,
@@ -126,6 +127,8 @@ export default function GroupedCatalog() {
     const [selectedColors, setSelectedColors] = useState<Map<string, string>>(new Map());
     const [, setLocation] = useLocation();
     const { toast } = useToast();
+    const { user } = useAuth();
+    const isAdmin = user?.role === "admin";
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { data, isLoading } = useQuery<CatalogResponse>({
@@ -291,6 +294,29 @@ export default function GroupedCatalog() {
         },
         onError: (err: any) => {
             toast({ variant: "destructive", title: "Error al eliminar", description: err?.message || "No se pudo eliminar la agrupación." });
+        },
+    });
+
+    // Quitar un solo SKU de la agrupación (el SKU sigue en SAP y vuelve a "Publicar productos")
+    const [removeSkuTarget, setRemoveSkuTarget] = useState<{ ecomId: string; sku: string; format: string; color: string; genericName: string } | null>(null);
+    const removeSkuMutation = useMutation({
+        mutationFn: async (ecomId: string) => {
+            const res = await apiRequest("DELETE", "/api/products/grouped-catalog/sku", { ecomId });
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog/unpublished"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/public/products/grouped"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/store/products/grouped"] });
+            toast({
+                title: "SKU quitado",
+                description: `${removeSkuTarget?.sku} ya no está en ${removeSkuTarget?.genericName}. Podés volver a agregarlo con "Agregar SKU".`,
+            });
+            setRemoveSkuTarget(null);
+        },
+        onError: (err: any) => {
+            toast({ variant: "destructive", title: "Error al quitar", description: err?.message || "No se pudo quitar el SKU." });
         },
     });
 
@@ -1181,6 +1207,23 @@ export default function GroupedCatalog() {
                                                                 <Box className="h-3 w-3 mr-1" />
                                                                 {variant.format}
                                                             </Badge>
+                                                            {isAdmin && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-7 gap-1 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                                    onClick={() => setRemoveSkuTarget({
+                                                                        ecomId: variant.ecomId,
+                                                                        sku: variant.sku,
+                                                                        format: variant.format,
+                                                                        color: activeColor,
+                                                                        genericName: product.genericName,
+                                                                    })}
+                                                                >
+                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                    Quitar
+                                                                </Button>
+                                                            )}
                                                         </div>
                                                         <p className="font-mono text-xs text-muted-foreground mb-2">
                                                             SKU: {variant.sku}
@@ -1701,6 +1744,43 @@ export default function GroupedCatalog() {
                         >
                             {createEmptyGroupMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                             {createEmptyGroupMutation.isPending ? "Creando..." : "Crear agrupación"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Remove single SKU confirmation */}
+            <Dialog open={!!removeSkuTarget} onOpenChange={(open) => !open && setRemoveSkuTarget(null)}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-red-600">
+                            <AlertTriangle className="h-5 w-5" />
+                            Quitar SKU de la agrupación
+                        </DialogTitle>
+                        <DialogDescription className="pt-2">
+                            ¿Seguro que querés quitar <strong>{removeSkuTarget?.sku}</strong> ({removeSkuTarget?.color} / {removeSkuTarget?.format}) de <strong>{removeSkuTarget?.genericName}</strong>?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="text-sm text-muted-foreground space-y-2">
+                        <p>
+                            Dejará de verse en el e-commerce. Seguirá en el catálogo SAP y podrás volver a agregarlo con "Agregar SKU".
+                        </p>
+                        <p>
+                            Se pierden su precio de tienda, medidas, embalaje y foto propia: al agregarlo de nuevo quedan vacíos.
+                        </p>
+                    </div>
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => setRemoveSkuTarget(null)} disabled={removeSkuMutation.isPending}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={() => removeSkuTarget && removeSkuMutation.mutate(removeSkuTarget.ecomId)}
+                            disabled={removeSkuMutation.isPending}
+                            className="gap-1.5"
+                        >
+                            {removeSkuMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                            {removeSkuMutation.isPending ? "Quitando..." : "Quitar"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
