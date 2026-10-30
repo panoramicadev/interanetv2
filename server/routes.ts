@@ -461,7 +461,7 @@ import { normalizeText } from "./utils/fuzzy-match";
 import { createRateLimiter } from "./utils/rate-limit";
 import { hoyEnChile } from "./utils/fecha-chile";
 import { unirTramos, tramoAnioAnterior } from "./utils/tramos-consolidado";
-import { normalizeFormat, PRODUCT_FORMATS } from "@shared/format-utils";
+import { catalogFormatName, normalizeFormat, PRODUCT_FORMATS } from "@shared/format-utils";
 import { reglaDeVenta } from "@shared/venta-por-unidad";
 import { isValidRut, formatRut } from "@shared/rut";
 import {
@@ -7854,7 +7854,7 @@ export function registerRoutes(app: Express): Server {
         const groupName = row.group_name || null;
         const genericName = (row.variant_generic_display_name || row.product_name || 'Sin Nombre').trim();
         const color = (row.color || 'Sin Color').trim();
-        const formatUnit = row.format_unit || row.unit || 'Sin formato';
+        const formatUnit = catalogFormatName(row.format_unit || row.unit) || 'Sin formato';
         const sku = row.sku || row.price_list_id || '';
         let rowTags: string[] = [];
         try { rowTags = JSON.parse(row.tags || '[]'); } catch { rowTags = []; }
@@ -8373,7 +8373,7 @@ export function registerRoutes(app: Express): Server {
       const groupName = row.group_name || null;
       const genericName = (row.variant_generic_display_name || row.product_name || 'Sin Nombre').trim();
       const color = (row.color || 'Sin Color').trim();
-      const formatUnit = row.format_unit || row.unit || 'Sin formato';
+      const formatUnit = catalogFormatName(row.format_unit || row.unit) || 'Sin formato';
       const sku = row.sku || row.price_list_id || '';
       let rowTags: string[] = [];
       try { rowTags = JSON.parse(row.tags || '[]'); } catch { rowTags = []; }
@@ -8878,7 +8878,7 @@ export function registerRoutes(app: Express): Server {
       const color = ((row.variant_features_0_value || row.color || '').trim() || null)?.toUpperCase() || null;
       const description = (row.description || '').trim() || null;
       const productName = (row.name || '').trim();
-      const packagingUnitName = (row.packaging_unitName || '').trim() || null;
+      const packagingUnitName = catalogFormatName(row.packaging_unitName);
       const pricePerUnit = row.pricePerUnit ? parseFloat(row.pricePerUnit) : null;
 
       // Dimensions
@@ -8994,7 +8994,7 @@ export function registerRoutes(app: Express): Server {
     const sku = String(req.body?.sku || '').trim();
     const genericName = String(req.body?.genericName || '').trim().toUpperCase();
     const color = String(req.body?.color || '').trim().toUpperCase();
-    const formatUnit = String(req.body?.formatUnit || '').trim() || null;
+    const formatUnit = catalogFormatName(String(req.body?.formatUnit || ''));
     const priceRaw = req.body?.price;
     const price = priceRaw === undefined || priceRaw === null || priceRaw === '' ? null : Number(priceRaw);
 
@@ -21807,7 +21807,7 @@ export function registerRoutes(app: Express): Server {
       const groupName = row.group_name || null;
       const genericName = (row.variant_generic_display_name || row.product_name || 'Sin Nombre').trim();
       const color = (row.color || 'Sin Color').trim();
-      const formatUnit = row.format_unit || row.unit || 'Sin formato';
+      const formatUnit = catalogFormatName(row.format_unit || row.unit) || 'Sin formato';
       const sku = row.sku || row.price_list_id || '';
       let rowTags: string[] = [];
       try { rowTags = JSON.parse(row.tags || '[]'); } catch { rowTags = []; }
@@ -22322,7 +22322,7 @@ export function registerRoutes(app: Express): Server {
         sku: row.sku,
         productName: row.generic_name || row.product_name || row.sku,
         color: row.color || 'Sin Color',
-        format: row.format_unit || row.unit || 'Sin formato',
+        format: catalogFormatName(row.format_unit || row.unit) || 'Sin formato',
         price: discountedList,                                  // lista con convenio (base)
         offerPrice: hasOffer ? Math.round(offerNum) : null,     // oferta (gana si menor)
         originalPrice: Math.round(baseList),                    // lista sin convenio

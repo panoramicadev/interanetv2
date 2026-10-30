@@ -401,6 +401,7 @@ import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from
 import { db } from "./db";
 import { LINE_COST_EXPR } from "./costo-linea";
 import { reglaDeVenta } from "@shared/venta-por-unidad";
+import { catalogFormatName } from "@shared/format-utils";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, notInArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns, type AnyColumn } from "drizzle-orm";
 import { accentInsensitiveContains } from "./utils/sql-search";
 import { parseScopeEntry, ocPrefixPattern } from "./utils/sucursal-scope";
@@ -11142,7 +11143,7 @@ export class DatabaseStorage implements IStorage {
         const color = row.variant_features_0_value?.trim() || null;
         const minUnit = parseInt(row.constraints_minUnit) || 1;
         const stepSize = parseInt(row.constraints_stepSize) || 1;
-        const formatUnit = row.packaging_unitName?.trim() || null;
+        const formatUnit = catalogFormatName(row.packaging_unitName);
 
         // Dimensions and Weight
         const weight = row.dimensions_weight ? parseFloat(row.dimensions_weight) : null;
