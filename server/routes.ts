@@ -8808,6 +8808,55 @@ export function registerRoutes(app: Express): Server {
     res.json({ success: true, genericName, deleted });
   }));
 
+  // Remove a single SKU from its agrupación: removes its ecommerce_products row only.
+  // The SAP price_list entry remains and the SKU reappears in "Publicar productos".
+  // Same permission as add-sku, since whoever removes it must be able to add it back.
+  app.delete('/api/products/grouped-catalog/sku', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ message: 'Solo administradores pueden modificar la agrupación' });
+    }
+
+    const ecomId = String(req.body?.ecomId || '').trim();
+    if (!ecomId) {
+      return res.status(400).json({ message: 'ecomId es requerido' });
+    }
+
+    const deleteResult = await db.execute(sql`
+      DELETE FROM ecommerce_products WHERE id = ${ecomId}
+      RETURNING variant_generic_display_name, price_list_id
+    `);
+    const deletedRows = Array.isArray(deleteResult) ? deleteResult : (deleteResult as any).rows || [];
+    if (deletedRows.length === 0) {
+      return res.status(404).json({ message: 'El SKU ya no está en la agrupación' });
+    }
+    const genericName = String((deletedRows[0] as any).variant_generic_display_name || '').trim();
+
+    // If that was the last SKU, keep the grouping as an empty card so it can be refilled.
+    if (genericName) {
+      const remaining = await db.execute(sql`
+        SELECT 1 FROM ecommerce_products WHERE variant_generic_display_name = ${genericName} LIMIT 1
+      `);
+      const remainingRows = Array.isArray(remaining) ? remaining : (remaining as any).rows || [];
+      if (remainingRows.length === 0) {
+        const egResult = await db.execute(sql`SELECT value FROM app_config WHERE key = 'ecommerce_empty_groups'`);
+        const egList: unknown = (egResult as any).rows?.[0]?.value;
+        const current = Array.isArray(egList) ? egList : [];
+        if (!current.some(n => String(n).trim().toUpperCase() === genericName.toUpperCase())) {
+          const nextEg = [...current, genericName];
+          await db.execute(sql`
+            INSERT INTO app_config (key, value, updated_at)
+            VALUES ('ecommerce_empty_groups', ${JSON.stringify(nextEg)}::jsonb, NOW())
+            ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(nextEg)}::jsonb, updated_at = NOW()
+          `);
+        }
+      }
+    }
+
+    invalidateStoreCache();
+    console.log(`🗑️  SKU quitado de la agrupación "${genericName}" (ecomId ${ecomId})`);
+    res.json({ success: true, genericName });
+  }));
+
   // Clean ecommerce_products table (admin only)
   app.delete('/api/products/grouped-catalog', requireAuth, asyncHandler(async (req: any, res: any) => {
     if (req.user?.role !== 'admin') {
