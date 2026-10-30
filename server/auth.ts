@@ -70,9 +70,12 @@ export function setupAuth(app: Express) {
   // Session configuration
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
+  // SKIP_DB_BOOTSTRAP=1: ni crear la tabla ni la limpieza periódica de sesiones vencidas.
+  const skipDbBootstrap = process.env.SKIP_DB_BOOTSTRAP === '1';
   const sessionStore = new pgStore({
     pool: pool, // Share the existing pool instead of creating separate connections
-    createTableIfMissing: true, // Crear tabla automáticamente si no existe (crítico para producción)
+    createTableIfMissing: !skipDbBootstrap, // Crear tabla automáticamente si no existe (crítico para producción)
+    ...(skipDbBootstrap ? { pruneSessionInterval: false } : {}),
     ttl: sessionTtl,
     tableName: "sessions",
   });

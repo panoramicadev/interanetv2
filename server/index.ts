@@ -51,7 +51,14 @@ app.use((req, res, next) => {
   // Aplicar bootstrap + migraciones SQL ANTES de aceptar tráfico.
   // Si una request llega antes de que termine, una query como /api/store/products/grouped
   // puede fallar (ej: columna agregada por migración pendiente).
-  if (!process.env.VERCEL) {
+  // SKIP_DB_BOOTSTRAP=1 es para levantar desde local contra la BD compartida:
+  // omite este bloque y todo paso de arranque que escriba en ella (acá abajo, y
+  // también en setupAuth y registerOAuthRoutes).
+  const skipDbBootstrap = process.env.SKIP_DB_BOOTSTRAP === '1';
+  if (skipDbBootstrap) {
+    log('⏸️ Preparación de base de datos omitida (SKIP_DB_BOOTSTRAP=1)');
+  }
+  if (!process.env.VERCEL && !skipDbBootstrap) {
     try {
       await bootstrapDatabase();
     } catch (error: any) {
@@ -150,8 +157,12 @@ app.use((req, res, next) => {
   // Register Mailing / Campañas de Marketing routes + scheduler
   const { registerCampaignRoutes } = await import('./routes-campaigns');
   registerCampaignRoutes(app);
-  const { startCampaignScheduler } = await import('./services/campaigns');
-  startCampaignScheduler();
+  if (skipDbBootstrap) {
+    log('⏸️ Scheduler de campañas omitido (SKIP_DB_BOOTSTRAP=1)');
+  } else {
+    const { startCampaignScheduler } = await import('./services/campaigns');
+    startCampaignScheduler();
+  }
 
   // Rendición de gastos v2: informes, catálogos, historial y reportes PDF/Excel
   const { registerRendicionRoutes } = await import('./routes-rendicion');
@@ -248,6 +259,11 @@ app.use((req, res, next) => {
         // que escriben en la BD compartida o pegan a sistemas externos.
         if (process.env.SKIP_BG_SERVICES === '1') {
           log('⏸️ Background services omitidos (SKIP_BG_SERVICES=1)');
+          return;
+        }
+        // Estos servicios también escriben en la BD (backfills, ETL, alertas).
+        if (skipDbBootstrap) {
+          log('⏸️ Background services omitidos (SKIP_DB_BOOTSTRAP=1)');
           return;
         }
         initializeBackgroundServices().catch(err => {
