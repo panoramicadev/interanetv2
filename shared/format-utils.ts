@@ -209,6 +209,30 @@ export function normalizeFormat(raw: string | null | undefined): string | null {
 }
 
 /**
+ * Nombre único de un formato para el catálogo y las agrupaciones comerciales.
+ * `format_unit` es texto libre y `price_list.unidad` viene sin tilde: sin esto,
+ * "Galón" y "Galon" salen como dos formatos distintos del mismo producto.
+ *
+ * Solo reconoce alias exactos, no los patrones de `normalizeFormat()`: "1/2 Galón"
+ * tiene que seguir siendo otro formato, no sumarse a "Galón".
+ *
+ * @example
+ * catalogFormatName("Galon")           // "Galón"
+ * catalogFormatName("GALÓN")           // "Galón"
+ * catalogFormatName("1/4 galon")       // "1/4 Galón"
+ * catalogFormatName("Balde 4 Galones") // "Balde 4 Galones"
+ * catalogFormatName("1/2 Galon")       // "1/2 Galón"
+ * catalogFormatName(null)              // null
+ */
+export function catalogFormatName(raw: string | null | undefined): string | null {
+  const cleaned = raw?.normalize('NFC').trim().replace(/\s+/g, ' ');
+  if (!cleaned) return null;
+
+  const canonical = FORMAT_ALIASES[cleaned.toLowerCase()] ?? cleaned;
+  return canonical.replace(/\bgal[oó]n\b/gi, 'Galón');
+}
+
+/**
  * Gets the shipping rate key for the given format.
  * Returns null if the format doesn't have a shipping rate.
  *

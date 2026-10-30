@@ -1610,6 +1610,18 @@ export async function bootstrapDatabase(): Promise<void> {
         ON custom_color_variants (quote_request_id, base_sku, color_code, format_unit)
     `);
 
+    // Formato galón con un solo nombre (migración 098). Ver
+    // migrations/098_format_unit_galon.sql — se replica acá porque el runner de
+    // migraciones no es confiable en producción.
+    await db.execute(sql`
+      UPDATE ecommerce_products SET format_unit = 'Galón'
+      WHERE LOWER(TRIM(format_unit)) IN ('galon', 'galón') AND format_unit <> 'Galón'
+    `);
+    await db.execute(sql`
+      UPDATE ecommerce_products SET format_unit = '1/4 Galón'
+      WHERE LOWER(TRIM(format_unit)) IN ('1/4 galon', '1/4 galón') AND format_unit <> '1/4 Galón'
+    `);
+
     // Rendición de gastos v2 (migración 073). Ver migrations/073_rendicion_gastos_v2.sql
     // — se replica acá porque el runner de .sql corre DESPUÉS del bootstrap y las
     // rutas de gastos consultan estas tablas apenas arranca el server.

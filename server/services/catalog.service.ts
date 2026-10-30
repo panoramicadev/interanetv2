@@ -7,6 +7,7 @@
 import { db } from '../db';
 import { sql } from 'drizzle-orm';
 import { reglaDeVentaCotizadorWeb } from '@shared/venta-por-unidad';
+import { catalogFormatName } from '@shared/format-utils';
 
 // ── Cache ──
 let _publicCatalogCache: { catalog: any[]; totalProducts: number; builtAt: number } | null = null;
@@ -89,7 +90,7 @@ export async function getPublicCatalog(options?: { search?: string; category?: s
     const groupName = row.group_name || null;
     const genericName = (row.variant_generic_display_name || row.product_name || 'Sin Nombre').trim();
     const color = (row.color || 'Sin Color').trim();
-    const formatUnit = row.format_unit || row.unit || 'Sin formato';
+    const formatUnit = catalogFormatName(row.format_unit || row.unit) || 'Sin formato';
     const sku = row.sku || '';
     let rowTags: string[] = [];
     try { rowTags = JSON.parse(row.tags || '[]'); } catch { rowTags = []; }
