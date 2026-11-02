@@ -33,6 +33,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import { CostComparisonSection } from "@/components/finanzas/cost-comparison-section";
+import TarjetaKpi from "@/components/dashboard/kpi-simple-card";
+import { ICONO_CHIP_ICONO_SM, ICONO_CHIP_SM } from "@/lib/icono-chip";
+import { KPI_VARIACION_COLOR } from "@/lib/kpi-tarjeta";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -176,10 +179,12 @@ function marginBadgeClass(pct: number | null): string {
 }
 function deltaColor(delta: number | null): string {
   if (delta == null || !Number.isFinite(delta)) return "text-gray-400";
-  if (delta > 0.1) return "text-emerald-600";
-  if (delta < -0.1) return "text-red-600";
-  return "text-gray-500";
+  if (Math.abs(delta) <= 0.1) return "text-gray-500";
+  return KPI_VARIACION_COLOR(delta);
 }
+const fmtVariacion = (delta: number | null | undefined, sufijo: string) =>
+  delta != null && Number.isFinite(delta) ? `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}${sufijo}` : undefined;
+const PANEL = "rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm";
 function DeltaIcon({ delta }: { delta: number | null }) {
   if (delta == null || !Number.isFinite(delta) || Math.abs(delta) <= 0.1) return <Minus className="h-3 w-3" />;
   return delta > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />;
@@ -471,10 +476,10 @@ export function MarginDashboard() {
   return (
     <div className="space-y-6">
       {/* ── Filtros ────────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 flex-wrap bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-3 shadow-sm">
+      <div className="flex items-center gap-3 flex-wrap bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl px-4 py-3 shadow-sm">
         {/* Vista */}
         <div className="flex items-center gap-2">
-          <Eye className="h-4 w-4 text-gray-400 flex-shrink-0" />
+          <Eye className="h-4 w-4 text-[#fd6301] flex-shrink-0" />
           <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Vista:</span>
           <Select value={view} onValueChange={v => handleViewChange(v as any)}>
             <SelectTrigger className="h-9 w-44 rounded-lg border-gray-200 text-sm" data-testid="select-margin-view">
@@ -489,13 +494,13 @@ export function MarginDashboard() {
               </SelectItem>
               <SelectItem value="segment">
                 <div className="flex items-center gap-2">
-                  <Grid3x3 className="h-3.5 w-3.5 text-green-500" />
+                  <Grid3x3 className="h-3.5 w-3.5 text-gray-500" />
                   <span>Por segmento</span>
                 </div>
               </SelectItem>
               <SelectItem value="salesperson">
                 <div className="flex items-center gap-2">
-                  <Users className="h-3.5 w-3.5 text-purple-500" />
+                  <Users className="h-3.5 w-3.5 text-gray-500" />
                   <span>Por vendedor</span>
                 </div>
               </SelectItem>
@@ -542,7 +547,7 @@ export function MarginDashboard() {
         {/* Período + Descarga */}
         <div className="flex items-center gap-3 ml-auto flex-wrap">
           <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            <Calendar className="h-4 w-4 text-[#fd6301] flex-shrink-0" />
             <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Período:</span>
             <YearMonthSelector value={periodSel} onChange={setPeriodSel} />
           </div>
@@ -553,7 +558,7 @@ export function MarginDashboard() {
             onClick={handleDownloadCsv}
             disabled={isDownloadingCsv || isLoading || !data}
             data-testid="button-margin-dashboard-export-csv"
-            className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+            className="rounded-2xl border-slate-200 text-slate-700 hover:bg-white hover:border-orange-200 hover:text-[#fd6301]"
           >
             {isDownloadingCsv ? (
               <>
@@ -579,39 +584,34 @@ export function MarginDashboard() {
       )}
 
       {/* ── KPI Cards principales ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard
-          label="Ingresos netos"
-          icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
-          value={isLoading ? null : ov ? fmtCLP(ov.revenue) : "—"}
-          delta={ov?.deltas.revenuePct ?? null}
-          deltaLabel="vs período anterior"
-          deltaSuffix="%"
+      <div className="grid grid-cols-1 min-[400px]:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+        <TarjetaKpi
+          titulo="Ingresos netos"
+          icono={DollarSign}
+          valor={isLoading ? "…" : ov ? fmtCLP(ov.revenue) : "—"}
+          variacion={fmtVariacion(ov?.deltas.revenuePct, "%")}
+          variacionEtiqueta={fmtVariacion(ov?.deltas.revenuePct, "%") ? "vs período anterior" : undefined}
         />
-        <KpiCard
-          label="Margen $"
-          icon={<Calculator className="h-4 w-4 text-emerald-600" />}
-          value={isLoading ? null : ov ? fmtCLP(ov.margin) : "—"}
-          delta={ov?.deltas.marginPct ?? null}
-          deltaLabel="vs período anterior"
-          deltaSuffix="%"
+        <TarjetaKpi
+          titulo="Margen $"
+          icono={Calculator}
+          valor={isLoading ? "…" : ov ? fmtCLP(ov.margin) : "—"}
+          variacion={fmtVariacion(ov?.deltas.marginPct, "%")}
+          variacionEtiqueta={fmtVariacion(ov?.deltas.marginPct, "%") ? "vs período anterior" : undefined}
         />
-        <KpiCard
-          label="Margen %"
-          icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
-          value={isLoading ? null : ov ? fmtPct(ov.marginPct) : "—"}
-          delta={ov?.deltas.marginPctPoints ?? null}
-          deltaLabel="vs período anterior"
-          deltaSuffix="pp"
-          highlight={ov ? marginBadgeClass(ov.marginPct) : ""}
+        <TarjetaKpi
+          titulo="Margen %"
+          icono={TrendingUp}
+          valor={isLoading ? "…" : ov ? fmtPct(ov.marginPct) : "—"}
+          variacion={fmtVariacion(ov?.deltas.marginPctPoints, "pp")}
+          variacionEtiqueta={fmtVariacion(ov?.deltas.marginPctPoints, "pp") ? "vs período anterior" : undefined}
         />
-        <KpiCard
-          label="SKUs en riesgo"
-          icon={<AlertTriangle className="h-4 w-4 text-red-600" />}
-          value={isLoading ? null : `${alerts.length}`}
-          deltaLabel={`con margen < ${threshold}%`}
-          extraValue={ov ? `${fmtInt(ov.skuCount)} SKUs vendidos` : undefined}
-          danger={alerts.length > 0}
+        <TarjetaKpi
+          titulo="SKUs en riesgo"
+          icono={AlertTriangle}
+          valor={isLoading ? "…" : `${alerts.length}`}
+          variacionEtiqueta={`con margen < ${threshold}%`}
+          detalles={ov ? [{ etiqueta: "SKUs vendidos", valor: fmtInt(ov.skuCount) }] : undefined}
         />
       </div>
 
@@ -622,24 +622,24 @@ export function MarginDashboard() {
             label="Margen Mínimo"
             value={isLoading ? null : marginStats ? fmtPct(marginStats.min) : "—"}
             sublabel={marginStats?.minLabel}
-            colorClass="text-red-600"
-            bgClass="bg-red-50 border-red-100"
+            colorClass="text-[#fd6301]"
+            bgClass="bg-white dark:bg-slate-900 border-slate-200/70 dark:border-slate-800"
           />
           <StatCard
             label="Margen Máximo"
             value={isLoading ? null : marginStats ? fmtPct(marginStats.max) : "—"}
             sublabel={marginStats?.maxLabel}
-            colorClass="text-emerald-700"
-            bgClass="bg-emerald-50 border-emerald-100"
+            colorClass="text-[#fd6301]"
+            bgClass="bg-white dark:bg-slate-900 border-slate-200/70 dark:border-slate-800"
           />
         </div>
       )}
 
       {/* ── Alertas de margen bajo ──────────────────────────────────────────── */}
-      <Card className="border-red-100">
+      <Card className={PANEL}>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <AlertTriangle className="h-4 w-4 text-red-600" />
+            <span className={ICONO_CHIP_SM}><AlertTriangle className={ICONO_CHIP_ICONO_SM} /></span>
             Alertas de margen bajo
           </CardTitle>
           <CardDescription>
@@ -656,28 +656,56 @@ export function MarginDashboard() {
               Sin alertas — todos los SKUs vendidos están sobre el umbral.
             </div>
           ) : (
+            <>
+            {/* Celular: siete columnas no entran, van como tarjetas. */}
+            <div className="md:hidden space-y-2 px-3 pb-3" data-testid="margen-alertas-lista">
+              {alerts.map(a => (
+                <div key={a.sku} className="rounded-2xl border border-slate-200/70 dark:border-slate-800 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="min-w-0 text-sm font-semibold text-slate-800 dark:text-slate-100">{a.producto || a.sku}</p>
+                    <Badge variant="outline" className={`${marginBadgeClass(a.marginPct)} shrink-0`}>{fmtPct(a.marginPct)}</Badge>
+                  </div>
+                  <p className="mt-1 text-xs font-mono text-slate-600 dark:text-slate-300">{a.sku} · {fmtInt(a.qty)} unid.</p>
+                  <div className="mt-2 grid grid-cols-3 gap-2 text-sm tabular-nums">
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Ingresos</p>
+                      <p className="text-slate-800 dark:text-slate-100">{fmtCLP(a.revenue)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Costo total</p>
+                      <p className="text-[#fd6301]">{fmtCLP(a.cost)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Margen $</p>
+                      <p className={a.marginAmount < 0 ? "text-red-600 font-semibold" : "text-slate-800 dark:text-slate-100"}>{fmtCLP(a.marginAmount)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block">
             <Table>
               <TableHeader>
-                <TableRow className="bg-gray-50">
-                  <TableHead className="text-xs">SKU</TableHead>
-                  <TableHead className="text-xs">Producto</TableHead>
-                  <TableHead className="text-right text-xs">Unidades</TableHead>
-                  <TableHead className="text-right text-xs">Ingresos</TableHead>
-                  <TableHead className="text-right text-xs">Costo total</TableHead>
-                  <TableHead className="text-right text-xs">Margen $</TableHead>
-                  <TableHead className="text-right text-xs">Margen %</TableHead>
+                <TableRow className="bg-gray-50 dark:bg-slate-800">
+                  <TableHead className="text-xs font-semibold text-slate-600 dark:text-slate-300">SKU</TableHead>
+                  <TableHead className="text-xs font-semibold text-slate-600 dark:text-slate-300">Producto</TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Unidades</TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Ingresos</TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Costo total</TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Margen $</TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Margen %</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {alerts.map(a => (
-                  <TableRow key={a.sku} className="text-xs" data-testid={`row-alert-${a.sku}`}>
-                    <TableCell className="font-mono py-2">{a.sku}</TableCell>
-                    <TableCell className="py-2 max-w-[300px] truncate" title={a.producto || ""}>
+                  <TableRow key={a.sku} className="text-sm" data-testid={`row-alert-${a.sku}`}>
+                    <TableCell className="font-mono text-xs py-2">{a.sku}</TableCell>
+                    <TableCell className="py-2">
                       {a.producto || <span className="italic text-gray-400">—</span>}
                     </TableCell>
                     <TableCell className="text-right tabular-nums py-2">{fmtInt(a.qty)}</TableCell>
                     <TableCell className="text-right tabular-nums py-2">{fmtCLP(a.revenue)}</TableCell>
-                    <TableCell className="text-right tabular-nums py-2 text-amber-700">{fmtCLP(a.cost)}</TableCell>
+                    <TableCell className="text-right tabular-nums py-2 text-[#fd6301]">{fmtCLP(a.cost)}</TableCell>
                     <TableCell className={`text-right tabular-nums py-2 ${a.marginAmount < 0 ? "text-red-600 font-semibold" : ""}`}>
                       {fmtCLP(a.marginAmount)}
                     </TableCell>
@@ -690,18 +718,18 @@ export function MarginDashboard() {
                 ))}
               </TableBody>
             </Table>
+            </div>
+            </>
           )}
         </CardContent>
       </Card>
 
       {/* ── Top Productos ───────────────────────────────────────────────────── */}
-      <Card>
+      <Card className={PANEL}>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
-                <ShoppingBag className="h-4 w-4 text-blue-600" />
-              </div>
+              <span className={ICONO_CHIP_SM}><ShoppingBag className={ICONO_CHIP_ICONO_SM} /></span>
               Top Productos
             </CardTitle>
             {filterActive && (
@@ -753,12 +781,12 @@ export function MarginDashboard() {
       </Card>
 
       {/* ── Comparativas ───────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
         {/* Por segmento */}
-        <Card>
+        <Card className={PANEL}>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Layers className="h-4 w-4 text-blue-600" />
+              <span className={ICONO_CHIP_SM}><Layers className={ICONO_CHIP_ICONO_SM} /></span>
               Margen por segmento
             </CardTitle>
             <CardDescription>Comparativo con período anterior. Δpp = puntos porcentuales.</CardDescription>
@@ -774,16 +802,16 @@ export function MarginDashboard() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50">
-                    <TableHead className="text-xs">Segmento</TableHead>
-                    <TableHead className="text-right text-xs">Ingresos</TableHead>
-                    <TableHead className="text-right text-xs">Margen $</TableHead>
-                    <TableHead className="text-right text-xs">Margen %</TableHead>
-                    <TableHead className="text-right text-xs">Δ vs prev.</TableHead>
+                    <TableHead className="text-xs font-semibold text-slate-600 dark:text-slate-300">Segmento</TableHead>
+                    <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Ingresos</TableHead>
+                    <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Margen $</TableHead>
+                    <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Margen %</TableHead>
+                    <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Δ vs prev.</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.bySegment.map(r => (
-                    <TableRow key={r.segment} className="text-xs">
+                    <TableRow key={r.segment} className="text-sm">
                       <TableCell className="font-medium py-2">{r.segment}</TableCell>
                       <TableCell className="text-right tabular-nums py-2">{fmtCLP(r.revenue)}</TableCell>
                       <TableCell className="text-right tabular-nums py-2">{fmtCLP(r.marginAmount)}</TableCell>
@@ -807,10 +835,10 @@ export function MarginDashboard() {
         </Card>
 
         {/* Por vendedor */}
-        <Card>
+        <Card className={PANEL}>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Users className="h-4 w-4 text-blue-600" />
+              <span className={ICONO_CHIP_SM}><Users className={ICONO_CHIP_ICONO_SM} /></span>
               Margen por vendedor
             </CardTitle>
             <CardDescription>Top 50 por ingresos. Segmento del vendedor vía supervisor.</CardDescription>
@@ -827,17 +855,17 @@ export function MarginDashboard() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gray-50 sticky top-0 z-10">
-                      <TableHead className="text-xs">Vendedor</TableHead>
-                      <TableHead className="text-xs">Segmento</TableHead>
-                      <TableHead className="text-right text-xs">Ingresos</TableHead>
-                      <TableHead className="text-right text-xs">Margen %</TableHead>
-                      <TableHead className="text-right text-xs">Δ vs prev.</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-600 dark:text-slate-300">Vendedor</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-600 dark:text-slate-300">Segmento</TableHead>
+                      <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Ingresos</TableHead>
+                      <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Margen %</TableHead>
+                      <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Δ vs prev.</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {data.bySalesperson.map(r => (
-                      <TableRow key={r.salesperson} className="text-xs">
-                        <TableCell className="font-medium py-2 max-w-[180px] truncate" title={r.salesperson}>
+                      <TableRow key={r.salesperson} className="text-sm">
+                        <TableCell className="font-medium py-2">
                           {r.salesperson}
                         </TableCell>
                         <TableCell className="py-2 text-gray-600">
@@ -878,91 +906,39 @@ export function MarginDashboard() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function KpiCard({
-  label,
-  icon,
-  value,
-  delta,
-  deltaLabel,
-  deltaSuffix,
-  highlight,
-  extraValue,
-  danger,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  value: string | null;
-  delta?: number | null;
-  deltaLabel?: string;
-  deltaSuffix?: string;
-  highlight?: string;
-  extraValue?: string;
-  danger?: boolean;
-}) {
-  const showDelta = delta != null && Number.isFinite(delta);
-  return (
-    <Card className={`border-0 shadow-sm ${danger ? "ring-1 ring-red-200" : ""}`}>
-      <CardContent className="pt-5 pb-4">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">{label}</span>
-          {icon}
-        </div>
-        {value === null ? (
-          <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-        ) : (
-          <>
-            <div className={`text-2xl font-bold ${danger ? "text-red-600" : "text-gray-900"}`}>{value}</div>
-            {extraValue && <div className="text-[11px] text-gray-500 mt-0.5">{extraValue}</div>}
-            {showDelta && (
-              <div className={`mt-1.5 inline-flex items-center gap-1 text-xs font-medium ${deltaColor(delta!)}`}>
-                <DeltaIcon delta={delta!} />
-                {delta! >= 0 ? "+" : ""}{delta!.toFixed(1)}{deltaSuffix || ""}
-                <span className="text-gray-400 font-normal ml-1">{deltaLabel}</span>
-              </div>
-            )}
-            {!showDelta && deltaLabel && (
-              <div className="text-[11px] text-gray-500 mt-1">{deltaLabel}</div>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 function TopProductoCard({ product }: { product: TopProductRow }) {
   const [open, setOpen] = useState(false);
   const pct = Math.max(0, Math.min(100, product.pctOfTotal));
   return (
-    <div className="rounded-lg border border-gray-200 bg-green-50/30 overflow-hidden">
+    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full px-3 sm:px-4 py-3 hover:bg-green-50/60 transition-colors text-left"
+        className="w-full px-3 sm:px-4 py-3 hover:bg-orange-50/60 dark:hover:bg-slate-800 transition-colors text-left"
         data-testid={`top-product-${product.sku}`}
       >
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full">
           <div className="flex-1 min-w-0">
-            <p className="text-xs sm:text-sm text-gray-800 font-medium line-clamp-2 sm:truncate">
+            <p className="text-sm text-gray-800 dark:text-slate-100 font-medium">
               {product.producto || product.sku}
             </p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-            <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0 tabular-nums">
+            <span className="text-sm text-gray-600 dark:text-gray-300 w-12 text-right flex-shrink-0 tabular-nums">
               {pct.toFixed(1)}%
             </span>
             <div className="flex-1 sm:flex-none sm:w-32">
               <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-green-500 rounded-full transition-all duration-500 ease-out"
+                  className="h-full bg-[#fd6301] rounded-full transition-all duration-500 ease-out"
                   style={{ width: `${pct}%` }}
                 />
               </div>
             </div>
-            <Badge variant="outline" className={`${marginBadgeClass(product.marginPct)} text-[10px] px-1.5 py-0 h-5 flex-shrink-0`}>
+            <Badge variant="outline" className={`${marginBadgeClass(product.marginPct)} text-xs px-2 py-0 h-6 flex-shrink-0`}>
               {fmtPct(product.marginPct)}
             </Badge>
-            <span className="text-xs sm:text-sm font-semibold text-gray-900 w-20 sm:w-28 text-right flex-shrink-0 tabular-nums">
+            <span className="text-sm font-semibold text-gray-900 dark:text-white w-24 sm:w-28 text-right flex-shrink-0 tabular-nums">
               {fmtCLP(product.revenue)}
             </span>
             <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform flex-shrink-0 ${open ? "rotate-180" : ""}`} />
@@ -972,20 +948,20 @@ function TopProductoCard({ product }: { product: TopProductRow }) {
       {open && (
         <div className="px-4 py-3 bg-white border-t border-gray-200 grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="p-2 bg-gray-50 rounded-lg">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wide">SKU</p>
-            <p className="text-sm font-mono font-semibold text-gray-900 truncate" title={product.sku}>{product.sku}</p>
+            <p className="text-xs text-gray-600 uppercase tracking-wide">SKU</p>
+            <p className="text-sm font-mono font-semibold text-gray-900 break-all">{product.sku}</p>
           </div>
           <div className="p-2 bg-gray-50 rounded-lg">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Unidades</p>
+            <p className="text-xs text-gray-600 uppercase tracking-wide">Unidades</p>
             <p className="text-sm font-bold text-gray-900 tabular-nums">{fmtInt(product.qty)}</p>
           </div>
           <div className="p-2 bg-gray-50 rounded-lg">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Costo total</p>
-            <p className="text-sm font-bold text-amber-700 tabular-nums">{fmtCLP(product.cost)}</p>
+            <p className="text-xs text-gray-600 uppercase tracking-wide">Costo total</p>
+            <p className="text-sm font-bold text-[#fd6301] tabular-nums">{fmtCLP(product.cost)}</p>
           </div>
           <div className="p-2 bg-gray-50 rounded-lg">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Margen $</p>
-            <p className={`text-sm font-bold tabular-nums ${product.marginAmount < 0 ? "text-red-600" : "text-emerald-700"}`}>
+            <p className="text-xs text-gray-600 uppercase tracking-wide">Margen $</p>
+            <p className={`text-sm font-bold tabular-nums ${product.marginAmount < 0 ? "text-red-600" : "text-gray-900"}`}>
               {fmtCLP(product.marginAmount)}
             </p>
           </div>
@@ -1009,15 +985,15 @@ function StatCard({
   bgClass: string;
 }) {
   return (
-    <div className={`rounded-xl border px-4 py-3 ${bgClass}`}>
-      <div className="text-[11px] font-medium uppercase tracking-wide text-gray-500 mb-1">{label}</div>
+    <div className={`rounded-2xl border shadow-sm px-4 py-3 ${bgClass}`}>
+      <div className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300 mb-1">{label}</div>
       {value === null ? (
         <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
       ) : (
         <>
           <div className={`text-2xl font-bold ${colorClass}`}>{value}</div>
           {sublabel && (
-            <div className="text-[11px] text-gray-500 mt-0.5 truncate" title={sublabel}>{sublabel}</div>
+            <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{sublabel}</div>
           )}
         </>
       )}

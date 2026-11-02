@@ -988,8 +988,11 @@ export function registerOAuthRoutes(app: Express) {
       console.error('[oauth] error al limpiar tokens vencidos:', error?.message);
     }
   };
-  setTimeout(limpiar, 90_000).unref?.();
-  setInterval(limpiar, 6 * 60 * 60 * 1000).unref?.();
+  // SKIP_DB_BOOTSTRAP=1: desde local no se borra nada de la BD compartida.
+  if (process.env.SKIP_DB_BOOTSTRAP !== '1') {
+    setTimeout(limpiar, 90_000).unref?.();
+    setInterval(limpiar, 6 * 60 * 60 * 1000).unref?.();
+  }
 
   console.log('🔐 OAuth 2.1 para MCP registrado (/oauth/* + /.well-known/oauth-authorization-server)');
 }

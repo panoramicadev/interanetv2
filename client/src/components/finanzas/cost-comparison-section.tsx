@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { ICONO_CHIP_ICONO_SM, ICONO_CHIP_SM } from "@/lib/icono-chip";
 import {
   Table,
   TableBody,
@@ -190,13 +191,93 @@ export function CostComparisonSection({
     }
   }, [controlledPeriod, controlledSalesperson, controlledSegment]);
 
+  // El desglose es el mismo en la tabla de escritorio y en las tarjetas de celular.
+  const desglose = breakdownQuery.isLoading ? (
+    <div className="flex items-center text-sm text-muted-foreground">
+      <Loader2 className="h-4 w-4 animate-spin mr-2" /> Cargando desglose...
+    </div>
+  ) : !breakdownQuery.data ? (
+    <div className="text-sm text-muted-foreground">Sin datos.</div>
+  ) : (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="min-w-0">
+        <div className="font-semibold text-sm mb-2 flex items-center gap-1.5">
+          <Users className="h-4 w-4 text-[#fd6301]" /> Por vendedor
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-xs">Vendedor</TableHead>
+              <TableHead className="text-xs">Segmento</TableHead>
+              <TableHead className="text-right text-xs">Unid.</TableHead>
+              <TableHead className="text-right text-xs">Precio prom.</TableHead>
+              <TableHead className="text-right text-xs">Ingresos</TableHead>
+              <TableHead className="text-right text-xs">Margen %</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {breakdownQuery.data.bySalesperson.map(s => (
+              <TableRow key={s.salesperson} className="text-sm">
+                <TableCell className="py-1.5 font-medium">{s.salesperson}</TableCell>
+                <TableCell className="py-1.5 text-muted-foreground">
+                  {s.segment || <span className="italic">—</span>}
+                </TableCell>
+                <TableCell className="text-right tabular-nums py-1.5">{fmtInt(s.qty)}</TableCell>
+                <TableCell className="text-right tabular-nums py-1.5">{fmtCLP(s.avgSellPrice)}</TableCell>
+                <TableCell className="text-right tabular-nums py-1.5">{fmtCLP(s.revenue)}</TableCell>
+                <TableCell className="text-right py-1.5">
+                  <Badge variant="outline" className={marginBadgeClass(s.marginPct)}>
+                    {fmtPct(s.marginPct)}
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="min-w-0">
+        <div className="font-semibold text-sm mb-2 flex items-center gap-1.5">
+          <Building2 className="h-4 w-4 text-[#fd6301]" /> Por segmento del vendedor
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-xs">Segmento</TableHead>
+              <TableHead className="text-right text-xs">Vend.</TableHead>
+              <TableHead className="text-right text-xs">Unid.</TableHead>
+              <TableHead className="text-right text-xs">Precio prom.</TableHead>
+              <TableHead className="text-right text-xs">Ingresos</TableHead>
+              <TableHead className="text-right text-xs">Margen %</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {breakdownQuery.data.bySegment.map(s => (
+              <TableRow key={s.segment} className="text-sm">
+                <TableCell className="py-1.5 font-medium">{s.segment}</TableCell>
+                <TableCell className="text-right tabular-nums py-1.5">{fmtInt(s.salespersonCount)}</TableCell>
+                <TableCell className="text-right tabular-nums py-1.5">{fmtInt(s.qty)}</TableCell>
+                <TableCell className="text-right tabular-nums py-1.5">{fmtCLP(s.avgSellPrice)}</TableCell>
+                <TableCell className="text-right tabular-nums py-1.5">{fmtCLP(s.revenue)}</TableCell>
+                <TableCell className="text-right py-1.5">
+                  <Badge variant="outline" className={marginBadgeClass(s.marginPct)}>
+                    {fmtPct(s.marginPct)}
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+
   return (
-    <Card>
+    <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm">
       <CardHeader>
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-emerald-600" />
+            <CardTitle className="flex items-center gap-2 text-base">
+              <span className={ICONO_CHIP_SM}><TrendingUp className={ICONO_CHIP_ICONO_SM} /></span>
               Costo vs Venta FCV (margen real)
             </CardTitle>
             <CardDescription>
@@ -242,7 +323,7 @@ export function CostComparisonSection({
               </>
             )}
             <form
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 w-full sm:w-auto"
               onSubmit={e => {
                 e.preventDefault();
                 setSearch(searchInput);
@@ -253,7 +334,7 @@ export function CostComparisonSection({
                 value={searchInput}
                 onChange={e => setSearchInput(e.target.value)}
                 placeholder="Buscar SKU o producto..."
-                className="w-56 text-sm"
+                className="w-full sm:w-56 text-sm"
               />
               <Button type="submit" size="sm" variant="secondary">Buscar</Button>
               {(hideFilters ? !!search : hasFilters) && (
@@ -289,18 +370,64 @@ export function CostComparisonSection({
           </div>
         ) : (
           <>
+            {/* Celular: nueve columnas no entran, van como tarjetas que se abren al tocarlas. */}
+            <div className="md:hidden space-y-2 px-3 pb-3" data-testid="margen-comparacion-lista">
+              {data.rows.map(row => {
+                const isExpanded = expandedSku === row.sku;
+                return (
+                  <div key={row.sku} className="rounded-2xl border border-slate-200/70 dark:border-slate-800 overflow-hidden">
+                    <button
+                      type="button"
+                      className="w-full p-3 text-left"
+                      aria-expanded={isExpanded}
+                      onClick={() => setExpandedSku(isExpanded ? null : row.sku)}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="min-w-0 text-sm font-semibold text-slate-800 dark:text-slate-100">{row.producto || row.sku}</p>
+                        <Badge variant="outline" className={`${marginBadgeClass(row.marginPct)} shrink-0`}>{fmtPct(row.marginPct)}</Badge>
+                      </div>
+                      <p className="mt-1 flex items-center gap-1 text-xs font-mono text-slate-600 dark:text-slate-300">
+                        {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                        {row.sku} · {fmtInt(row.qty)} unid.
+                      </p>
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-sm tabular-nums">
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Costo</p>
+                          <p className="font-semibold text-[#fd6301]">{fmtCLP(row.cost)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Precio venta prom.</p>
+                          <p className="text-slate-800 dark:text-slate-100">{fmtCLP(row.avgSellPrice)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Ingresos</p>
+                          <p className="font-semibold text-slate-800 dark:text-slate-100">{fmtCLP(row.revenue)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Margen $</p>
+                          <p className="text-slate-800 dark:text-slate-100">{fmtCLP(row.marginAmount)}</p>
+                        </div>
+                      </div>
+                    </button>
+                    {isExpanded && <div className="p-3 border-t border-slate-200/70 dark:border-slate-800">{desglose}</div>}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted">
                   <TableHead className="w-8"></TableHead>
-                  <TableHead className="text-xs">SKU</TableHead>
-                  <TableHead className="text-xs">Producto</TableHead>
-                  <TableHead className="text-right text-xs text-amber-700">Costo</TableHead>
-                  <TableHead className="text-right text-xs">Precio venta prom.</TableHead>
-                  <TableHead className="text-right text-xs">Unidades</TableHead>
-                  <TableHead className="text-right text-xs">Ingresos</TableHead>
-                  <TableHead className="text-right text-xs">Margen $</TableHead>
-                  <TableHead className="text-right text-xs">Margen %</TableHead>
+                  <TableHead className="text-xs font-semibold text-slate-600 dark:text-slate-300">SKU</TableHead>
+                  <TableHead className="text-xs font-semibold text-slate-600 dark:text-slate-300">Producto</TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-[#fd6301]">Costo</TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Precio venta prom.</TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Unidades</TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Ingresos</TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Margen $</TableHead>
+                  <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Margen %</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -309,24 +436,24 @@ export function CostComparisonSection({
                   return (
                     <Fragment key={row.sku}>
                       <TableRow
-                        className="text-xs cursor-pointer hover:bg-muted/40"
+                        className="text-sm cursor-pointer hover:bg-muted/40"
                         onClick={() => setExpandedSku(isExpanded ? null : row.sku)}
                         data-testid={`row-comparison-${row.sku}`}
                       >
                         <TableCell className="py-2">
                           {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                         </TableCell>
-                        <TableCell className="font-mono py-2">{row.sku}</TableCell>
-                        <TableCell className="py-2 max-w-[280px] truncate" title={row.producto || ""}>
+                        <TableCell className="font-mono text-xs py-2">{row.sku}</TableCell>
+                        <TableCell className="py-2">
                           {row.producto || <span className="text-muted-foreground italic">—</span>}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums py-2 text-amber-700 font-semibold">
+                        <TableCell className="text-right tabular-nums py-2 text-[#fd6301] font-semibold">
                           {fmtCLP(row.cost)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums py-2">
                           {fmtCLP(row.avgSellPrice)}
                           {row.unitMarginPct != null && (
-                            <span className={`block text-[9px] ${row.unitMarginPct >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                            <span className={`block text-xs ${row.unitMarginPct >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                               {row.unitMarginPct >= 0 ? "+" : ""}{row.unitMarginPct.toFixed(1)}% unit.
                             </span>
                           )}
@@ -345,84 +472,7 @@ export function CostComparisonSection({
                       {isExpanded && (
                         <TableRow className="bg-muted/30">
                           <TableCell colSpan={9} className="p-4">
-                            {breakdownQuery.isLoading ? (
-                              <div className="flex items-center text-xs text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Cargando desglose...
-                              </div>
-                            ) : !breakdownQuery.data ? (
-                              <div className="text-xs text-muted-foreground">Sin datos.</div>
-                            ) : (
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                <div>
-                                  <div className="font-semibold text-xs mb-2 flex items-center gap-1.5">
-                                    <Users className="h-3.5 w-3.5" /> Por vendedor
-                                  </div>
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow className="text-[10px]">
-                                        <TableHead className="text-[10px]">Vendedor</TableHead>
-                                        <TableHead className="text-[10px]">Segmento</TableHead>
-                                        <TableHead className="text-right text-[10px]">Unid.</TableHead>
-                                        <TableHead className="text-right text-[10px]">Precio prom.</TableHead>
-                                        <TableHead className="text-right text-[10px]">Ingresos</TableHead>
-                                        <TableHead className="text-right text-[10px]">Margen %</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {breakdownQuery.data.bySalesperson.map(s => (
-                                        <TableRow key={s.salesperson} className="text-[11px]">
-                                          <TableCell className="py-1.5 font-medium">{s.salesperson}</TableCell>
-                                          <TableCell className="py-1.5 text-muted-foreground">
-                                            {s.segment || <span className="italic">—</span>}
-                                          </TableCell>
-                                          <TableCell className="text-right tabular-nums py-1.5">{fmtInt(s.qty)}</TableCell>
-                                          <TableCell className="text-right tabular-nums py-1.5">{fmtCLP(s.avgSellPrice)}</TableCell>
-                                          <TableCell className="text-right tabular-nums py-1.5">{fmtCLP(s.revenue)}</TableCell>
-                                          <TableCell className="text-right py-1.5">
-                                            <Badge variant="outline" className={`${marginBadgeClass(s.marginPct)} text-[10px]`}>
-                                              {fmtPct(s.marginPct)}
-                                            </Badge>
-                                          </TableCell>
-                                        </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </div>
-                                <div>
-                                  <div className="font-semibold text-xs mb-2 flex items-center gap-1.5">
-                                    <Building2 className="h-3.5 w-3.5" /> Por segmento del vendedor
-                                  </div>
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow className="text-[10px]">
-                                        <TableHead className="text-[10px]">Segmento</TableHead>
-                                        <TableHead className="text-right text-[10px]">Vend.</TableHead>
-                                        <TableHead className="text-right text-[10px]">Unid.</TableHead>
-                                        <TableHead className="text-right text-[10px]">Precio prom.</TableHead>
-                                        <TableHead className="text-right text-[10px]">Ingresos</TableHead>
-                                        <TableHead className="text-right text-[10px]">Margen %</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {breakdownQuery.data.bySegment.map(s => (
-                                        <TableRow key={s.segment} className="text-[11px]">
-                                          <TableCell className="py-1.5 font-medium">{s.segment}</TableCell>
-                                          <TableCell className="text-right tabular-nums py-1.5">{fmtInt(s.salespersonCount)}</TableCell>
-                                          <TableCell className="text-right tabular-nums py-1.5">{fmtInt(s.qty)}</TableCell>
-                                          <TableCell className="text-right tabular-nums py-1.5">{fmtCLP(s.avgSellPrice)}</TableCell>
-                                          <TableCell className="text-right tabular-nums py-1.5">{fmtCLP(s.revenue)}</TableCell>
-                                          <TableCell className="text-right py-1.5">
-                                            <Badge variant="outline" className={`${marginBadgeClass(s.marginPct)} text-[10px]`}>
-                                              {fmtPct(s.marginPct)}
-                                            </Badge>
-                                          </TableCell>
-                                        </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </div>
-                              </div>
-                            )}
+                            {desglose}
                           </TableCell>
                         </TableRow>
                       )}
@@ -431,8 +481,9 @@ export function CostComparisonSection({
                 })}
               </TableBody>
             </Table>
+            </div>
             {data.totalCount > limit && (
-              <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/50 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t bg-muted/50 text-sm">
                 <div className="text-muted-foreground">
                   Mostrando {page * limit + 1}–{Math.min((page + 1) * limit, data.totalCount)} de{" "}
                   {data.totalCount.toLocaleString("es-CL")}

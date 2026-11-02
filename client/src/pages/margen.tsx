@@ -34,6 +34,8 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { MarginDashboard } from "@/components/finanzas/margin-dashboard";
+import { ICONO_CHIP, ICONO_CHIP_ICONO, ICONO_CHIP_ICONO_SM, ICONO_CHIP_SM } from "@/lib/icono-chip";
+import { TABS_MODULO, TAB_MODULO } from "@/lib/tab-modulo";
 
 interface MargenProductRow {
   id: string;
@@ -214,6 +216,21 @@ export default function MargenPage() {
     return withMargin.map(r => r.item);
   }, [productsData?.items, griPrices, marginSort]);
 
+  const datosFila = (item: MargenProductRow) => {
+    const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+    const costoValue = griEntry?.price ?? (item.costoProduccion as any);
+    const costoNum: number | null = costoValue == null ? null : (typeof costoValue === "string" ? parseFloat(costoValue) : costoValue);
+    const minimoNum: number | null = item.minimo == null ? null : (typeof item.minimo === "string" ? parseFloat(item.minimo as any) : (item.minimo as any));
+    return {
+      costoNum,
+      costoDate: griEntry?.date ?? null,
+      margenPct: costoNum && minimoNum && minimoNum > 0 ? ((minimoNum - costoNum) / minimoNum) * 100 : null,
+      formato: item.formatUnit || item.unidad || "-",
+    };
+  };
+  const fechaCosto = (fecha: string) =>
+    new Date(fecha + "T00:00:00").toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "2-digit" });
+
   const lastExec = costosStatus?.lastExecution;
   const isRunning = costosStatus?.isRunning ?? false;
   const stats = parseStats(lastExec?.statistics ?? null);
@@ -335,30 +352,30 @@ export default function MargenPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900">
-      {/* Modern SaaS Header */}
-      <div className="bg-gradient-to-r from-emerald-900 via-slate-900 to-slate-900 dark:from-emerald-950 dark:via-slate-950 dark:to-slate-950">
+      {/* Header */}
+      <div className="bg-white dark:bg-slate-900">
         <div className="px-4 sm:px-6 lg:px-8 pt-6 pb-4">
           <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <div className="p-2 bg-emerald-500/20 rounded-lg">
-                  <Percent className="h-5 w-5 text-emerald-400" />
-                </div>
-                <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Margen</h1>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={ICONO_CHIP}>
+                <Percent className={ICONO_CHIP_ICONO} />
               </div>
-              <p className="text-slate-400 text-sm ml-12">
-                Análisis de margen real, alertas y comparativas — solo administradores
-              </p>
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Margen</h1>
+                <p className="hidden sm:block text-slate-500 dark:text-slate-400 text-sm">
+                  Análisis de margen real, alertas y comparativas — solo administradores
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               {lastExec && (
-                <div className="flex items-center gap-2 text-xs text-slate-300 bg-white/5 backdrop-blur-sm rounded-md px-3 py-1.5">
+                <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-100/70 dark:bg-slate-800 rounded-2xl px-3 py-2">
                   {lastExec.status === "success" ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                   ) : lastExec.status === "running" || isRunning ? (
-                    <Loader2 className="h-3.5 w-3.5 text-blue-400 animate-spin" />
+                    <Loader2 className="h-3.5 w-3.5 text-[#fd6301] animate-spin" />
                   ) : (
-                    <XCircle className="h-3.5 w-3.5 text-red-400" />
+                    <XCircle className="h-3.5 w-3.5 text-red-600" />
                   )}
                   <span>
                     Costos: {formatDistanceToNow(new Date(lastExec.startTime), { locale: es, addSuffix: true })}
@@ -369,7 +386,7 @@ export default function MargenPage() {
                 size="sm"
                 onClick={() => runCostosMutation.mutate()}
                 disabled={isRunning || runCostosMutation.isPending}
-                className="bg-emerald-500 hover:bg-emerald-600 text-white border-0"
+                className="h-10 px-4 text-sm font-semibold rounded-2xl bg-[#fd6301] hover:bg-[#e35400] text-white border-0 shadow-md shadow-orange-500/25"
                 data-testid="button-run-costos-etl"
               >
                 {isRunning || runCostosMutation.isPending ? (
@@ -391,11 +408,11 @@ export default function MargenPage() {
         {/* Tabs Navigation - inside header */}
         <div className="px-4 sm:px-6 lg:px-8">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <div className="overflow-x-auto -mx-2 px-2 scrollbar-hide">
-              <TabsList className="inline-flex min-w-max gap-0.5 p-1 bg-white/10 backdrop-blur-sm rounded-t-xl border-0 h-auto">
+            <div className="overflow-x-auto scrollbar-hide">
+              <TabsList className={TABS_MODULO}>
                 <TabsTrigger
                   value="dashboard"
-                  className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
+                  className={TAB_MODULO}
                   data-testid="tab-margen-dashboard"
                 >
                   <LayoutDashboard className="h-3.5 w-3.5 flex-shrink-0" />
@@ -403,7 +420,7 @@ export default function MargenPage() {
                 </TabsTrigger>
                 <TabsTrigger
                   value="productos"
-                  className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
+                  className={TAB_MODULO}
                   data-testid="tab-margen-productos"
                 >
                   <ListChecks className="h-3.5 w-3.5 flex-shrink-0" />
@@ -411,7 +428,7 @@ export default function MargenPage() {
                 </TabsTrigger>
                 <TabsTrigger
                   value="etl"
-                  className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
+                  className={TAB_MODULO}
                   data-testid="tab-margen-etl"
                 >
                   <Database className="h-3.5 w-3.5 flex-shrink-0" />
@@ -431,12 +448,12 @@ export default function MargenPage() {
           </TabsContent>
 
           <TabsContent value="productos" className="mt-0">
-            <Card className="border-0 shadow-sm">
+            <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div>
                     <CardTitle className="flex items-center gap-2 text-base">
-                      <Package className="h-4 w-4 text-blue-600" />
+                      <span className={ICONO_CHIP_SM}><Package className={ICONO_CHIP_ICONO_SM} /></span>
                       Productos de la lista de precios y su costo
                     </CardTitle>
                     <p className="text-sm text-gray-500 mt-1">
@@ -445,22 +462,22 @@ export default function MargenPage() {
                       {productsData ? ` ${formatInt(productsData.totalCount)} productos.` : ""}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
                     <form
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 w-full sm:w-auto"
                       onSubmit={e => {
                         e.preventDefault();
                         setProductsSearch(productsSearchInput);
                         setProductsPage(0);
                       }}
                     >
-                      <div className="relative">
-                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                      <div className="relative flex-1 sm:flex-none">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <Input
                           value={productsSearchInput}
                           onChange={e => setProductsSearchInput(e.target.value)}
                           placeholder="Buscar código o producto..."
-                          className="pl-7 h-9 w-64 text-sm"
+                          className="pl-8 h-10 w-full sm:w-64 text-sm"
                         />
                       </div>
                       <Button type="submit" size="sm" variant="secondary">Buscar</Button>
@@ -486,7 +503,7 @@ export default function MargenPage() {
                       onClick={handleDownloadCsv}
                       disabled={isDownloadingCsv}
                       data-testid="button-margen-export-csv"
-                      className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                      className="rounded-2xl border-slate-200 text-slate-700 hover:bg-white hover:border-orange-200 hover:text-[#fd6301]"
                     >
                       {isDownloadingCsv ? (
                         <>
@@ -505,8 +522,8 @@ export default function MargenPage() {
 
                 {/* Filtros por agrupación comercial */}
                 <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t">
-                  <div className="flex items-center gap-1.5">
-                    <Layers className="h-3.5 w-3.5 text-teal-600" />
+                  <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                    <Layers className="h-4 w-4 shrink-0 text-[#fd6301]" />
                     <Select
                       value={selectedFamily || "__all__"}
                       onValueChange={v => {
@@ -514,7 +531,7 @@ export default function MargenPage() {
                         setProductsPage(0);
                       }}
                     >
-                      <SelectTrigger className="h-9 w-56 text-sm" data-testid="select-margen-family">
+                      <SelectTrigger className="h-10 w-full sm:w-56 text-sm" data-testid="select-margen-family">
                         <SelectValue placeholder="Todas las agrupaciones" />
                       </SelectTrigger>
                       <SelectContent className="max-h-72">
@@ -526,8 +543,8 @@ export default function MargenPage() {
                     </Select>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <Palette className="h-3.5 w-3.5 text-purple-600" />
+                  <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                    <Palette className="h-4 w-4 shrink-0 text-[#fd6301]" />
                     <Select
                       value={selectedColor || "__all__"}
                       onValueChange={v => {
@@ -535,7 +552,7 @@ export default function MargenPage() {
                         setProductsPage(0);
                       }}
                     >
-                      <SelectTrigger className="h-9 w-44 text-sm" data-testid="select-margen-color">
+                      <SelectTrigger className="h-10 w-full sm:w-44 text-sm" data-testid="select-margen-color">
                         <SelectValue placeholder="Todos los colores" />
                       </SelectTrigger>
                       <SelectContent className="max-h-72">
@@ -547,8 +564,8 @@ export default function MargenPage() {
                     </Select>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <Ruler className="h-3.5 w-3.5 text-amber-600" />
+                  <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                    <Ruler className="h-4 w-4 shrink-0 text-[#fd6301]" />
                     <Select
                       value={selectedFormato || "__all__"}
                       onValueChange={v => {
@@ -556,7 +573,7 @@ export default function MargenPage() {
                         setProductsPage(0);
                       }}
                     >
-                      <SelectTrigger className="h-9 w-44 text-sm" data-testid="select-margen-formato">
+                      <SelectTrigger className="h-10 w-full sm:w-44 text-sm" data-testid="select-margen-formato">
                         <SelectValue placeholder="Todos los formatos" />
                       </SelectTrigger>
                       <SelectContent className="max-h-72">
@@ -568,10 +585,10 @@ export default function MargenPage() {
                     </Select>
                   </div>
 
-                  <div className="flex items-center gap-1.5 ml-auto">
-                    <span className="text-xs text-gray-500">Ordenar:</span>
+                  <div className="flex items-center gap-1.5 w-full sm:w-auto sm:ml-auto">
+                    <span className="text-sm text-gray-600 dark:text-gray-300 shrink-0">Ordenar:</span>
                     <Select value={marginSort} onValueChange={v => setMarginSort(v as MargenSort)}>
-                      <SelectTrigger className="h-9 w-52 text-sm" data-testid="select-margen-sort">
+                      <SelectTrigger className="h-10 w-full sm:w-52 text-sm" data-testid="select-margen-sort">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -583,13 +600,13 @@ export default function MargenPage() {
                         </SelectItem>
                         <SelectItem value="margin-asc">
                           <div className="flex items-center gap-2">
-                            <ArrowUp className="h-3.5 w-3.5 text-red-500" />
+                            <ArrowUp className="h-3.5 w-3.5 text-gray-500" />
                             <span>Margen ascendente</span>
                           </div>
                         </SelectItem>
                         <SelectItem value="margin-desc">
                           <div className="flex items-center gap-2">
-                            <ArrowDown className="h-3.5 w-3.5 text-emerald-500" />
+                            <ArrowDown className="h-3.5 w-3.5 text-gray-500" />
                             <span>Margen descendente</span>
                           </div>
                         </SelectItem>
@@ -627,36 +644,71 @@ export default function MargenPage() {
                   </div>
                 ) : (
                   <>
+                    {/* Celular: una tabla de nueve columnas no entra, va como tarjetas. */}
+                    <div className="md:hidden space-y-2 px-3 pb-3" data-testid="margen-productos-lista">
+                      {sortedItems.map(item => {
+                        const { costoNum, costoDate, margenPct, formato } = datosFila(item);
+                        return (
+                          <div key={item.id} className="rounded-2xl border border-slate-200/70 dark:border-slate-800 p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="min-w-0 text-sm font-semibold text-slate-800 dark:text-slate-100">{item.producto}</p>
+                              {margenPct !== null && (
+                                <Badge variant="outline" className={`${marginBadgeClass(margenPct)} shrink-0`}>
+                                  {formatPct(margenPct)}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 font-mono">{item.codigo}</p>
+                            {item.productFamily && (
+                              <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{item.productFamily}</p>
+                            )}
+                            <p className="text-sm text-slate-600 dark:text-slate-300">
+                              {[item.color, formato].filter(Boolean).join(" · ")}
+                            </p>
+                            <div className="mt-2 grid grid-cols-3 gap-2 text-sm tabular-nums">
+                              <div>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Lista</p>
+                                <p className="text-slate-800 dark:text-slate-100">{item.lista ? formatCLP(Number(item.lista)) : "-"}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Mínimo</p>
+                                <p className="text-slate-800 dark:text-slate-100">{item.minimo ? formatCLP(Number(item.minimo)) : "-"}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Costo{costoDate ? ` · ${fechaCosto(costoDate)}` : ""}</p>
+                                <p className="font-semibold text-[#fd6301]">{costoNum ? formatCLP(costoNum) : "-"}</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="hidden md:block">
                     <Table>
                       <TableHeader>
-                        <TableRow className="bg-gray-50">
-                          <TableHead className="text-xs">Código</TableHead>
-                          <TableHead className="text-xs">Producto</TableHead>
-                          <TableHead className="text-xs">Agrupación</TableHead>
-                          <TableHead className="text-xs">Color</TableHead>
-                          <TableHead className="text-xs">Formato</TableHead>
-                          <TableHead className="text-right text-xs">Lista</TableHead>
-                          <TableHead className="text-right text-xs">Mínimo</TableHead>
-                          <TableHead className="text-right text-xs text-amber-700">Costo</TableHead>
-                          <TableHead className="text-right text-xs">Margen vs mínimo</TableHead>
+                        <TableRow className="bg-gray-50 dark:bg-slate-800">
+                          <TableHead className="text-xs font-semibold text-slate-600 dark:text-slate-300">Código</TableHead>
+                          <TableHead className="text-xs font-semibold text-slate-600 dark:text-slate-300">Producto</TableHead>
+                          <TableHead className="text-xs font-semibold text-slate-600 dark:text-slate-300">Agrupación</TableHead>
+                          <TableHead className="text-xs font-semibold text-slate-600 dark:text-slate-300">Color</TableHead>
+                          <TableHead className="text-xs font-semibold text-slate-600 dark:text-slate-300">Formato</TableHead>
+                          <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Lista</TableHead>
+                          <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Mínimo</TableHead>
+                          <TableHead className="text-right text-xs font-semibold text-[#fd6301]">Costo</TableHead>
+                          <TableHead className="text-right text-xs font-semibold text-slate-600 dark:text-slate-300">Margen vs mínimo</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {sortedItems.map(item => {
-                          const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
-                          const costoValue = griEntry?.price ?? (item.costoProduccion as any);
-                          const costoDate = griEntry?.date ?? null;
-                          const costoNum = costoValue == null ? null : (typeof costoValue === "string" ? parseFloat(costoValue) : costoValue);
-                          const minimoNum = item.minimo == null ? null : (typeof item.minimo === "string" ? parseFloat(item.minimo as any) : (item.minimo as any));
-                          const margenPct = costoNum && minimoNum && minimoNum > 0 ? ((minimoNum - costoNum) / minimoNum) * 100 : null;
-                          const formato = item.formatUnit || item.unidad || "-";
+                          const { costoNum, costoDate, margenPct, formato } = datosFila(item);
                           return (
-                            <TableRow key={item.id} className="text-xs">
-                              <TableCell className="font-mono py-2">{item.codigo}</TableCell>
-                              <TableCell className="py-2 max-w-[280px] truncate" title={item.producto}>{item.producto}</TableCell>
-                              <TableCell className="py-2 max-w-[180px] truncate" title={item.productFamily || ""}>
+                            <TableRow key={item.id} className="text-sm">
+                              <TableCell className="font-mono text-xs py-2">{item.codigo}</TableCell>
+                              <TableCell className="py-2">{item.producto}</TableCell>
+                              <TableCell className="py-2">
                                 {item.productFamily ? (
-                                  <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-200 font-normal">
+                                  <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-200 font-normal rounded-lg whitespace-normal leading-snug">
                                     {item.productFamily}
                                   </Badge>
                                 ) : (
@@ -673,13 +725,13 @@ export default function MargenPage() {
                               <TableCell className="text-right tabular-nums py-2">
                                 {item.minimo ? formatCLP(Number(item.minimo)) : "-"}
                               </TableCell>
-                              <TableCell className="text-right tabular-nums py-2 font-semibold text-amber-700">
+                              <TableCell className="text-right tabular-nums py-2 font-semibold text-[#fd6301]">
                                 {costoNum ? (
                                   <div>
                                     {formatCLP(costoNum)}
                                     {costoDate && (
-                                      <span className="block text-[9px] leading-tight mt-0.5 font-normal text-gray-500">
-                                        {new Date(costoDate + "T00:00:00").toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "2-digit" })}
+                                      <span className="block text-xs leading-tight mt-0.5 font-normal text-gray-600 dark:text-gray-400">
+                                        {fechaCosto(costoDate)}
                                       </span>
                                     )}
                                   </div>
@@ -699,9 +751,10 @@ export default function MargenPage() {
                         })}
                       </TableBody>
                     </Table>
+                    </div>
                     {productsData.totalCount > productsPerPage && (
-                      <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50 text-xs">
-                        <div className="text-gray-600">
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t bg-gray-50 dark:bg-slate-800 text-sm">
+                        <div className="text-gray-600 dark:text-gray-300">
                           Mostrando {productsPage * productsPerPage + 1}–
                           {Math.min((productsPage + 1) * productsPerPage, productsData.totalCount)} de{" "}
                           {formatInt(productsData.totalCount)}
@@ -737,10 +790,10 @@ export default function MargenPage() {
           </TabsContent>
 
           <TabsContent value="etl" className="mt-0">
-            <Card className="border-0 shadow-sm">
+            <Card className="rounded-2xl border-slate-200/70 dark:border-slate-800 shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Database className="h-4 w-4 text-emerald-600" />
+                  <span className={ICONO_CHIP_SM}><Database className={ICONO_CHIP_ICONO_SM} /></span>
                   Importación de costos (ETL)
                 </CardTitle>
                 <p className="text-sm text-gray-500 mt-1">
@@ -758,12 +811,12 @@ export default function MargenPage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="rounded-md border bg-gray-50 px-3 py-2">
-                      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-gray-500">
+                    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2">
+                      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-gray-600 dark:text-gray-300">
                         {lastExec.status === "success" ? (
                           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                         ) : lastExec.status === "running" ? (
-                          <Loader2 className="h-3.5 w-3.5 text-blue-600 animate-spin" />
+                          <Loader2 className="h-3.5 w-3.5 text-[#fd6301] animate-spin" />
                         ) : (
                           <XCircle className="h-3.5 w-3.5 text-red-600" />
                         )}
@@ -773,41 +826,41 @@ export default function MargenPage() {
                         {lastExec.status === "success" ? "Exitoso" : lastExec.status === "running" ? "En curso" : "Error"}
                       </div>
                       {lastExec.errorMessage && (
-                        <div className="text-[10px] text-red-600 mt-0.5 truncate" title={lastExec.errorMessage}>
+                        <div className="text-xs text-red-600 mt-0.5 break-words">
                           {lastExec.errorMessage}
                         </div>
                       )}
                     </div>
 
-                    <div className="rounded-md border bg-gray-50 px-3 py-2">
-                      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-gray-500">
+                    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2">
+                      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-gray-600 dark:text-gray-300">
                         <Clock className="h-3.5 w-3.5 text-gray-500" />
                         Hace
                       </div>
                       <div className="text-sm font-semibold mt-0.5">
                         {formatDistanceToNow(new Date(lastExec.startTime), { locale: es, addSuffix: true })}
                       </div>
-                      <div className="text-[10px] text-gray-500 mt-0.5">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
                         {lastExec.executionTimeMs != null
                           ? `${(lastExec.executionTimeMs / 1000).toFixed(1)}s de ejecución`
                           : ""}
                       </div>
                     </div>
 
-                    <div className="rounded-md border bg-gray-50 px-3 py-2">
-                      <div className="text-[11px] uppercase tracking-wide text-gray-500">SKUs procesados</div>
+                    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2">
+                      <div className="text-xs uppercase tracking-wide text-gray-600 dark:text-gray-300">SKUs procesados</div>
                       <div className="text-lg font-bold mt-0.5">
                         {formatInt(lastExec.recordsProcessed ?? 0)}
                       </div>
-                      <div className="text-[10px] text-gray-500 mt-0.5">desde SQL Server</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">desde SQL Server</div>
                     </div>
 
-                    <div className="rounded-md border bg-gray-50 px-3 py-2">
-                      <div className="text-[11px] uppercase tracking-wide text-gray-500">Snapshots nuevos</div>
-                      <div className="text-lg font-bold mt-0.5 text-emerald-700">
+                    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2">
+                      <div className="text-xs uppercase tracking-wide text-gray-600 dark:text-gray-300">Snapshots nuevos</div>
+                      <div className="text-lg font-bold mt-0.5 text-[#fd6301]">
                         {formatInt(stats.newSnapshots ?? 0)}
                       </div>
-                      <div className="text-[10px] text-gray-500 mt-0.5">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
                         {stats.unchanged != null ? `${formatInt(stats.unchanged)} sin cambio` : ""}
                       </div>
                     </div>
