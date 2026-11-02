@@ -135,6 +135,10 @@ Peso de fuente `font-medium`, `font-semibold` en la activa. El borde inferior
 transparente va también en las inactivas: sin eso, al cambiar de pestaña salta el alto.
 El `-mb-px` monta el subrayado sobre la línea base, para que no se vean dos líneas.
 
+⚠️ **Excepción en Finanzas y Margen** (pedido del usuario, nov-2026): mismo riel, pero la
+pestaña activa va en naranjo (`#fd6301`, texto y línea). Encabezado blanco, sin el fondo
+oscuro que tenían. Fuente: `client/src/lib/tab-modulo.ts`.
+
 ⚠️ El **badge contador ya no se invierte**: sin relleno detrás, se queda siempre
 naranjo con texto blanco (`bg-[#fd6301] text-white`).
 

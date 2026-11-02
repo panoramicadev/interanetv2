@@ -1,0 +1,598 @@
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { addDays, addMonths, addWeeks, endOfMonth, endOfWeek, format, parseISO, startOfMonth, startOfWeek } from "date-fns";
+import { es } from "date-fns/locale";
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, ChevronsUpDown, ClipboardList, FileDown, FileSpreadsheet, FileText, Layers, Loader2, Receipt, RotateCcw, Search, Store, Truck, User, type LucideIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import TarjetaKpi from "@/components/dashboard/kpi-simple-card";
+import { useToast } from "@/hooks/use-toast";
+import { ICONO_CHIP, ICONO_CHIP_ICONO } from "@/lib/icono-chip";
+
+type TipoPeriodo = "diario" | "semanal" | "mensual" | "rango";
+
+interface CategoriaResumen {
+  clave: "nvv" | "gdv" | "facturas" | "ncv";
+  titulo: string;
+  monto: number | null;
+  documentos: number | null;
+}
+
+interface Resumen {
+  desde: string;
+  hasta: string;
+  categorias: CategoriaResumen[];
+  consolidado: number;
+  incompleto: boolean;
+  opciones: { vendedores: string[]; clientes: { codigo: string; nombre: string }[]; segmentos: string[] };
+}
+
+const TODOS = "todos";
+
+interface FiltrosPanel {
+  segmento: string;
+  vendedor: string;
+  cliente: string;
+}
+
+/** Arma la consulta del período con los filtros, sin mandar los que están en "todos". */
+function armarParametros(desde: string, hasta: string, filtros: FiltrosPanel, extra: Record<string, string> = {}) {
+  const parametros = new URLSearchParams({ desde, hasta, ...extra });
+  if (filtros.segmento !== TODOS) parametros.set("segmento", filtros.segmento);
+  if (filtros.vendedor !== TODOS) parametros.set("vendedor", filtros.vendedor);
+  if (filtros.cliente !== TODOS) parametros.set("cliente", filtros.cliente);
+  return parametros.toString();
+}
+
+// Buscar sin tildes ni mayúsculas: "construccion" tiene que encontrar "Construcción".
+const normalizar = (v: string) => v.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+function PillFiltro({
+  etiqueta,
+  icono: Icono,
+  valor,
+  onChange,
+  testId,
+  textoTodos,
+  opciones,
+}: {
+  etiqueta: string;
+  icono: LucideIcon;
+  valor: string;
+  onChange: (valor: string) => void;
+  testId: string;
+  textoTodos: string;
+  opciones: { valor: string; etiqueta: string }[];
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const elegir = (nuevo: string) => {
+    onChange(nuevo);
+    setAbierto(false);
+  };
+  const actual = opciones.find((o) => o.valor === valor)?.etiqueta ?? textoTodos;
+
+  return (
+    <Popover open={abierto} onOpenChange={setAbierto}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          role="combobox"
+          aria-expanded={abierto}
+          aria-label={etiqueta}
+          data-testid={testId}
+          className="flex items-center gap-3 min-w-0 w-full text-left bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl pl-2.5 pr-4 py-2.5 shadow-sm hover:border-orange-200 hover:shadow transition-all"
+        >
+          <span className="flex items-center justify-center w-9 h-9 rounded-xl text-[#fd6301] flex-shrink-0">
+            <Icono className="h-4 w-4" />
+          </span>
+          <span className="flex flex-col leading-none min-w-0 flex-1">
+            <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">{etiqueta}</span>
+            <span className="truncate font-semibold text-sm leading-5 text-slate-700 dark:text-slate-200">{actual}</span>
+          </span>
+          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] min-w-[16rem] p-0" align="start">
+        <Command filter={(item, busqueda) => (normalizar(item).includes(normalizar(busqueda)) ? 1 : 0)}>
+          <CommandInput placeholder={`Buscar ${etiqueta.toLowerCase()}...`} data-testid={`${testId}-buscar`} />
+          <CommandList>
+            <CommandEmpty>Sin resultados.</CommandEmpty>
+            <CommandGroup>
+              {/* Siempre a la vista, aunque se esté buscando: es la salida del filtro. */}
+              <CommandItem value={textoTodos} forceMount onSelect={() => elegir(TODOS)}>
+                <Check className={`mr-2 h-4 w-4 ${valor === TODOS ? "opacity-100" : "opacity-0"}`} />
+                {textoTodos}
+              </CommandItem>
+              {opciones.map((o) => (
+                <CommandItem key={o.valor} value={`${o.etiqueta} ${o.valor}`} onSelect={() => elegir(o.valor)}>
+                  <Check className={`mr-2 h-4 w-4 shrink-0 ${valor === o.valor ? "opacity-100" : "opacity-0"}`} />
+                  {o.etiqueta}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+interface DocumentoDetalle {
+  tipo: string;
+  numero: string;
+  fecha: string;
+  codigoCliente: string;
+  cliente: string;
+  vendedor: string;
+  neto: number;
+  bruto: number;
+}
+
+type ClaveCategoria = CategoriaResumen["clave"];
+
+const POR_PAGINA = 50;
+
+const CATEGORIAS_BASE: { clave: ClaveCategoria; titulo: string }[] = [
+  { clave: "nvv", titulo: "Notas de venta" },
+  { clave: "gdv", titulo: "Guías de despacho" },
+  { clave: "facturas", titulo: "Total facturado" },
+  { clave: "ncv", titulo: "Notas de crédito" },
+];
+
+const TITULO_DETALLE: Record<ClaveCategoria, string> = {
+  nvv: "Notas de venta",
+  gdv: "Guías",
+  facturas: "Facturas",
+  ncv: "Notas de crédito",
+};
+
+const claseOpcion = (activa: boolean) =>
+  `h-8 shrink-0 px-4 rounded-xl text-sm font-medium transition-colors ${
+    activa
+      ? "bg-white dark:bg-slate-700 text-[#fd6301] shadow-sm"
+      : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+  }`;
+
+const OPCIONES_PERIODO: { valor: TipoPeriodo; etiqueta: string }[] = [
+  { valor: "diario", etiqueta: "Diario" },
+  { valor: "semanal", etiqueta: "Semanal" },
+  { valor: "mensual", etiqueta: "Mensual" },
+  { valor: "rango", etiqueta: "Rango" },
+];
+
+const ICONOS: Record<CategoriaResumen["clave"], LucideIcon> = {
+  nvv: ClipboardList,
+  gdv: Truck,
+  facturas: Receipt,
+  ncv: RotateCcw,
+};
+
+const ISO = "yyyy-MM-dd";
+const clp = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
+const fechaCorta = (iso: string) => format(parseISO(iso), "dd/MM/yyyy");
+
+function periodoDe(tipo: TipoPeriodo, referencia: Date, rangoDesde: string, rangoHasta: string) {
+  if (tipo === "diario") return { desde: format(referencia, ISO), hasta: format(referencia, ISO) };
+  if (tipo === "semanal") {
+    return {
+      desde: format(startOfWeek(referencia, { weekStartsOn: 1 }), ISO),
+      hasta: format(endOfWeek(referencia, { weekStartsOn: 1 }), ISO),
+    };
+  }
+  if (tipo === "mensual") {
+    return { desde: format(startOfMonth(referencia), ISO), hasta: format(endOfMonth(referencia), ISO) };
+  }
+  return { desde: rangoDesde, hasta: rangoHasta };
+}
+
+function etiquetaDe(tipo: TipoPeriodo, desde: string, hasta: string) {
+  if (!desde || !hasta) return "";
+  if (tipo === "mensual") {
+    const mes = format(parseISO(desde), "MMMM yyyy", { locale: es });
+    return mes.charAt(0).toUpperCase() + mes.slice(1);
+  }
+  return desde === hasta ? fechaCorta(desde) : `${fechaCorta(desde)} al ${fechaCorta(hasta)}`;
+}
+
+/** Los documentos de una categoría en el período: tabla en escritorio, tarjetas en celular. */
+function DocumentosDelPeriodo({
+  desde,
+  hasta,
+  filtros,
+  categoria,
+  onCategoria,
+}: {
+  desde: string;
+  hasta: string;
+  filtros: FiltrosPanel;
+  categoria: ClaveCategoria;
+  onCategoria: (clave: ClaveCategoria) => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const [pagina, setPagina] = useState(0);
+
+  const { data, isLoading, isError, error } = useQuery<{ documentos: DocumentoDetalle[] | null }, Error>({
+    queryKey: ["/api/detalle-facturacion/documentos", desde, hasta, filtros, categoria],
+    retry: false,
+    queryFn: async () => {
+      const parametros = armarParametros(desde, hasta, filtros, { categoria });
+      const res = await fetch(`/api/detalle-facturacion/documentos?${parametros}`, { credentials: "include" });
+      const cuerpo = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(cuerpo?.message || "No se pudo cargar el detalle");
+      return cuerpo;
+    },
+  });
+
+  useEffect(() => setPagina(0), [desde, hasta, filtros, categoria, busqueda]);
+
+  // Los más recientes primero: es lo que se viene a revisar.
+  const filtrados = useMemo(() => {
+    const termino = busqueda.trim().toLowerCase();
+    const lista = [...(data?.documentos ?? [])].reverse();
+    if (!termino) return lista;
+    return lista.filter((d) =>
+      [d.numero, d.cliente, d.codigoCliente, d.vendedor].some((v) => v.toLowerCase().includes(termino)),
+    );
+  }, [data, busqueda]);
+
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
+  const visibles = filtrados.slice(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA);
+
+  return (
+    <div className="mt-4 rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-4" data-testid="documentos-periodo">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3">
+        <div className="inline-flex self-start max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden gap-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800 p-1">
+          {CATEGORIAS_BASE.map((c) => (
+            <button
+              key={c.clave}
+              type="button"
+              aria-pressed={categoria === c.clave}
+              onClick={() => onCategoria(c.clave)}
+              data-testid={`detalle-${c.clave}`}
+              className={claseOpcion(categoria === c.clave)}
+            >
+              {TITULO_DETALLE[c.clave]}
+            </button>
+          ))}
+        </div>
+        <div className="relative lg:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar N°, cliente o vendedor"
+            aria-label="Buscar documento"
+            className="h-10 pl-9 rounded-2xl"
+            data-testid="detalle-busqueda"
+          />
+        </div>
+      </div>
+
+      {isLoading ? (
+        <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+          <Loader2 className="inline h-4 w-4 mr-2 animate-spin" />
+          Cargando documentos…
+        </p>
+      ) : isError ? (
+        <p className="py-8 text-center text-sm text-red-600 dark:text-red-400">{error?.message}</p>
+      ) : data?.documentos === null ? (
+        <p className="py-8 text-center text-sm text-red-600 dark:text-red-400">
+          No se pudo consultar el sistema de gestión: el detalle de las notas de venta no está disponible.
+        </p>
+      ) : filtrados.length === 0 ? (
+        <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+          {busqueda.trim() ? "Ningún documento coincide con la búsqueda." : "No hay documentos en este período."}
+        </p>
+      ) : (
+        <>
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm" data-testid="detalle-tabla">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-left text-xs uppercase tracking-wider text-slate-400">
+                  <th className="py-2 pr-3 font-semibold">Tipo</th>
+                  <th className="py-2 pr-3 font-semibold">N°</th>
+                  <th className="py-2 pr-3 font-semibold">Fecha</th>
+                  <th className="py-2 pr-3 font-semibold">Cliente</th>
+                  <th className="py-2 pr-3 font-semibold">Vendedor</th>
+                  <th className="py-2 pr-3 font-semibold text-right">Neto</th>
+                  <th className="py-2 font-semibold text-right">Bruto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibles.map((d) => (
+                  <tr key={`${d.tipo}-${d.numero}-${d.fecha}`} className="border-b border-slate-100 dark:border-slate-800/60 text-slate-700 dark:text-slate-200">
+                    <td className="py-2 pr-3 whitespace-nowrap">{d.tipo}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap tabular-nums">{d.numero}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap tabular-nums">{fechaCorta(d.fecha)}</td>
+                    <td className="py-2 pr-3">{d.cliente || d.codigoCliente}</td>
+                    <td className="py-2 pr-3">{d.vendedor || "—"}</td>
+                    <td className="py-2 pr-3 text-right whitespace-nowrap tabular-nums font-medium">{clp(d.neto)}</td>
+                    <td className="py-2 text-right whitespace-nowrap tabular-nums">{clp(d.bruto)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="md:hidden space-y-2" data-testid="detalle-lista">
+            {visibles.map((d) => (
+              <div key={`${d.tipo}-${d.numero}-${d.fecha}`} className="rounded-2xl border border-slate-200/70 dark:border-slate-800 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="min-w-0 text-sm font-semibold text-slate-800 dark:text-slate-100">{d.cliente || d.codigoCliente}</p>
+                  <p className="shrink-0 text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100">{clp(d.neto)}</p>
+                </div>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+                  {d.tipo} {d.numero} · {fechaCorta(d.fecha)}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{d.vendedor || "—"} · Bruto {clp(d.bruto)}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 flex items-center justify-between gap-3 text-sm text-slate-500 dark:text-slate-400">
+            <span className="tabular-nums" data-testid="detalle-conteo">
+              {filtrados.length.toLocaleString("es-CL")} documentos · {clp(filtrados.reduce((s, d) => s + d.neto, 0))} neto
+            </span>
+            {totalPaginas > 1 && (
+              <div className="flex items-center gap-1 shrink-0">
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg" aria-label="Página anterior" disabled={pagina === 0} onClick={() => setPagina((p) => p - 1)}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="tabular-nums">{pagina + 1} / {totalPaginas}</span>
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg" aria-label="Página siguiente" disabled={pagina >= totalPaginas - 1} onClick={() => setPagina((p) => p + 1)}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Totales de notas de venta, guías, facturas y notas de crédito del período, con
+ * su descarga en PDF y Excel. Lo usan el panel de Recepción y Finanzas (admin).
+ */
+export default function DetalleFacturacion() {
+  const { toast } = useToast();
+  const [tipo, setTipo] = useState<TipoPeriodo>("mensual");
+  const [referencia, setReferencia] = useState(() => new Date());
+  const hoy = format(new Date(), ISO);
+  const [rangoDesde, setRangoDesde] = useState(() => format(startOfMonth(new Date()), ISO));
+  const [rangoHasta, setRangoHasta] = useState(hoy);
+  const [descargando, setDescargando] = useState<"pdf" | "excel" | null>(null);
+  const [categoria, setCategoria] = useState<ClaveCategoria>("nvv");
+  const [segmento, setSegmento] = useState(TODOS);
+  const [vendedor, setVendedor] = useState(TODOS);
+  const [cliente, setCliente] = useState(TODOS);
+  const filtros = useMemo(() => ({ segmento, vendedor, cliente }), [segmento, vendedor, cliente]);
+
+  const { desde, hasta } = periodoDe(tipo, referencia, rangoDesde, rangoHasta);
+  const fechasListas = Boolean(desde && hasta);
+  const parametros = armarParametros(desde, hasta, filtros);
+
+  const { data, isLoading, isError, error, isPlaceholderData } = useQuery<Resumen, Error>({
+    queryKey: ["/api/detalle-facturacion/resumen", desde, hasta, filtros],
+    // Mientras carga el filtro recién elegido, sus opciones siguen a la vista.
+    placeholderData: (anterior) => anterior,
+    enabled: fechasListas,
+    retry: false,
+    queryFn: async () => {
+      const res = await fetch(`/api/detalle-facturacion/resumen?${parametros}`, { credentials: "include" });
+      const cuerpo = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(cuerpo?.message || "No se pudo cargar el detalle");
+      return cuerpo;
+    },
+  });
+
+  // Al cambiar de período, un vendedor o cliente sin movimiento ya no está en la
+  // lista: se vuelve a "todos" para no dejar un filtro invisible aplicado.
+  useEffect(() => {
+    if (!data || isPlaceholderData) return;
+    if (segmento !== TODOS && !data.opciones.segmentos.includes(segmento)) setSegmento(TODOS);
+    if (vendedor !== TODOS && !data.opciones.vendedores.includes(vendedor)) setVendedor(TODOS);
+    if (cliente !== TODOS && !data.opciones.clientes.some((c) => c.codigo === cliente)) setCliente(TODOS);
+  }, [data, isPlaceholderData, segmento, vendedor, cliente]);
+
+  const mover = (delta: number) => {
+    setReferencia((actual) => {
+      if (tipo === "diario") return addDays(actual, delta);
+      if (tipo === "semanal") return addWeeks(actual, delta);
+      return addMonths(actual, delta);
+    });
+  };
+
+  const descargar = async (formato: "pdf" | "excel") => {
+    setDescargando(formato);
+    try {
+      const res = await fetch(`/api/detalle-facturacion/${formato}?${parametros}`, { credentials: "include" });
+      if (!res.ok) {
+        const cuerpo = await res.json().catch(() => null);
+        throw new Error(cuerpo?.message || "No se pudo generar el archivo");
+      }
+      const url = URL.createObjectURL(await res.blob());
+      const enlace = document.createElement("a");
+      enlace.href = url;
+      // El nombre lleva los filtros: dos descargas del mismo período no se confunden.
+      const nombreCliente = data?.opciones.clientes.find((c) => c.codigo === cliente)?.nombre ?? cliente;
+      const sufijo = [segmento, vendedor, cliente === TODOS ? TODOS : nombreCliente]
+        .filter((v) => v !== TODOS)
+        .map((v) => `_${normalizar(v).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`)
+        .join("");
+      enlace.download = `detalle-facturacion_${desde}_${hasta}${sufijo}.${formato === "pdf" ? "pdf" : "xlsx"}`;
+      enlace.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      toast({ title: "No se pudo descargar", description: e?.message, variant: "destructive" });
+    } finally {
+      setDescargando(null);
+    }
+  };
+
+  const claseDescarga =
+    "h-10 px-4 text-sm font-semibold rounded-2xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 hover:border-orange-200 hover:text-[#fd6301] shadow-sm";
+  const puedeDescargar = fechasListas && !isError && !isLoading && !descargando;
+
+  return (
+    <section className="mb-6" data-testid="detalle-facturacion">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={ICONO_CHIP}>
+            <FileText className={ICONO_CHIP_ICONO} />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Detalle facturación NVV y GDV</h2>
+            <p className="hidden sm:block text-sm text-slate-500 dark:text-slate-400">Montos netos del período seleccionado</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 sm:flex gap-2">
+          <Button variant="outline" className={claseDescarga} disabled={!puedeDescargar} onClick={() => descargar("pdf")} data-testid="detalle-facturacion-pdf">
+            {descargando === "pdf" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
+            PDF
+          </Button>
+          <Button variant="outline" className={claseDescarga} disabled={!puedeDescargar} onClick={() => descargar("excel")} data-testid="detalle-facturacion-excel">
+            {descargando === "excel" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
+            Excel
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+        <PillFiltro
+          etiqueta="Segmento"
+          icono={Layers}
+          valor={segmento}
+          onChange={setSegmento}
+          testId="filtro-segmento"
+          textoTodos="Todos los segmentos"
+          opciones={(data?.opciones.segmentos ?? []).map((s) => ({ valor: s, etiqueta: s }))}
+        />
+        <PillFiltro
+          etiqueta="Vendedor"
+          icono={User}
+          valor={vendedor}
+          onChange={setVendedor}
+          testId="filtro-vendedor"
+          textoTodos="Todos los vendedores"
+          opciones={(data?.opciones.vendedores ?? []).map((v) => ({ valor: v, etiqueta: v }))}
+        />
+        <PillFiltro
+          etiqueta="Cliente"
+          icono={Store}
+          valor={cliente}
+          onChange={setCliente}
+          testId="filtro-cliente"
+          textoTodos="Todos los clientes"
+          opciones={(data?.opciones.clientes ?? []).map((c) => ({ valor: c.codigo, etiqueta: c.nombre }))}
+        />
+      </div>
+
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-4" data-sin-brillo>
+        <div className="inline-flex self-start max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden gap-1 rounded-2xl bg-slate-100/70 dark:bg-slate-800 p-1">
+          {OPCIONES_PERIODO.map((opcion) => (
+            <button
+              key={opcion.valor}
+              type="button"
+              aria-pressed={tipo === opcion.valor}
+              onClick={() => setTipo(opcion.valor)}
+              data-testid={`periodo-${opcion.valor}`}
+              className={claseOpcion(tipo === opcion.valor)}
+            >
+              {opcion.etiqueta}
+            </button>
+          ))}
+        </div>
+
+        {tipo === "rango" ? (
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+            <Input
+              type="date"
+              aria-label="Desde"
+              value={rangoDesde}
+              max={rangoHasta || undefined}
+              onChange={(e) => setRangoDesde(e.target.value)}
+              className="h-10 rounded-2xl sm:w-44"
+              data-testid="rango-desde"
+            />
+            <Input
+              type="date"
+              aria-label="Hasta"
+              value={rangoHasta}
+              min={rangoDesde || undefined}
+              onChange={(e) => setRangoHasta(e.target.value)}
+              className="h-10 rounded-2xl sm:w-44"
+              data-testid="rango-hasta"
+            />
+          </div>
+        ) : (
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg shrink-0" aria-label="Período anterior" onClick={() => mover(-1)}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="min-w-[11rem] text-center text-sm font-semibold text-slate-700 dark:text-slate-200 tabular-nums" data-testid="periodo-etiqueta">
+              {etiquetaDe(tipo, desde, hasta)}
+            </span>
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg shrink-0" aria-label="Período siguiente" onClick={() => mover(1)}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {isError ? (
+        <div className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {error?.message}
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 min-[400px]:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+            {(data?.categorias ?? (CATEGORIAS_BASE as CategoriaResumen[])).map((c) => (
+              <TarjetaKpi
+                key={c.clave}
+                titulo={c.titulo}
+                icono={ICONOS[c.clave]}
+                valor={isLoading ? "…" : c.monto === null ? "No disponible" : clp(c.monto)}
+                detalles={
+                  !isLoading && c.documentos !== null
+                    ? [{ etiqueta: "Documentos", valor: c.documentos.toLocaleString("es-CL") }]
+                    : undefined
+                }
+                testId={`total-${c.clave}`}
+                onClick={() => setCategoria(c.clave)}
+                className={categoria === c.clave ? "!border-[#fd6301]" : ""}
+              />
+            ))}
+          </div>
+
+          <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 rounded-2xl bg-orange-50 dark:bg-orange-950/30 border border-orange-100 dark:border-orange-900/50 px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Total consolidado del período</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Suma de los cuatro totales: mide volumen de movimientos, y una misma venta puede aparecer como nota, guía y factura.
+              </p>
+            </div>
+            <p className="text-xl font-bold text-[#fd6301] tabular-nums shrink-0" data-testid="total-consolidado">
+              {isLoading || !data ? "…" : clp(data.consolidado)}
+            </p>
+          </div>
+
+          {data?.incompleto && (
+            <p className="mt-2 flex items-center gap-2 text-sm text-red-600 dark:text-red-400" data-testid="aviso-incompleto">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              No se pudo consultar el sistema de gestión: el consolidado no incluye las notas de venta.
+            </p>
+          )}
+
+          {fechasListas && (
+            <DocumentosDelPeriodo desde={desde} hasta={hasta} filtros={filtros} categoria={categoria} onCategoria={setCategoria} />
+          )}
+        </>
+      )}
+    </section>
+  );
+}

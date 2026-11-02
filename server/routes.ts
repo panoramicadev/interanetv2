@@ -137,6 +137,7 @@ import { registerPermissionRoutes, requirePermission, getEffectivePermissionsFor
 import { registerCommissionRoutes } from "./commissions";
 import { registerRemuneracionesRoutes } from "./routes-remuneraciones";
 import { registerBalanceRoutes } from "./routes-balance";
+import { registerDetalleFacturacionRoutes } from "./routes-detalle-facturacion";
 import { registerContabilidadDescubrirRoutes } from "./routes-contabilidad-descubrir";
 import { registerWoobAsistenteRoutes } from "./woob-asistente";
 
@@ -635,6 +636,9 @@ export function registerRoutes(app: Express): Server {
 
   // Register log routes (admin only)
   registerLogRoutes(app, requireRoles);
+
+  // Detalle facturación NVV y GDV (paneles de admin y recepción)
+  registerDetalleFacturacionRoutes(app);
 
   // ---------------------------------------------------------------
   // Public product by slug — returns minimal product payload for /p/:slug page

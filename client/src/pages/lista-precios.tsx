@@ -510,7 +510,7 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
           <Button
             onClick={() => setIsAddDialogOpen(true)}
             size="sm"
-            className="flex items-center gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 shadow-sm"
+            className="flex items-center gap-1.5 text-xs bg-[#fd6301] hover:bg-[#e35400] text-white shadow-sm"
             data-testid="button-add-product"
           >
             <Plus className="h-3.5 w-3.5" />
