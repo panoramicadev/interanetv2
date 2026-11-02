@@ -2,20 +2,25 @@
  * Detalle facturación NVV y GDV: lo ingresado y emitido en un período, por tipo
  * de documento, para los paneles de admin y recepción.
  *
- * De dónde sale cada indicador:
+ * Cada documento desaparece a medida que pasa al siguiente: la nota de venta al
+ * pasar a guía o factura, y la guía al facturarse. De una nota que pasó en parte
+ * queda solo el saldo. Facturas y notas de crédito se quedan.
  *
- *   Notas de venta   → MAEEDO de Random, leído al momento. El espejo nvv.fact_nvv
- *                      NO sirve acá: solo guarda las notas abiertas, y las ya
- *                      despachadas (la gran mayoría) desaparecen de él.
- *   Guías, facturas  → ventas.fact_ventas. Tampoco se usa gdv.fact_gdv, que
- *   y notas de crédito  guarda únicamente las guías pendientes de facturar.
+ * Todo se lee de Random al momento, porque el panel se refresca cada 10 minutos
+ * y los espejos no dan ese ritmo: ventas.fact_ventas se carga cada 4 horas, y con
+ * él una guía recién facturada desaparecería sin aparecer todavía en facturas.
+ *
+ *   Notas de venta   → MAEEDO y MAEDDO: lo que falta pasar es CAPRCO2 - CAPREX2
+ *   y guías             en las líneas abiertas. No se usa gdv.fact_gdv, que solo
+ *                       trae las guías del día.
+ *   Facturas y notas → MAEEDO. Si Random no responde, ventas.fact_ventas.
+ *   de crédito
  *
  * Los montos van netos, igual que en el dashboard. Las facturas menos las notas
- * de crédito del período dan las ventas que muestra el dashboard.
+ * de crédito dan las ventas del dashboard, salvo lo emitido después de su última carga.
  *
- * El consolidado es la suma simple de los cuatro, con las notas de crédito en
- * positivo: mide volumen de movimientos, como pidió el área, no ventas. Una
- * misma venta puede aparecer como nota, guía y factura.
+ * El consolidado suma notas de venta, guías y facturas, y le resta las notas de
+ * crédito. La tarjeta de notas de crédito se muestra en positivo.
  *
  * Resumen, PDF y Excel salen de los mismos documentos (`cargarDataset`), para
  * que lo descargado siempre coincida con lo que se ve en pantalla.
@@ -33,7 +38,12 @@ import { canonicalSegmentName } from "./utils/segment-normalize";
 const ROLES_PERMITIDOS = ["admin", "reception"];
 const MAX_DIAS_RANGO = 366;
 /** Las mismas sucursales que trae el ETL de notas de venta. */
-const SUCURSALES_NVV = ["004", "005", "006", "007"];
+const SUCURSALES_ERP = ["004", "005", "006", "007"];
+/** Los tipos y sucursales que trae el ETL de ventas, sin las guías. */
+const TIDOS_FACTURAS = ["FCV", "FVL", "BLV", "FDV", "NCV"];
+const SUCURSALES_FACTURAS = ["004", "006", "007"];
+/** Bajo este neto, una línea de guía no cuenta como pendiente: es el mismo corte del ETL de guías. */
+const NETO_MINIMO_LINEA_GUIA = 1000;
 /** Hay clientes sin segmento en el ERP: sin esta opción, sus montos no saldrían en ningún filtro. */
 const SIN_SEGMENTO = "Sin segmento";
 
@@ -83,7 +93,8 @@ interface Dataset {
 }
 
 const montoDe = (c: Categoria) => c.documentos?.reduce((s, d) => s + d.neto, 0) ?? null;
-const consolidadoDe = (ds: Dataset) => ds.categorias.reduce((s, c) => s + (montoDe(c) ?? 0), 0);
+const consolidadoDe = (ds: Dataset) =>
+  ds.categorias.reduce((s, c) => s + (c.clave === "ncv" ? -1 : 1) * (montoDe(c) ?? 0), 0);
 const estaIncompleto = (ds: Dataset) => ds.categorias.some((c) => c.documentos === null);
 
 const texto = (v: unknown) => String(v ?? "").replace(/\s+/g, " ").trim();
@@ -119,17 +130,20 @@ function leerFiltros(query: any): Filtros {
 
 const nombreSegmento = (v: unknown) => String(canonicalSegmentName(texto(v))) || SIN_SEGMENTO;
 
-async function notasDeVentaDelErp(desde: string, hasta: string): Promise<Documento[]> {
+const listaSql = (valores: string[]) => valores.map((v) => `'${v}'`).join(",");
+
+/** `montos` aporta las columnas NETO y BRUTO de cada documento, como `pe`. */
+async function documentosDelErp(tidos: string[], sucursales: string[], montos: string, desde: string, hasta: string): Promise<Documento[]> {
   const req = (await erp()).request();
   req.input("desde", mssql.Date, new Date(`${desde}T00:00:00Z`));
   req.input("hasta", mssql.Date, new Date(`${hasta}T00:00:00Z`));
-  const sucursales = SUCURSALES_NVV.map((s) => `'${s}'`).join(",");
   // MAEEN tiene una fila por sucursal del cliente: con un JOIN directo, cada nota
   // se contaría una vez por sucursal. Por eso OUTER APPLY con TOP 1.
   const r = await req.query(`
-    SELECT ed.NUDO, CONVERT(varchar(10), ed.FEEMDO, 23) AS FECHA, ed.ENDO, en.NOKOEN, fu.NOKOFU,
-           ru.NOKORU, ed.VANEDO, ed.VABRDO
+    SELECT ed.TIDO, ed.NUDO, CONVERT(varchar(10), ed.FEEMDO, 23) AS FECHA, ed.ENDO, en.NOKOEN, fu.NOKOFU,
+           ru.NOKORU, pe.NETO, pe.BRUTO
     FROM dbo.MAEEDO ed
+    ${montos}
     OUTER APPLY (
       SELECT TOP 1 m.NOKOEN, m.RUEN FROM dbo.MAEEN m
       WHERE m.KOEN = ed.ENDO
@@ -144,26 +158,49 @@ async function notasDeVentaDelErp(desde: string, hasta: string): Promise<Documen
     ) li
     LEFT JOIN dbo.TABFU fu ON fu.KOFU = COALESCE(li.KOFULIDO, ed.KOFUDO)
     LEFT JOIN dbo.TABRU ru ON ru.KORU = en.RUEN
-    WHERE ed.TIDO = 'NVV'
-      AND ed.SUDO IN (${sucursales})
+    WHERE ed.TIDO IN (${listaSql(tidos)})
+      AND ed.SUDO IN (${listaSql(sucursales)})
       AND ed.FEEMDO >= @desde
       AND ed.FEEMDO < DATEADD(day, 1, @hasta)
     ORDER BY ed.FEEMDO, ed.NUDO
   `);
   return r.recordset.map((f: any) => ({
-    tipo: "NVV",
+    tipo: texto(f.TIDO),
     numero: texto(f.NUDO),
     fecha: f.FECHA,
     codigoCliente: texto(f.ENDO),
     cliente: texto(f.NOKOEN),
     vendedor: texto(f.NOKOFU),
     segmento: nombreSegmento(f.NOKORU),
-    neto: numero(f.VANEDO),
-    bruto: numero(f.VABRDO),
+    neto: numero(f.NETO),
+    bruto: numero(f.BRUTO),
   }));
 }
 
-/** Guías, facturas y notas de crédito, una fila por documento (fact_ventas viene por línea). */
+/** Notas de venta o guías del período, solo con lo que falta pasar al documento siguiente. */
+function pendientesDelErp(tido: "NVV" | "GDV", desde: string, hasta: string): Promise<Documento[]> {
+  const netoMinimo = tido === "GDV" ? `AND dd.VANELI >= ${NETO_MINIMO_LINEA_GUIA}` : "";
+  // Sin líneas pendientes, el HAVING no devuelve fila y el documento queda fuera.
+  const montos = `
+    CROSS APPLY (
+      SELECT SUM((dd.CAPRCO2 - dd.CAPREX2) * dd.PPPRNE) AS NETO,
+             SUM((dd.CAPRCO2 - dd.CAPREX2) * dd.PPPRBR) AS BRUTO
+      FROM dbo.MAEDDO dd
+      WHERE dd.IDMAEEDO = ed.IDMAEEDO
+        AND (dd.ESLIDO IS NULL OR LTRIM(RTRIM(dd.ESLIDO)) = '')
+        AND dd.CAPRCO2 - dd.CAPREX2 > 0
+        ${netoMinimo}
+      HAVING COUNT(*) > 0
+    ) pe`;
+  return documentosDelErp([tido], SUCURSALES_ERP, montos, desde, hasta);
+}
+
+function facturasDelErp(desde: string, hasta: string): Promise<Documento[]> {
+  const montos = "CROSS APPLY (SELECT ABS(ed.VANEDO) AS NETO, ABS(ed.VABRDO) AS BRUTO) pe";
+  return documentosDelErp(TIDOS_FACTURAS, SUCURSALES_FACTURAS, montos, desde, hasta);
+}
+
+/** Respaldo de `facturasDelErp`: una fila por documento (fact_ventas viene por línea). */
 async function documentosDeVentas(desde: string, hasta: string): Promise<Documento[]> {
   const r: any = await db.execute(sql`
     SELECT tido,
@@ -177,6 +214,7 @@ async function documentosDeVentas(desde: string, hasta: string): Promise<Documen
            ABS(MAX(vabrdo)) AS bruto
     FROM ventas.fact_ventas
     WHERE feemdo >= ${desde}::date AND feemdo <= ${hasta}::date
+      AND tido <> 'GDV'
     GROUP BY idmaeedo, tido
     ORDER BY MAX(feemdo), MAX(nudo)
   `);
@@ -194,17 +232,20 @@ async function documentosDeVentas(desde: string, hasta: string): Promise<Documen
 }
 
 async function cargarDataset(desde: string, hasta: string, filtros: Filtros = {}): Promise<Dataset> {
-  const [nvv, ventas] = await Promise.all([
-    // Si Random no responde, el resto del panel sigue sirviendo: la tarjeta de
-    // notas de venta avisa que no está disponible en vez de mostrar un $0 falso.
-    notasDeVentaDelErp(desde, hasta).catch((e) => {
-      console.error("[detalle-facturacion] No se pudo leer notas de venta del ERP:", e?.message);
+  // Si Random no responde, el resto del panel sigue sirviendo: las tarjetas de notas
+  // de venta y guías avisan que no están disponibles en vez de mostrar un $0 falso.
+  const delErp = (tido: "NVV" | "GDV") =>
+    pendientesDelErp(tido, desde, hasta).catch((e) => {
+      console.error(`[detalle-facturacion] No se pudo leer ${tido} del ERP:`, e?.message);
       return null;
-    }),
-    documentosDeVentas(desde, hasta),
-  ]);
+    });
+  const facturas = facturasDelErp(desde, hasta).catch((e) => {
+    console.error("[detalle-facturacion] No se pudo leer facturas del ERP, se usa fact_ventas:", e?.message);
+    return documentosDeVentas(desde, hasta);
+  });
+  const [nvv, gdv, ventas] = await Promise.all([delErp("NVV"), delErp("GDV"), facturas]);
 
-  const todos = [...(nvv ?? []), ...ventas];
+  const todos = [...(nvv ?? []), ...(gdv ?? []), ...ventas];
   const clientes = new Map<string, string>();
   for (const d of todos) {
     if (d.codigoCliente && !clientes.has(d.codigoCliente)) clientes.set(d.codigoCliente, d.cliente || d.codigoCliente);
@@ -237,8 +278,8 @@ async function cargarDataset(desde: string, hasta: string, filtros: Filtros = {}
     filtrosTexto,
     categorias: [
       { clave: "nvv", titulo: "Notas de venta", hoja: "Notas de venta", documentos: nvv && nvv.filter(pasa) },
-      { clave: "gdv", titulo: "Guías de despacho", hoja: "Guías de despacho", documentos: ventasFiltradas.filter((d) => d.tipo === "GDV") },
-      { clave: "facturas", titulo: "Total facturado", hoja: "Facturas", documentos: ventasFiltradas.filter((d) => d.tipo !== "GDV" && d.tipo !== "NCV") },
+      { clave: "gdv", titulo: "Guías de despacho", hoja: "Guías de despacho", documentos: gdv && gdv.filter(pasa) },
+      { clave: "facturas", titulo: "Total facturado", hoja: "Facturas", documentos: ventasFiltradas.filter((d) => d.tipo !== "NCV") },
       { clave: "ncv", titulo: "Notas de crédito", hoja: "Notas de crédito", documentos: ventasFiltradas.filter((d) => d.tipo === "NCV") },
     ],
   };
@@ -247,9 +288,9 @@ async function cargarDataset(desde: string, hasta: string, filtros: Filtros = {}
 const nombreArchivo = (ds: Dataset, ext: string) => `detalle-facturacion_${ds.desde}_${ds.hasta}.${ext}`;
 
 const NOTA_CONSOLIDADO =
-  "El consolidado suma los cuatro totales y mide volumen de movimientos: una misma venta puede aparecer como nota, guía y factura. Montos netos, sin IVA.";
+  "Notas de venta y guías muestran solo lo que falta pasar al documento siguiente. El consolidado suma notas de venta, guías y facturas, y resta las notas de crédito. Montos netos, sin IVA.";
 const NOTA_INCOMPLETO =
-  "Las notas de venta no estuvieron disponibles al generar este informe: el consolidado no las incluye.";
+  "Las notas de venta y las guías no estuvieron disponibles al generar este informe: el consolidado no las incluye.";
 
 function generarPdf(salida: NodeJS.WritableStream, ds: Dataset): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -401,6 +442,7 @@ export function registerDetalleFacturacionRoutes(app: Express) {
     requireRoles(ROLES_PERMITIDOS),
     conPeriodo(async (ds, res) => {
       res.json({
+        actualizadoEn: new Date().toISOString(),
         desde: ds.desde,
         hasta: ds.hasta,
         categorias: ds.categorias.map((c) => ({

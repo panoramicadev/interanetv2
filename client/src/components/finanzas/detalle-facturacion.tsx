@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, addMonths, addWeeks, endOfMonth, endOfWeek, format, parseISO, startOfMonth, startOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
-import { AlertTriangle, Check, ChevronLeft, ChevronRight, ChevronsUpDown, ClipboardList, FileDown, FileSpreadsheet, FileText, Layers, Loader2, Receipt, RotateCcw, Search, Store, Truck, User, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, ChevronsUpDown, ClipboardList, FileDown, FileSpreadsheet, FileText, Layers, Loader2, Receipt, RefreshCw, RotateCcw, Search, Store, Truck, User, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -21,6 +21,7 @@ interface CategoriaResumen {
 }
 
 interface Resumen {
+  actualizadoEn: string;
   desde: string;
   hasta: string;
   categorias: CategoriaResumen[];
@@ -30,6 +31,7 @@ interface Resumen {
 }
 
 const TODOS = "todos";
+const INTERVALO_ACTUALIZACION = 10 * 60 * 1000;
 
 interface FiltrosPanel {
   segmento: string;
@@ -172,6 +174,15 @@ const ICONOS: Record<CategoriaResumen["clave"], LucideIcon> = {
 const ISO = "yyyy-MM-dd";
 const clp = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
 const fechaCorta = (iso: string) => format(parseISO(iso), "dd/MM/yyyy");
+const fechaHoraChile = (iso: string) =>
+  new Date(iso).toLocaleString("es-CL", {
+    timeZone: "America/Santiago",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
 function periodoDe(tipo: TipoPeriodo, referencia: Date, rangoDesde: string, rangoHasta: string) {
   if (tipo === "diario") return { desde: format(referencia, ISO), hasta: format(referencia, ISO) };
@@ -216,6 +227,8 @@ function DocumentosDelPeriodo({
   const { data, isLoading, isError, error } = useQuery<{ documentos: DocumentoDetalle[] | null }, Error>({
     queryKey: ["/api/detalle-facturacion/documentos", desde, hasta, filtros, categoria],
     retry: false,
+    refetchInterval: INTERVALO_ACTUALIZACION,
+    refetchIntervalInBackground: true,
     queryFn: async () => {
       const parametros = armarParametros(desde, hasta, filtros, { categoria });
       const res = await fetch(`/api/detalle-facturacion/documentos?${parametros}`, { credentials: "include" });
@@ -279,11 +292,15 @@ function DocumentosDelPeriodo({
         <p className="py-8 text-center text-sm text-red-600 dark:text-red-400">{error?.message}</p>
       ) : data?.documentos === null ? (
         <p className="py-8 text-center text-sm text-red-600 dark:text-red-400">
-          No se pudo consultar el sistema de gestión: el detalle de las notas de venta no está disponible.
+          No se pudo consultar el sistema de gestión: este detalle no está disponible.
         </p>
       ) : filtrados.length === 0 ? (
         <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-          {busqueda.trim() ? "Ningún documento coincide con la búsqueda." : "No hay documentos en este período."}
+          {busqueda.trim()
+            ? "Ningún documento coincide con la búsqueda."
+            : categoria === "nvv" || categoria === "gdv"
+              ? "No hay documentos pendientes en este período."
+              : "No hay documentos en este período."}
         </p>
       ) : (
         <>
@@ -359,6 +376,7 @@ function DocumentosDelPeriodo({
  */
 export default function DetalleFacturacion() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [tipo, setTipo] = useState<TipoPeriodo>("mensual");
   const [referencia, setReferencia] = useState(() => new Date());
   const hoy = format(new Date(), ISO);
@@ -375,12 +393,14 @@ export default function DetalleFacturacion() {
   const fechasListas = Boolean(desde && hasta);
   const parametros = armarParametros(desde, hasta, filtros);
 
-  const { data, isLoading, isError, error, isPlaceholderData } = useQuery<Resumen, Error>({
+  const { data, isLoading, isFetching, isError, error, isPlaceholderData } = useQuery<Resumen, Error>({
     queryKey: ["/api/detalle-facturacion/resumen", desde, hasta, filtros],
     // Mientras carga el filtro recién elegido, sus opciones siguen a la vista.
     placeholderData: (anterior) => anterior,
     enabled: fechasListas,
     retry: false,
+    refetchInterval: INTERVALO_ACTUALIZACION,
+    refetchIntervalInBackground: true,
     queryFn: async () => {
       const res = await fetch(`/api/detalle-facturacion/resumen?${parametros}`, { credentials: "include" });
       const cuerpo = await res.json().catch(() => null);
@@ -404,6 +424,11 @@ export default function DetalleFacturacion() {
       if (tipo === "semanal") return addWeeks(actual, delta);
       return addMonths(actual, delta);
     });
+  };
+
+  const actualizar = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/detalle-facturacion/resumen"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/detalle-facturacion/documentos"] });
   };
 
   const descargar = async (formato: "pdf" | "excel") => {
@@ -435,7 +460,9 @@ export default function DetalleFacturacion() {
 
   const claseDescarga =
     "h-10 px-4 text-sm font-semibold rounded-2xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 hover:border-orange-200 hover:text-[#fd6301] shadow-sm";
-  const puedeDescargar = fechasListas && !isError && !isLoading && !descargando;
+  // Si falla una actualización automática, siguen a la vista los últimos datos, con su hora.
+  const sinDatos = isError && !data;
+  const puedeDescargar = fechasListas && !sinDatos && !isLoading && !descargando;
 
   return (
     <section className="mb-6" data-testid="detalle-facturacion">
@@ -446,10 +473,22 @@ export default function DetalleFacturacion() {
           </div>
           <div className="min-w-0">
             <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Detalle facturación NVV y GDV</h2>
-            <p className="hidden sm:block text-sm text-slate-500 dark:text-slate-400">Montos netos del período seleccionado</p>
+            <p className="hidden sm:block text-sm text-slate-500 dark:text-slate-400">
+              Montos netos del período. Notas de venta y guías: solo lo que falta pasar al documento siguiente.
+            </p>
+            {data?.actualizadoEn && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums" data-testid="ultima-actualizacion">
+                Última actualización: {fechaHoraChile(data.actualizadoEn)}
+                {isError && <span className="text-red-600 dark:text-red-400"> · No se pudo actualizar de nuevo</span>}
+              </p>
+            )}
           </div>
         </div>
-        <div className="grid grid-cols-2 sm:flex gap-2">
+        <div className="grid grid-cols-3 sm:flex gap-2">
+          <Button variant="outline" className={claseDescarga} disabled={!fechasListas || isFetching} onClick={actualizar} data-testid="detalle-facturacion-actualizar">
+            <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+            Actualizar
+          </Button>
           <Button variant="outline" className={claseDescarga} disabled={!puedeDescargar} onClick={() => descargar("pdf")} data-testid="detalle-facturacion-pdf">
             {descargando === "pdf" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
             PDF
@@ -543,7 +582,7 @@ export default function DetalleFacturacion() {
         )}
       </div>
 
-      {isError ? (
+      {sinDatos ? (
         <div className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           {error?.message}
@@ -573,7 +612,7 @@ export default function DetalleFacturacion() {
             <div>
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Total consolidado del período</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Suma de los cuatro totales: mide volumen de movimientos, y una misma venta puede aparecer como nota, guía y factura.
+                Notas de venta + guías + facturas − notas de crédito. Lo que ya pasó al documento siguiente se cuenta solo en ese documento.
               </p>
             </div>
             <p className="text-xl font-bold text-[#fd6301] tabular-nums shrink-0" data-testid="total-consolidado">
@@ -584,7 +623,7 @@ export default function DetalleFacturacion() {
           {data?.incompleto && (
             <p className="mt-2 flex items-center gap-2 text-sm text-red-600 dark:text-red-400" data-testid="aviso-incompleto">
               <AlertTriangle className="h-4 w-4 shrink-0" />
-              No se pudo consultar el sistema de gestión: el consolidado no incluye las notas de venta.
+              No se pudo consultar el sistema de gestión: el consolidado no incluye las notas de venta ni las guías, y las facturas y notas de crédito vienen de la última carga.
             </p>
           )}
 
