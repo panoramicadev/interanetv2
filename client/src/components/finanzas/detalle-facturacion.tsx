@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, addMonths, addWeeks, endOfMonth, endOfWeek, format, parseISO, startOfMonth, startOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
-import { AlertTriangle, Check, ChevronLeft, ChevronRight, ChevronsUpDown, ClipboardList, FileDown, FileSpreadsheet, FileText, Layers, Loader2, Receipt, RotateCcw, Search, Store, Truck, User, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, ChevronsUpDown, ClipboardList, FileDown, FileSpreadsheet, FileText, Layers, Loader2, Receipt, RefreshCw, RotateCcw, Search, Store, Truck, User, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -376,6 +376,7 @@ function DocumentosDelPeriodo({
  */
 export default function DetalleFacturacion() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [tipo, setTipo] = useState<TipoPeriodo>("mensual");
   const [referencia, setReferencia] = useState(() => new Date());
   const hoy = format(new Date(), ISO);
@@ -392,7 +393,7 @@ export default function DetalleFacturacion() {
   const fechasListas = Boolean(desde && hasta);
   const parametros = armarParametros(desde, hasta, filtros);
 
-  const { data, isLoading, isError, error, isPlaceholderData } = useQuery<Resumen, Error>({
+  const { data, isLoading, isFetching, isError, error, isPlaceholderData } = useQuery<Resumen, Error>({
     queryKey: ["/api/detalle-facturacion/resumen", desde, hasta, filtros],
     // Mientras carga el filtro recién elegido, sus opciones siguen a la vista.
     placeholderData: (anterior) => anterior,
@@ -423,6 +424,11 @@ export default function DetalleFacturacion() {
       if (tipo === "semanal") return addWeeks(actual, delta);
       return addMonths(actual, delta);
     });
+  };
+
+  const actualizar = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/detalle-facturacion/resumen"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/detalle-facturacion/documentos"] });
   };
 
   const descargar = async (formato: "pdf" | "excel") => {
@@ -478,7 +484,11 @@ export default function DetalleFacturacion() {
             )}
           </div>
         </div>
-        <div className="grid grid-cols-2 sm:flex gap-2">
+        <div className="grid grid-cols-3 sm:flex gap-2">
+          <Button variant="outline" className={claseDescarga} disabled={!fechasListas || isFetching} onClick={actualizar} data-testid="detalle-facturacion-actualizar">
+            <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+            Actualizar
+          </Button>
           <Button variant="outline" className={claseDescarga} disabled={!puedeDescargar} onClick={() => descargar("pdf")} data-testid="detalle-facturacion-pdf">
             {descargando === "pdf" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
             PDF
