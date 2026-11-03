@@ -165,9 +165,9 @@ function PlanificacionHome() {
   return can("dashboard") ? <Dashboard /> : <ReclamosGeneralesPage />;
 }
 
-// Subdominio propio del cotizador (cotizador.pinturaspanoramica.cl): ahí no hay
+// Subdominio propio del cotizador (tienda.pinturaspanoramica.cl): ahí no hay
 // intranet ni login, solo el cotizador público y sus páginas hermanas.
-const IS_COTIZADOR_HOST = typeof window !== "undefined" && window.location.hostname.startsWith("cotizador.");
+const IS_COTIZADOR_HOST = typeof window !== "undefined" && window.location.hostname.startsWith("tienda.");
 
 function CotizadorHostRouter() {
   return (
