@@ -120,7 +120,7 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
   return (
     <>
       {/* ═══ CARD ═══ */}
-      <div className="group bg-white rounded-2xl overflow-hidden border border-gray-100 hover:border-[#FF6E23]/30 hover:shadow-xl hover:shadow-orange-50/60 transition-all duration-300 flex flex-col">
+      <div className="group bg-white rounded-2xl overflow-hidden border border-gray-100 hover:border-[#fd6301]/30 hover:shadow-xl hover:shadow-orange-50/60 transition-all duration-300 flex flex-col">
         {/* Image */}
         <div
           className="relative aspect-[4/3] bg-gradient-to-br from-gray-50 to-white overflow-hidden cursor-pointer p-3 sm:p-4"
@@ -143,7 +143,7 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
           {product.tags && product.tags.length > 0 && (
             <div className="absolute top-1.5 left-1.5 flex flex-col gap-1">
               {product.tags.slice(0, 2).map(tag => (
-                <span key={tag} className="text-[8px] sm:text-[9px] px-1.5 py-0.5 rounded-md font-bold bg-[#FF6E23]/90 text-white">
+                <span key={tag} className="text-[8px] sm:text-[9px] px-1.5 py-0.5 rounded-md font-bold bg-[#fd6301]/90 text-white">
                   {tag}
                 </span>
               ))}
@@ -161,7 +161,7 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
         {/* Info */}
         <div className="p-2.5 sm:p-4 flex-1 flex flex-col gap-1.5 sm:gap-2">
           {product.groupName && (
-            <span className="text-[8px] sm:text-[9px] font-bold text-[#FF6E23] uppercase tracking-widest">{product.groupName}</span>
+            <span className="text-[8px] sm:text-[9px] font-bold text-[#fd6301] uppercase tracking-widest">{product.groupName}</span>
           )}
 
           <h3 className="text-[11px] sm:text-sm font-bold uppercase text-gray-900 leading-tight line-clamp-2 tracking-tight">
@@ -190,7 +190,7 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
 
           {/* Colors */}
           <div className="flex items-center gap-1">
-            <span className="inline-flex items-center gap-0.5 bg-orange-50 text-[#FF6E23] text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded border border-orange-100/50">
+            <span className="inline-flex items-center gap-0.5 bg-orange-50 text-[#fd6301] text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded border border-orange-100/50">
               <Palette className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {colorKeys.length}
             </span>
           </div>
@@ -200,7 +200,7 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
           {/* CTA — opens selector */}
           <button
             onClick={() => setSelectorOpen(true)}
-            className="w-full flex items-center justify-center gap-1.5 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all active:scale-[0.97] bg-gradient-to-r from-[#FF6E23] to-[#E55E13] text-white hover:from-[#E55E13] hover:to-[#D54E03] shadow-sm mt-1"
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all active:scale-[0.97] bg-gradient-to-r from-[#fd6301] to-[#e35400] text-white hover:from-[#e35400] hover:to-[#c94a00] shadow-sm mt-1"
           >
             <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span className="sm:hidden">Cotizar</span>
@@ -256,18 +256,18 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
                       onClick={() => setActiveFormat(format)}
                       className={`relative flex-shrink-0 snap-start px-4 py-2.5 rounded-xl text-xs font-bold transition-all border min-w-[90px] text-center ${
                         isActive
-                          ? 'bg-[#FF6E23] border-[#FF6E23] text-white shadow-md'
+                          ? 'bg-[#fd6301] border-[#fd6301] text-white shadow-md'
                           : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 active:bg-gray-100'
                       }`}
                     >
                       {format}
                       {pendingCount > 0 && !isActive && (
-                        <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#FF6E23] text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm">
+                        <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#fd6301] text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm">
                           {pendingCount}
                         </span>
                       )}
                       {pendingCount > 0 && isActive && (
-                        <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white text-[#FF6E23] text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm ring-2 ring-[#FF6E23]">
+                        <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white text-[#fd6301] text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm ring-2 ring-[#fd6301]">
                           {pendingCount}
                         </span>
                       )}
@@ -293,7 +293,7 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
                         key={variant.sku}
                         className={`flex items-center gap-2.5 sm:gap-3 p-2.5 sm:p-3 rounded-xl border transition-all ${
                           qty > 0
-                            ? 'bg-orange-50/50 border-[#FF6E23]/30'
+                            ? 'bg-orange-50/50 border-[#fd6301]/30'
                             : alreadyIn
                               ? 'bg-emerald-50/50 border-emerald-200'
                               : 'bg-white border-gray-100'
@@ -333,8 +333,8 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
                             onChange={(e) => setQty(variant.sku, e.target.value)}
                             onFocus={(e) => e.target.select()}
                             aria-label="Cantidad"
-                            className={`w-8 h-8 sm:w-9 sm:h-9 text-xs sm:text-sm text-center font-bold rounded-lg border outline-none focus:ring-1 focus:ring-[#FF6E23] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${
-                              qty > 0 ? 'bg-[#FF6E23]/10 border-[#FF6E23]/30 text-[#FF6E23]' : 'bg-white border-gray-200 text-gray-400'
+                            className={`w-8 h-8 sm:w-9 sm:h-9 text-xs sm:text-sm text-center font-bold rounded-lg border outline-none focus:ring-1 focus:ring-[#fd6301] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${
+                              qty > 0 ? 'bg-[#fd6301]/10 border-[#fd6301]/30 text-[#fd6301]' : 'bg-white border-gray-200 text-gray-400'
                             }`}
                           />
                           <button
@@ -351,7 +351,7 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
                                 // Auto-open quote panel after single add on mobile
                                 setTimeout(() => onOpenQuotePanel(), 150);
                               }}
-                              className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-[#FF6E23] text-white active:scale-95 transition-all ml-0.5"
+                              className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-[#fd6301] text-white active:scale-95 transition-all ml-0.5"
                               title="Agregar a cotización"
                             >
                               <Plus className="w-3.5 h-3.5" />
@@ -375,7 +375,7 @@ export default function CotizadorProductCard({ product, onViewDetail, onOpenQuot
               <div className="border-t border-gray-100 px-4 sm:px-5 py-3 bg-white safe-area-bottom">
                 <button
                   onClick={handleAddAllAndOpenPanel}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-[#FF6E23] to-[#E55E13] text-white font-bold rounded-xl active:scale-[0.98] transition-all shadow-lg text-sm"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-[#fd6301] to-[#e35400] text-white font-bold rounded-xl active:scale-[0.98] transition-all shadow-lg text-sm"
                 >
                   <ShoppingCart className="w-4 h-4" />
                   Agregar {totalPending} producto{totalPending !== 1 ? 's' : ''} a mi cotización

@@ -26,9 +26,12 @@ import {
   Minus,
   ShoppingCart,
   Check,
+  ArrowUpRight,
 } from 'lucide-react';
 import { QuoteContext } from '@/contexts/QuoteContext';
 import { VENTA_POR_UNIDAD, VENTA_POR_UNIDAD_COTIZADOR_WEB } from '@shared/venta-por-unidad';
+import { imagenLiviana } from '@/lib/imagen-liviana';
+import { urlProducto } from '@/lib/slug-producto';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -280,7 +283,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
     <div
       className={`rounded-2xl overflow-hidden transition-all duration-300 flex flex-col ${
         expanded
-          ? 'border border-[#FF6E23]/30 shadow-xl shadow-orange-100/40 bg-white lg:col-span-2 ring-1 ring-[#FF6E23]/10'
+          ? 'border border-[#fd6301]/30 shadow-xl shadow-orange-100/40 bg-white lg:col-span-2 ring-1 ring-[#fd6301]/10'
           : 'border border-gray-200/80 bg-white hover:border-gray-300/80 hover:shadow-lg hover:shadow-gray-100/60'
       }`}
     >
@@ -297,7 +300,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
             <div className="w-28 sm:w-40 flex-shrink-0 overflow-hidden bg-gradient-to-br from-gray-50 to-white relative group p-2 sm:p-3">
               {product.imageUrl ? (
                 <img
-                  src={product.imageUrl}
+                  src={imagenLiviana(product.imageUrl, 320)}
                   alt={product.genericName}
                   loading="lazy"
                   decoding="async"
@@ -317,7 +320,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                 <div className="absolute top-1 left-1 sm:top-2 sm:left-2 flex flex-col gap-1.5">
                   {displayedTags.slice(0, 2).map(tag => {
                     const tagDef = adminTags.find(at => at.name === tag);
-                    const bgClass = TAG_BG[tagDef?.color || 'orange'] || 'bg-[#FF6E23]/90';
+                    const bgClass = TAG_BG[tagDef?.color || 'orange'] || 'bg-[#fd6301]/90';
                     return (
                       <span
                         key={tag}
@@ -370,7 +373,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
               <div className="flex items-center gap-1.5 mt-2.5">
                 <span
                   title="Colores Disponibles"
-                  className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-md shadow-sm border border-orange-100/50"
+                  className="inline-flex items-center gap-1 bg-orange-50 text-[#fd6301] text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-md shadow-sm border border-orange-100/50"
                 >
                   <Palette className="w-3 h-3" /> {colorKeys.length}{' '}
                   <span className="font-semibold">Color{colorKeys.length !== 1 ? 'es' : ''}</span>
@@ -383,11 +386,21 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                       if (isStore) (props as StoreModeProps).onOpenInfoModal?.(product.genericName);
                       else (props as CotizadorModeProps).onViewDetail?.(product);
                     }}
-                    className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-[#FF6E23] bg-gray-50 hover:bg-orange-50 px-2.5 py-1 rounded-lg transition-all"
+                    className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-[#fd6301] bg-gray-50 hover:bg-orange-50 px-2.5 py-1 rounded-lg transition-all"
                   >
                     <Info className="w-3 h-3" /> Detalles
                   </button>
                 ) : null}
+                {isCotizador && (
+                  <a
+                    href={urlProducto(product.genericName)}
+                    onClick={e => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 whitespace-nowrap flex-shrink-0 text-[10px] font-semibold text-[#fd6301] bg-orange-50 hover:bg-[#fd6301] hover:text-white px-2.5 py-1 rounded-lg transition-all"
+                    data-testid="card-ver-producto"
+                  >
+                    Ver producto <ArrowUpRight className="w-3 h-3" />
+                  </a>
+                )}
                 <ChevronRight className="h-4 w-4 text-gray-300" />
               </div>
             </div>
@@ -395,14 +408,14 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
         ) : (
           /* Expanded header — compact horizontal bar */
           <div className="px-4 py-3 flex items-center gap-3">
-            <h3 className="text-sm font-bold uppercase text-[#FF6E23] flex-1 min-w-0 truncate">
+            <h3 className="text-sm font-bold uppercase text-[#fd6301] flex-1 min-w-0 truncate">
               {product.genericName}
             </h3>
             {displayedTags.length > 0 && (
               <div className="flex items-center gap-1">
                 {displayedTags.slice(0, 2).map(tag => {
                   const tagDef = adminTags.find(at => at.name === tag);
-                  const bgClass = TAG_BG_SOLID[tagDef?.color || 'orange'] || 'bg-[#FF6E23]';
+                  const bgClass = TAG_BG_SOLID[tagDef?.color || 'orange'] || 'bg-[#fd6301]';
                   return (
                     <span key={tag} className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${bgClass} text-white`}>
                       {tag}
@@ -414,7 +427,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <span
                 title="Colores Disponibles"
-                className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm border border-orange-100/50"
+                className="inline-flex items-center gap-1 bg-orange-50 text-[#fd6301] text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm border border-orange-100/50"
               >
                 <Palette className="w-2.5 h-2.5" /> {colorKeys.length} Color{colorKeys.length !== 1 ? 'es' : ''}
               </span>
@@ -434,7 +447,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
           opacity: expanded ? 1 : 0,
         }}
       >
-        <div className="border-t border-[#FF6E23]/10 flex flex-col pt-3 bg-gradient-to-br from-gray-50/50 to-white">
+        <div className="border-t border-[#fd6301]/10 flex flex-col pt-3 bg-gradient-to-br from-gray-50/50 to-white">
           {/* Format tabs */}
           <div className="px-5 mb-4">
             <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2 block">
@@ -452,7 +465,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                     }}
                     className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border whitespace-nowrap flex-shrink-0 snap-start ${
                       isActive
-                        ? 'bg-orange-50/80 border-[#FF6E23] text-[#FF6E23] shadow-sm'
+                        ? 'bg-orange-50/80 border-[#fd6301] text-[#fd6301] shadow-sm'
                         : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                     }`}
                   >
@@ -470,8 +483,9 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
               <div className="w-full aspect-square rounded-2xl overflow-hidden bg-white shadow-sm border border-gray-100 p-4 mb-3">
                 {product.imageUrl ? (
                   <img
-                    src={product.imageUrl}
+                    src={imagenLiviana(product.imageUrl, 600)}
                     alt={product.genericName}
+                    loading="lazy"
                     className="w-full h-full object-contain"
                     onError={e => {
                       (e.target as HTMLImageElement).style.display = 'none';
@@ -517,7 +531,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                         </span>
                       </>
                     ) : (
-                      <span className="text-sm font-black text-[#FF6E23] block">
+                      <span className="text-sm font-black text-[#fd6301] block">
                         {formatPriceCL(activeFormatData.price)}
                       </span>
                     )}
@@ -547,7 +561,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                       key={variant.sku}
                       className={`flex items-center justify-between gap-3 p-2.5 rounded-xl border transition-all ${
                         variantQty > 0
-                          ? 'bg-orange-50/30 border-[#FF6E23]/30'
+                          ? 'bg-orange-50/30 border-[#fd6301]/30'
                           : alreadyInQuote
                           ? 'bg-emerald-50/30 border-emerald-200'
                           : 'bg-white border-gray-100 hover:border-gray-200'
@@ -558,7 +572,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                         <div className="w-10 h-10 rounded-full bg-gray-50 border border-gray-200 shadow-inner flex-shrink-0 overflow-hidden relative">
                           {variant.imageUrl ? (
                             <img
-                              src={variant.imageUrl}
+                              src={imagenLiviana(variant.imageUrl, 80)}
                               alt={variant.color}
                               className="w-full h-full object-cover"
                               onError={e => {
@@ -639,7 +653,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                           return (
                             <div
                               className={`hidden sm:block text-xs font-bold ${
-                                variant.offerPrice && variant.offerPrice > 0 ? 'text-rose-600' : 'text-[#FF6E23]'
+                                variant.offerPrice && variant.offerPrice > 0 ? 'text-rose-600' : 'text-[#fd6301]'
                               }`}
                             >
                               {formatPriceCL(effectiveUnitPrice * variantQty)}
@@ -673,7 +687,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                                 setQty(variant.sku, Number.isFinite(n) ? n : 0);
                               }}
                               aria-label="Cantidad"
-                              className="w-12 h-full text-center text-sm font-bold border-x border-gray-200 outline-none focus:ring-1 focus:ring-inset focus:ring-[#FF6E23] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              className="w-12 h-full text-center text-sm font-bold border-x border-gray-200 outline-none focus:ring-1 focus:ring-inset focus:ring-[#fd6301] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                             />
                           ) : (
                           /* Display-only: la cantidad sólo se ajusta con +/− para respetar el formato (galón=4, ¼=6, etc.) */
@@ -752,7 +766,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
             <div className="flex items-center gap-2">
               {isStore && (props as StoreModeProps).onOpenDetail && (
                 <button
-                  className="h-11 px-4 rounded-xl border-2 border-[#FF6E23] text-[#FF6E23] hover:bg-[#FF6E23]/5 transition-all duration-300 font-bold text-sm flex items-center gap-2"
+                  className="h-11 px-4 rounded-xl border-2 border-[#fd6301] text-[#fd6301] hover:bg-[#fd6301]/5 transition-all duration-300 font-bold text-sm flex items-center gap-2"
                   onClick={e => {
                     e.stopPropagation();
                     (props as StoreModeProps).onOpenDetail?.(product, activeFormatData || variantsForFormat[0]);
@@ -765,7 +779,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
 
               {isCotizador && (props as CotizadorModeProps).onViewDetail && (
                 <button
-                  className="h-11 px-4 rounded-xl border-2 border-[#FF6E23] text-[#FF6E23] hover:bg-[#FF6E23]/5 transition-all duration-300 font-bold text-sm flex items-center gap-2"
+                  className="h-11 px-4 rounded-xl border-2 border-[#fd6301] text-[#fd6301] hover:bg-[#fd6301]/5 transition-all duration-300 font-bold text-sm flex items-center gap-2"
                   onClick={e => {
                     e.stopPropagation();
                     (props as CotizadorModeProps).onViewDetail?.(product);
@@ -776,8 +790,20 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                 </button>
               )}
 
+              {isCotizador && (
+                <a
+                  href={urlProducto(product.genericName)}
+                  onClick={e => e.stopPropagation()}
+                  className="h-11 px-4 rounded-xl border-2 border-slate-200 text-slate-600 hover:border-[#fd6301] hover:text-[#fd6301] transition-all duration-300 font-bold text-sm flex items-center gap-2"
+                  aria-label="Ver página del producto"
+                >
+                  <ArrowUpRight className="h-4 w-4" />
+                  <span className="hidden sm:inline">Ver producto</span>
+                </a>
+              )}
+
               <button
-                className="h-11 px-6 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white transition-all duration-300 font-bold text-sm flex items-center gap-2 shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:shadow-orange-500/20 group"
+                className="h-11 px-6 rounded-xl bg-[#fd6301] hover:bg-[#e35400] text-white transition-all duration-300 font-bold text-sm flex items-center gap-2 shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:shadow-orange-500/20 group"
                 onClick={e => {
                   e.stopPropagation();
                   if (isStore) handleStoreAddToCart();
