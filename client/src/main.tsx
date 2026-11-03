@@ -1,8 +1,14 @@
 import { createRoot } from "react-dom/client";
-import App from "./App";
 import "./index.css";
 
-createRoot(document.getElementById("root")!).render(<App />);
+// tienda.pinturaspanoramica.cl carga solo el cotizador; el resto de los dominios, la intranet.
+// Import dinámico para que cada uno descargue únicamente su propio código.
+const esTienda = window.location.hostname.startsWith("tienda.");
+const cargarApp = esTienda ? import("./TiendaApp") : import("./App");
+
+cargarApp.then(({ default: Root }) => {
+  createRoot(document.getElementById("root")!).render(<Root />);
+});
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

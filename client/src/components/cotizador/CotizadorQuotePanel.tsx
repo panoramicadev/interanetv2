@@ -1,6 +1,7 @@
 import { X, Trash2, FileText, Send, Minus, Plus, Package } from 'lucide-react';
 import { useQuote } from '@/contexts/QuoteContext';
 import { VENTA_POR_UNIDAD_COTIZADOR_WEB } from '@shared/venta-por-unidad';
+import { imagenLiviana } from '@/lib/imagen-liviana';
 
 interface Props {
   open: boolean;
@@ -58,7 +59,7 @@ export default function CotizadorQuotePanel({ open, onClose, onSubmit }: Props) 
                   {/* Image */}
                   <div className="w-14 h-14 flex-shrink-0 rounded-lg bg-slate-100 overflow-hidden">
                     {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-contain p-1" />
+                      <img src={imagenLiviana(item.imageUrl, 120)} alt={item.productName} className="w-full h-full object-contain p-1" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <Package className="w-6 h-6 text-slate-300" />
@@ -95,7 +96,7 @@ export default function CotizadorQuotePanel({ open, onClose, onSubmit }: Props) 
                         }}
                         onFocus={(e) => e.target.select()}
                         aria-label="Cantidad"
-                        className="text-sm font-semibold text-slate-700 w-10 text-center bg-transparent rounded outline-none focus:ring-1 focus:ring-[#FF6E23] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="text-sm font-semibold text-slate-700 w-10 text-center bg-transparent rounded outline-none focus:ring-1 focus:ring-[#fd6301] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
                       <button
                         onClick={() => updateQuantity(item.id, item.quantity + (item.stepSize || 1))}
