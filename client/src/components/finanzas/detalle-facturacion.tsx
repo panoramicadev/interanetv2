@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, addMonths, addWeeks, endOfMonth, endOfWeek, format, parseISO, startOfMonth, startOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
-import { AlertTriangle, Check, ChevronLeft, ChevronRight, ChevronsUpDown, ClipboardList, FileDown, FileSpreadsheet, FileText, Layers, Loader2, Receipt, RefreshCw, RotateCcw, Search, Store, Truck, User, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, ChevronsUpDown, ClipboardList, FileDown, FileSpreadsheet, FileText, Layers, Loader2, Receipt, RefreshCw, RotateCcw, Search, Store, Truck, User, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -238,17 +238,28 @@ function DocumentosDelPeriodo({
     },
   });
 
-  useEffect(() => setPagina(0), [desde, hasta, filtros, categoria, busqueda]);
+  // Por defecto los más recientes primero: es lo que se viene a revisar.
+  const [ordenFecha, setOrdenFecha] = useState<"desc" | "asc">("desc");
+  const alternarOrden = () => setOrdenFecha((o) => (o === "desc" ? "asc" : "desc"));
 
-  // Los más recientes primero: es lo que se viene a revisar.
+  useEffect(() => setPagina(0), [desde, hasta, filtros, categoria, busqueda, ordenFecha]);
+
   const filtrados = useMemo(() => {
     const termino = busqueda.trim().toLowerCase();
-    const lista = [...(data?.documentos ?? [])].reverse();
+    // Orden estable por fecha: dentro del mismo día se respeta el orden en que llegan del ERP.
+    const ascendente = (data?.documentos ?? [])
+      .map((d, i) => ({ d, i }))
+      .sort((a, b) => a.d.fecha.localeCompare(b.d.fecha) || a.i - b.i)
+      .map(({ d }) => d);
+    const lista = ordenFecha === "asc" ? ascendente : ascendente.reverse();
     if (!termino) return lista;
     return lista.filter((d) =>
       [d.numero, d.cliente, d.codigoCliente, d.vendedor].some((v) => v.toLowerCase().includes(termino)),
     );
-  }, [data, busqueda]);
+  }, [data, busqueda, ordenFecha]);
+
+  const IconoOrden = ordenFecha === "desc" ? ArrowDown : ArrowUp;
+  const etiquetaOrden = ordenFecha === "desc" ? "Más recientes primero" : "Más antiguas primero";
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   const visibles = filtrados.slice(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA);
@@ -310,7 +321,18 @@ function DocumentosDelPeriodo({
                 <tr className="border-b border-slate-200 dark:border-slate-800 text-left text-xs uppercase tracking-wider text-slate-400">
                   <th className="py-2 pr-3 font-semibold">Tipo</th>
                   <th className="py-2 pr-3 font-semibold">N°</th>
-                  <th className="py-2 pr-3 font-semibold">Fecha</th>
+                  <th className="py-2 pr-3 font-semibold" aria-sort={ordenFecha === "desc" ? "descending" : "ascending"}>
+                    <button
+                      type="button"
+                      onClick={alternarOrden}
+                      title={`${etiquetaOrden} (clic para invertir)`}
+                      className="inline-flex items-center gap-1 uppercase tracking-wider text-orange-500 hover:text-orange-600"
+                      data-testid="detalle-orden-fecha"
+                    >
+                      Fecha
+                      <IconoOrden className="h-3.5 w-3.5" />
+                    </button>
+                  </th>
                   <th className="py-2 pr-3 font-semibold">Cliente</th>
                   <th className="py-2 pr-3 font-semibold">Vendedor</th>
                   <th className="py-2 pr-3 font-semibold text-right">Neto</th>
@@ -334,6 +356,15 @@ function DocumentosDelPeriodo({
           </div>
 
           <div className="md:hidden space-y-2" data-testid="detalle-lista">
+            <button
+              type="button"
+              onClick={alternarOrden}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-orange-500"
+              data-testid="detalle-orden-fecha-movil"
+            >
+              <IconoOrden className="h-3.5 w-3.5" />
+              {etiquetaOrden}
+            </button>
             {visibles.map((d) => (
               <div key={`${d.tipo}-${d.numero}-${d.fecha}`} className="rounded-2xl border border-slate-200/70 dark:border-slate-800 p-3">
                 <div className="flex items-start justify-between gap-3">
