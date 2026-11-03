@@ -58,6 +58,8 @@ interface DetailClient {
   fleteCobrado: number; fleteObjetivo: number; fleteDeficit: number; marginAdjusted: number;
   overridePct: number | null; effectivePct: number;
   fleteOverridePct: number | null; fleteEffectivePct: number;
+  /** Cadena a la que pertenece la ferretería ("REDMAT"), si es sucursal de una. */
+  cadena?: string;
 }
 interface DetailDocument {
   document: string; numero: string; tido: string; isCreditNote: boolean;
@@ -66,6 +68,7 @@ interface DetailDocument {
   fleteCobrado: number; fleteObjetivo: number; fleteDeficit: number; marginAdjusted: number;
   overridePct: number | null; effectivePct: number; clientPct: number | null;
   fleteOverridePct: number | null; fleteClientPct: number | null; fleteEffectivePct: number;
+  cadena?: string;
 }
 interface SalespersonDetail {
   salesperson: string; startDate: string; endDate: string;
@@ -738,6 +741,20 @@ function PctCell({ value, isOverride, onSave, onReset }: {
   );
 }
 
+/** Marca la ferretería que es sucursal de una cadena (REDMAT): suele llevar otro %. */
+function CadenaBadge({ cadena }: { cadena?: string }) {
+  if (!cadena) return null;
+  return (
+    <Badge
+      variant="outline"
+      title={`Ferretería de la cadena ${cadena}`}
+      className="shrink-0 border-orange-300 bg-orange-50 text-orange-700 text-[10px] px-1.5 py-0 font-semibold dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
+    >
+      {cadena}
+    </Badge>
+  );
+}
+
 function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverride, onSaveFleteRate }: {
   salesperson: string; startDate: string; endDate: string;
   onSaveOverride: (type: "client" | "document", value: string, commissionPct: number | null) => void;
@@ -757,19 +774,22 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
     },
   });
 
-  // Filtro en vivo: por cliente en ambas pestañas, y además por N° de
-  // documento y tipo (FCV/NCV) en la de ventas.
+  // Filtro en vivo: por cliente (o su cadena: "redmat" trae todas sus
+  // ferreterías) en ambas pestañas, y además por N° de documento y tipo
+  // (FCV/NCV) en la de ventas.
   const needle = search.trim().toLowerCase();
+  const calzaCliente = (r: { client: string; cadena?: string }) =>
+    r.client.toLowerCase().includes(needle) || !!r.cadena?.toLowerCase().includes(needle);
   const clients = useMemo(() => {
     if (!data) return [];
     if (!needle) return data.clients;
-    return data.clients.filter((c) => c.client.toLowerCase().includes(needle));
+    return data.clients.filter(calzaCliente);
   }, [data, needle]);
   const documents = useMemo(() => {
     if (!data) return [];
     if (!needle) return data.documents;
     return data.documents.filter((d) =>
-      d.client.toLowerCase().includes(needle)
+      calzaCliente(d)
       || d.numero.toLowerCase().includes(needle)
       || d.tido.toLowerCase().includes(needle));
   }, [data, needle]);
@@ -841,7 +861,12 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
             <TableBody>
               {clients.map((c) => (
                 <TableRow key={c.client} className={c.effectivePct === 0 ? "opacity-60" : ""}>
-                  <TableCell>{c.client}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5">
+                      <span>{c.client}</span>
+                      <CadenaBadge cadena={c.cadena} />
+                    </div>
+                  </TableCell>
                   <TableCell className={`text-right tabular-nums whitespace-nowrap ${c.revenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(c.revenue)}</TableCell>
                   <TableCell className="text-right tabular-nums whitespace-nowrap text-slate-500">{formatCLP(c.cost)}</TableCell>
                   <TableCell className="text-right tabular-nums whitespace-nowrap">{formatCLP(c.margin)}</TableCell>
@@ -910,7 +935,12 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                     </div>
                   </TableCell>
                   <TableCell>{formatFecha(d.fecha)}</TableCell>
-                  <TableCell className="max-w-[220px] truncate" title={d.client}>{d.client}</TableCell>
+                  <TableCell className="max-w-[260px]" title={d.client}>
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate">{d.client}</span>
+                      <CadenaBadge cadena={d.cadena} />
+                    </div>
+                  </TableCell>
                   <TableCell className={`text-right tabular-nums whitespace-nowrap ${d.revenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(d.revenue)}</TableCell>
                   <TableCell className="text-right tabular-nums whitespace-nowrap text-slate-500">{formatCLP(d.cost)}</TableCell>
                   <TableCell className="text-right tabular-nums whitespace-nowrap">{formatCLP(d.margin)}</TableCell>
