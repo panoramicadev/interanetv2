@@ -96,7 +96,8 @@ type NavItemProps = {
   unreadCount: number;
   pendingOrdersCount: number;
   marketingPorAceptar: number;
-  laboratorioPendientes: number;
+  /** Lo pendiente de cada sub-sección de "Solicitudes", por ruta. */
+  solicitudesPendientes: Record<string, number>;
   cotizacionesWebPendientes: number;
   publicSlug?: string;
   onNavegar: () => void;
@@ -112,7 +113,7 @@ const NavItem = memo(function NavItem({
   unreadCount,
   pendingOrdersCount,
   marketingPorAceptar,
-  laboratorioPendientes,
+  solicitudesPendientes,
   cotizacionesWebPendientes,
   publicSlug,
   onNavegar,
@@ -138,7 +139,7 @@ const NavItem = memo(function NavItem({
   const hasPendingChild = hasChildren &&
     ((pendingOrdersCount > 0 && item.children.some((c: any) => c.href === "/ecommerce-pedidos")) ||
       (marketingPorAceptar > 0 && item.children.some((c: any) => c.href === "/marketing/solicitudes")) ||
-      (laboratorioPendientes > 0 && item.children.some((c: any) => c.href === "/tintometria/solicitudes")));
+      item.children.some((c: any) => (solicitudesPendientes[c.href] ?? 0) > 0));
 
   if (item.disabled) {
     if (collapsed) {
@@ -260,14 +261,14 @@ const NavItem = memo(function NavItem({
                         {marketingPorAceptar}
                       </span>
                     )}
-                    {child.href === "/tintometria/solicitudes" && laboratorioPendientes > 0 && (
+                    {(solicitudesPendientes[child.href] ?? 0) > 0 && (
                       <span
                         className={`flex-shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${
                           isChildActive ? "bg-white text-[#fd6301]" : "bg-[#fd6301] text-white"
                         }`}
-                        data-testid="badge-solicitudes-laboratorio"
+                        data-testid={`badge-pendientes${child.href.replace(/\//g, "-")}`}
                       >
-                        {laboratorioPendientes}
+                        {solicitudesPendientes[child.href]}
                       </span>
                     )}
                   </button>
@@ -622,6 +623,41 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   });
   const laboratorioPendientes = laboratorioData?.count || 0;
 
+  // Crédito, Nuevo Cliente y Muestra: las que siguen abiertas, con las mismas
+  // consultas y el mismo corte que sus pantallas, así el número calza con lo que
+  // la persona ve al entrar. Cada endpoint ya recorta por rol lo que le toca.
+  const tieneSolicitud = useCallback(
+    (href: string) => sidebarItems.some((item) => item.href === href || item.children?.some((c) => c.href === href)),
+    [sidebarItems],
+  );
+  const { data: solicitudesCredito = [] } = useQuery<Array<{ estado: string }>>({
+    queryKey: ["/api/solicitudes-credito"],
+    refetchInterval: 60000,
+    enabled: !!user && tieneSolicitud("/solicitud-credito"),
+  });
+  const { data: solicitudesNuevoCliente = [] } = useQuery<Array<{ estado: string }>>({
+    queryKey: ["/api/solicitudes-nuevo-cliente"],
+    refetchInterval: 60000,
+    enabled: !!user && tieneSolicitud("/nuevo-cliente"),
+  });
+  const { data: solicitudesMuestra = [] } = useQuery<Array<{ estado: string }>>({
+    queryKey: ["/api/solicitudes-muestra"],
+    refetchInterval: 60000,
+    enabled: !!user && tieneSolicitud("/solicitud-muestra"),
+  });
+  const creditoPendientes = solicitudesCredito.filter((s) => ["enviada", "analizando"].includes(s.estado)).length;
+  const nuevoClientePendientes = solicitudesNuevoCliente.filter((s) => s.estado === "enviada").length;
+  const muestraPendientes = solicitudesMuestra.filter((s) => ["pendiente", "en_curso"].includes(s.estado)).length;
+  const solicitudesPendientes = useMemo(
+    () => ({
+      "/tintometria/solicitudes": laboratorioPendientes,
+      "/solicitud-credito": creditoPendientes,
+      "/nuevo-cliente": nuevoClientePendientes,
+      "/solicitud-muestra": muestraPendientes,
+    }),
+    [laboratorioPendientes, creditoPendientes, nuevoClientePendientes, muestraPendientes],
+  );
+
   // Cotizaciones Web (cotizador público) pendientes de atender. Misma consulta que
   // usa la pantalla, así comparten lo ya cargado.
   const hasCotizacionesWeb = useMemo(
@@ -802,7 +838,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               unreadCount={unreadCount}
               pendingOrdersCount={pendingOrdersCount}
               marketingPorAceptar={marketingPorAceptar}
-              laboratorioPendientes={laboratorioPendientes}
+              solicitudesPendientes={solicitudesPendientes}
               cotizacionesWebPendientes={cotizacionesWebPendientes}
               publicSlug={(user as any)?.publicSlug}
               onNavegar={cerrarMenuMovil}
