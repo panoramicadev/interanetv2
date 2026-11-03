@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, addMonths, addWeeks, endOfMonth, endOfWeek, format, parseISO, startOfMonth, startOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
-import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, ChevronsUpDown, ClipboardList, FileDown, FileSpreadsheet, FileText, Layers, Loader2, Receipt, RefreshCw, RotateCcw, Search, Store, Truck, User, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsUpDown, ClipboardList, FileDown, FileSpreadsheet, FileText, Layers, Loader2, Receipt, RefreshCw, RotateCcw, Search, Store, Truck, User, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -122,6 +122,7 @@ function PillFiltro({
 }
 
 interface DocumentoDetalle {
+  id: string;
   tipo: string;
   numero: string;
   fecha: string;
@@ -207,6 +208,96 @@ function etiquetaDe(tipo: TipoPeriodo, desde: string, hasta: string) {
   return desde === hasta ? fechaCorta(desde) : `${fechaCorta(desde)} al ${fechaCorta(hasta)}`;
 }
 
+interface LineaDocumento {
+  codigo: string;
+  producto: string;
+  unidad: string;
+  cantidad: number;
+  pendiente: number | null;
+  precio: number;
+  neto: number;
+  bruto: number;
+}
+
+const cantidad = (n: number) => n.toLocaleString("es-CL", { maximumFractionDigits: 2 });
+
+/** Los productos de un documento, al desplegarlo. Se leen recién al abrirlo. */
+function LineasDelDocumento({ categoria, id }: { categoria: ClaveCategoria; id: string }) {
+  const { data, isLoading, isError, error } = useQuery<{ lineas: LineaDocumento[] }, Error>({
+    queryKey: ["/api/detalle-facturacion/lineas", categoria, id],
+    retry: false,
+    queryFn: async () => {
+      const res = await fetch(`/api/detalle-facturacion/lineas?${new URLSearchParams({ categoria, id })}`, { credentials: "include" });
+      const cuerpo = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(cuerpo?.message || "No se pudo leer el detalle del documento");
+      return cuerpo;
+    },
+  });
+  const conPendiente = categoria === "nvv" || categoria === "gdv";
+
+  if (isLoading) {
+    return (
+      <p className="py-3 text-xs text-slate-500 dark:text-slate-400">
+        <Loader2 className="inline h-3.5 w-3.5 mr-2 animate-spin" />
+        Cargando productos…
+      </p>
+    );
+  }
+  if (isError) return <p className="py-3 text-xs text-red-600 dark:text-red-400">{error?.message}</p>;
+  const lineas = data?.lineas ?? [];
+  if (lineas.length === 0) return <p className="py-3 text-xs text-slate-500 dark:text-slate-400">Este documento no tiene líneas en el sistema de gestión.</p>;
+
+  return (
+    <div className="py-2" data-testid={`detalle-lineas-${id}`}>
+      {conPendiente && (
+        <p className="mb-2 text-[11px] text-slate-500 dark:text-slate-400">Solo las líneas que faltan pasar al documento siguiente; neto y bruto de lo pendiente.</p>
+      )}
+      {/* Escritorio */}
+      <table className="hidden md:table w-full text-xs">
+        <thead>
+          <tr className="text-left text-[10px] uppercase tracking-wider text-slate-400">
+            <th className="py-1 pr-3 font-semibold">Código</th>
+            <th className="py-1 pr-3 font-semibold">Producto</th>
+            <th className="py-1 pr-3 font-semibold text-right">Cantidad</th>
+            {conPendiente && <th className="py-1 pr-3 font-semibold text-right">Pendiente</th>}
+            <th className="py-1 pr-3 font-semibold text-right">Precio neto</th>
+            <th className="py-1 pr-3 font-semibold text-right">Neto</th>
+            <th className="py-1 font-semibold text-right">Bruto</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lineas.map((l, i) => (
+            <tr key={i} className="border-t border-slate-200/70 dark:border-slate-700/60 text-slate-600 dark:text-slate-300">
+              <td className="py-1 pr-3 whitespace-nowrap tabular-nums">{l.codigo}</td>
+              <td className="py-1 pr-3">{l.producto}</td>
+              <td className="py-1 pr-3 text-right whitespace-nowrap tabular-nums">{cantidad(l.cantidad)} {l.unidad}</td>
+              {conPendiente && <td className="py-1 pr-3 text-right whitespace-nowrap tabular-nums">{cantidad(l.pendiente ?? 0)}</td>}
+              <td className="py-1 pr-3 text-right whitespace-nowrap tabular-nums">{clp(l.precio)}</td>
+              <td className="py-1 pr-3 text-right whitespace-nowrap tabular-nums font-medium">{clp(l.neto)}</td>
+              <td className="py-1 text-right whitespace-nowrap tabular-nums">{clp(l.bruto)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {/* Celular */}
+      <div className="md:hidden space-y-1.5">
+        {lineas.map((l, i) => (
+          <div key={i} className="border-t border-slate-200/70 dark:border-slate-700/60 pt-1.5 text-xs">
+            <div className="flex justify-between gap-3">
+              <p className="min-w-0 text-slate-700 dark:text-slate-200">{l.producto}</p>
+              <p className="shrink-0 tabular-nums font-medium text-slate-700 dark:text-slate-200">{clp(l.neto)}</p>
+            </div>
+            <p className="text-slate-500 dark:text-slate-400 tabular-nums">
+              {l.codigo} · {cantidad(l.cantidad)} {l.unidad}
+              {conPendiente && ` · pendiente ${cantidad(l.pendiente ?? 0)}`} · {clp(l.precio)} c/u
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Los documentos de una categoría en el período: tabla en escritorio, tarjetas en celular. */
 function DocumentosDelPeriodo({
   desde,
@@ -240,6 +331,16 @@ function DocumentosDelPeriodo({
 
   // Por defecto los más recientes primero: es lo que se viene a revisar.
   const [ordenFecha, setOrdenFecha] = useState<"desc" | "asc">("desc");
+  // Documentos desplegados, por id: se pueden abrir varios a la vez.
+  const [abiertos, setAbiertos] = useState<Set<string>>(() => new Set());
+  const alternarAbierto = (id: string) =>
+    setAbiertos((prev) => {
+      const sig = new Set(prev);
+      if (sig.has(id)) sig.delete(id);
+      else sig.add(id);
+      return sig;
+    });
+  useEffect(() => setAbiertos(new Set()), [desde, hasta, filtros, categoria]);
   const alternarOrden = () => setOrdenFecha((o) => (o === "desc" ? "asc" : "desc"));
 
   useEffect(() => setPagina(0), [desde, hasta, filtros, categoria, busqueda, ordenFecha]);
@@ -340,9 +441,28 @@ function DocumentosDelPeriodo({
                 </tr>
               </thead>
               <tbody>
-                {visibles.map((d) => (
-                  <tr key={`${d.tipo}-${d.numero}-${d.fecha}`} className="border-b border-slate-100 dark:border-slate-800/60 text-slate-700 dark:text-slate-200">
-                    <td className="py-2 pr-3 whitespace-nowrap">{d.tipo}</td>
+                {visibles.map((d) => {
+                  const abierto = abiertos.has(d.id);
+                  return (
+                  <Fragment key={d.id}>
+                  <tr
+                    onClick={() => alternarAbierto(d.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        alternarAbierto(d.id);
+                      }
+                    }}
+                    tabIndex={0}
+                    aria-expanded={abierto}
+                    title={abierto ? "Ocultar detalle" : "Ver detalle"}
+                    data-testid={`detalle-fila-${d.id}`}
+                    className={`border-b border-slate-100 dark:border-slate-800/60 text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-orange-50/60 dark:hover:bg-slate-800/50 focus-visible:outline-none focus-visible:bg-orange-50/60 ${abierto ? "bg-orange-50/60 dark:bg-slate-800/50" : ""}`}
+                  >
+                    <td className="py-2 pr-3 whitespace-nowrap">
+                      <ChevronDown className={`inline h-3.5 w-3.5 mr-1 text-slate-400 transition-transform ${abierto ? "" : "-rotate-90"}`} />
+                      {d.tipo}
+                    </td>
                     <td className="py-2 pr-3 whitespace-nowrap tabular-nums">{d.numero}</td>
                     <td className="py-2 pr-3 whitespace-nowrap tabular-nums">{fechaCorta(d.fecha)}</td>
                     <td className="py-2 pr-3">{d.cliente || d.codigoCliente}</td>
@@ -350,7 +470,16 @@ function DocumentosDelPeriodo({
                     <td className="py-2 pr-3 text-right whitespace-nowrap tabular-nums font-medium">{clp(d.neto)}</td>
                     <td className="py-2 text-right whitespace-nowrap tabular-nums">{clp(d.bruto)}</td>
                   </tr>
-                ))}
+                  {abierto && (
+                    <tr className="border-b border-slate-100 dark:border-slate-800/60 bg-slate-50/70 dark:bg-slate-800/30">
+                      <td colSpan={7} className="px-6">
+                        <LineasDelDocumento categoria={categoria} id={d.id} />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -366,7 +495,20 @@ function DocumentosDelPeriodo({
               {etiquetaOrden}
             </button>
             {visibles.map((d) => (
-              <div key={`${d.tipo}-${d.numero}-${d.fecha}`} className="rounded-2xl border border-slate-200/70 dark:border-slate-800 p-3">
+              <div
+                key={d.id}
+                role="button"
+                tabIndex={0}
+                aria-expanded={abiertos.has(d.id)}
+                onClick={() => alternarAbierto(d.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    alternarAbierto(d.id);
+                  }
+                }}
+                className={`rounded-2xl border p-3 cursor-pointer ${abiertos.has(d.id) ? "border-orange-300 dark:border-orange-500/50" : "border-slate-200/70 dark:border-slate-800"}`}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <p className="min-w-0 text-sm font-semibold text-slate-800 dark:text-slate-100">{d.cliente || d.codigoCliente}</p>
                   <p className="shrink-0 text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100">{clp(d.neto)}</p>
@@ -375,6 +517,15 @@ function DocumentosDelPeriodo({
                   {d.tipo} {d.numero} · {fechaCorta(d.fecha)}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">{d.vendedor || "—"} · Bruto {clp(d.bruto)}</p>
+                <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-orange-500">
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${abiertos.has(d.id) ? "rotate-180" : ""}`} />
+                  {abiertos.has(d.id) ? "Ocultar detalle" : "Ver detalle"}
+                </p>
+                {abiertos.has(d.id) && (
+                  <div onClick={(e) => e.stopPropagation()} className="cursor-default">
+                    <LineasDelDocumento categoria={categoria} id={d.id} />
+                  </div>
+                )}
               </div>
             ))}
           </div>

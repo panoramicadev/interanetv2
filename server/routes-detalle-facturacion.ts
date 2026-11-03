@@ -23,7 +23,9 @@
  * crédito. La tarjeta de notas de crédito se muestra en positivo.
  *
  * Resumen, PDF y Excel salen de los mismos documentos (`cargarDataset`), para
- * que lo descargado siempre coincida con lo que se ve en pantalla.
+ * que lo descargado siempre coincida con lo que se ve en pantalla. Las líneas
+ * (productos) de cada documento se leen aparte: al desplegar un documento en la
+ * tabla (`/lineas`) y, para todos, al descargar.
  */
 import type { Express } from "express";
 import { sql } from "drizzle-orm";
@@ -56,6 +58,8 @@ const FONDO_TOTAL = "#fff7ed";
 type ClaveCategoria = "nvv" | "gdv" | "facturas" | "ncv";
 
 interface Documento {
+  /** IDMAEEDO: con él se leen las líneas del documento. */
+  id: string;
   tipo: string;
   numero: string;
   fecha: string;
@@ -66,6 +70,23 @@ interface Documento {
   neto: number;
   bruto: number;
 }
+
+/** Una línea (producto) de un documento. */
+interface Linea {
+  codigo: string;
+  producto: string;
+  unidad: string;
+  cantidad: number;
+  /** Solo notas de venta y guías: lo que falta pasar al documento siguiente. */
+  pendiente: number | null;
+  precio: number;
+  /** En notas de venta y guías, el neto y bruto de lo pendiente: así suman lo que muestra el documento. */
+  neto: number;
+  bruto: number;
+}
+
+/** Líneas por id de documento; null = no se pudieron leer. */
+type LineasPorDocumento = Map<string, Linea[]> | null;
 
 interface Categoria {
   clave: ClaveCategoria;
@@ -140,7 +161,7 @@ async function documentosDelErp(tidos: string[], sucursales: string[], montos: s
   // MAEEN tiene una fila por sucursal del cliente: con un JOIN directo, cada nota
   // se contaría una vez por sucursal. Por eso OUTER APPLY con TOP 1.
   const r = await req.query(`
-    SELECT ed.TIDO, ed.NUDO, CONVERT(varchar(10), ed.FEEMDO, 23) AS FECHA, ed.ENDO, en.NOKOEN, fu.NOKOFU,
+    SELECT CAST(ed.IDMAEEDO AS varchar(20)) AS IDMAEEDO, ed.TIDO, ed.NUDO, CONVERT(varchar(10), ed.FEEMDO, 23) AS FECHA, ed.ENDO, en.NOKOEN, fu.NOKOFU,
            ru.NOKORU, pe.NETO, pe.BRUTO
     FROM dbo.MAEEDO ed
     ${montos}
@@ -165,6 +186,7 @@ async function documentosDelErp(tidos: string[], sucursales: string[], montos: s
     ORDER BY ed.FEEMDO, ed.NUDO
   `);
   return r.recordset.map((f: any) => ({
+    id: texto(f.IDMAEEDO),
     tipo: texto(f.TIDO),
     numero: texto(f.NUDO),
     fecha: f.FECHA,
@@ -177,9 +199,14 @@ async function documentosDelErp(tidos: string[], sucursales: string[], montos: s
   }));
 }
 
+/** Las líneas que cuentan como pendientes: las mismas para el monto del documento y para su detalle. */
+const condicionPendiente = (tido: "NVV" | "GDV") => `
+        AND (dd.ESLIDO IS NULL OR LTRIM(RTRIM(dd.ESLIDO)) = '')
+        AND dd.CAPRCO2 - dd.CAPREX2 > 0
+        ${tido === "GDV" ? `AND dd.VANELI >= ${NETO_MINIMO_LINEA_GUIA}` : ""}`;
+
 /** Notas de venta o guías del período, solo con lo que falta pasar al documento siguiente. */
 function pendientesDelErp(tido: "NVV" | "GDV", desde: string, hasta: string): Promise<Documento[]> {
-  const netoMinimo = tido === "GDV" ? `AND dd.VANELI >= ${NETO_MINIMO_LINEA_GUIA}` : "";
   // Sin líneas pendientes, el HAVING no devuelve fila y el documento queda fuera.
   const montos = `
     CROSS APPLY (
@@ -187,9 +214,7 @@ function pendientesDelErp(tido: "NVV" | "GDV", desde: string, hasta: string): Pr
              SUM((dd.CAPRCO2 - dd.CAPREX2) * dd.PPPRBR) AS BRUTO
       FROM dbo.MAEDDO dd
       WHERE dd.IDMAEEDO = ed.IDMAEEDO
-        AND (dd.ESLIDO IS NULL OR LTRIM(RTRIM(dd.ESLIDO)) = '')
-        AND dd.CAPRCO2 - dd.CAPREX2 > 0
-        ${netoMinimo}
+        ${condicionPendiente(tido)}
       HAVING COUNT(*) > 0
     ) pe`;
   return documentosDelErp([tido], SUCURSALES_ERP, montos, desde, hasta);
@@ -203,7 +228,8 @@ function facturasDelErp(desde: string, hasta: string): Promise<Documento[]> {
 /** Respaldo de `facturasDelErp`: una fila por documento (fact_ventas viene por línea). */
 async function documentosDeVentas(desde: string, hasta: string): Promise<Documento[]> {
   const r: any = await db.execute(sql`
-    SELECT tido,
+    SELECT idmaeedo::text AS id,
+           tido,
            MAX(nudo)::text AS numero,
            MAX(feemdo)::text AS fecha,
            MAX(endo) AS codigo_cliente,
@@ -219,6 +245,7 @@ async function documentosDeVentas(desde: string, hasta: string): Promise<Documen
     ORDER BY MAX(feemdo), MAX(nudo)
   `);
   return (r.rows ?? r).map((f: any) => ({
+    id: texto(f.id),
     tipo: texto(f.tido),
     numero: texto(f.numero),
     fecha: f.fecha,
@@ -229,6 +256,115 @@ async function documentosDeVentas(desde: string, hasta: string): Promise<Documen
     neto: numero(f.neto),
     bruto: numero(f.bruto),
   }));
+}
+
+const LOTE_IDS = 1000;
+/** Los ids van dentro del SQL: solo se aceptan números. */
+const idsValidos = (ids: string[]) => Array.from(new Set(ids.filter((id) => /^\d{1,20}$/.test(id))));
+
+function agrupar(filas: { id: string; linea: Linea }[]): Map<string, Linea[]> {
+  const mapa = new Map<string, Linea[]>();
+  for (const { id, linea } of filas) {
+    const lista = mapa.get(id);
+    if (lista) lista.push(linea);
+    else mapa.set(id, [linea]);
+  }
+  return mapa;
+}
+
+/**
+ * Líneas de los documentos desde MAEDDO. En notas de venta y guías, solo las
+ * pendientes y por lo que falta pasar, igual que el monto del documento.
+ */
+async function lineasDelErp(clave: ClaveCategoria, ids: string[]): Promise<Map<string, Linea[]>> {
+  const validos = idsValidos(ids);
+  const pendiente = clave === "nvv" || clave === "gdv";
+  const filtro = clave === "nvv" ? condicionPendiente("NVV") : clave === "gdv" ? condicionPendiente("GDV") : "";
+  const filas: { id: string; linea: Linea }[] = [];
+  for (let i = 0; i < validos.length; i += LOTE_IDS) {
+    const lote = validos.slice(i, i + LOTE_IDS);
+    const r = await (await erp()).request().query(`
+      SELECT CAST(dd.IDMAEEDO AS varchar(20)) AS IDMAEEDO, dd.KOPRCT, dd.NOKOPR, dd.UD02PR,
+             dd.CAPRCO2, dd.CAPREX2, dd.PPPRNE, dd.PPPRBR, dd.VANELI, dd.VABRLI
+      FROM dbo.MAEDDO dd
+      WHERE dd.IDMAEEDO IN (${lote.join(",")})
+        ${filtro}
+      ORDER BY dd.IDMAEEDO, dd.IDMAEDDO
+    `);
+    for (const f of r.recordset as any[]) {
+      const cantidad = Math.abs(numero(f.CAPRCO2));
+      const falta = pendiente ? numero(f.CAPRCO2) - numero(f.CAPREX2) : null;
+      filas.push({
+        id: texto(f.IDMAEEDO),
+        linea: {
+          codigo: texto(f.KOPRCT),
+          producto: texto(f.NOKOPR),
+          unidad: texto(f.UD02PR),
+          cantidad,
+          pendiente: falta,
+          precio: Math.abs(numero(f.PPPRNE)),
+          neto: falta !== null ? falta * numero(f.PPPRNE) : Math.abs(numero(f.VANELI)),
+          bruto: falta !== null ? falta * numero(f.PPPRBR) : Math.abs(numero(f.VABRLI)),
+        },
+      });
+    }
+  }
+  return agrupar(filas);
+}
+
+/** Respaldo de `lineasDelErp` para facturas y notas de crédito. */
+async function lineasDeVentas(ids: string[]): Promise<Map<string, Linea[]>> {
+  const validos = idsValidos(ids);
+  const filas: { id: string; linea: Linea }[] = [];
+  for (let i = 0; i < validos.length; i += LOTE_IDS) {
+    const lote = validos.slice(i, i + LOTE_IDS);
+    const r: any = await db.execute(sql`
+      SELECT idmaeedo::text AS id, koprct, nokoprct, ud02pr, caprco2, ppprne, vaneli, vabrli
+      FROM ventas.fact_ventas
+      WHERE idmaeedo IN (${sql.join(lote.map((id) => sql`${id}::numeric`), sql`, `)})
+      ORDER BY idmaeedo, idmaeddo
+    `);
+    for (const f of r.rows ?? r) {
+      filas.push({
+        id: texto(f.id),
+        linea: {
+          codigo: texto(f.koprct),
+          producto: texto(f.nokoprct),
+          unidad: texto(f.ud02pr),
+          cantidad: Math.abs(numero(f.caprco2)),
+          pendiente: null,
+          precio: Math.abs(numero(f.ppprne)),
+          neto: Math.abs(numero(f.vaneli)),
+          bruto: Math.abs(numero(f.vabrli)),
+        },
+      });
+    }
+  }
+  return agrupar(filas);
+}
+
+async function cargarLineas(clave: ClaveCategoria, ids: string[]): Promise<Map<string, Linea[]>> {
+  if (clave === "nvv" || clave === "gdv") return lineasDelErp(clave, ids);
+  return lineasDelErp(clave, ids).catch((e) => {
+    console.error("[detalle-facturacion] No se pudo leer líneas del ERP, se usa fact_ventas:", e?.message);
+    return lineasDeVentas(ids);
+  });
+}
+
+/** Las líneas de todos los documentos del informe; si una categoría falla, el resto se descarga igual. */
+async function cargarLineasDataset(ds: Dataset): Promise<Map<ClaveCategoria, LineasPorDocumento>> {
+  const resultado = await Promise.all(
+    ds.categorias.map(async (c): Promise<[ClaveCategoria, LineasPorDocumento]> => {
+      if (!c.documentos) return [c.clave, null];
+      try {
+        return [c.clave, await cargarLineas(c.clave, c.documentos.map((d) => d.id))];
+      } catch (e: any) {
+        console.error(`[detalle-facturacion] No se pudo leer las líneas de ${c.clave}:`, e?.message);
+        return [c.clave, null];
+      }
+    }),
+  );
+  return new Map(resultado);
 }
 
 async function cargarDataset(desde: string, hasta: string, filtros: Filtros = {}): Promise<Dataset> {
@@ -289,10 +425,13 @@ const nombreArchivo = (ds: Dataset, ext: string) => `detalle-facturacion_${ds.de
 
 const NOTA_CONSOLIDADO =
   "Notas de venta y guías muestran solo lo que falta pasar al documento siguiente. El consolidado suma notas de venta, guías y facturas, y resta las notas de crédito. Montos netos, sin IVA.";
+const NOTA_LINEAS =
+  "En notas de venta y guías, cada línea muestra la cantidad del documento y lo que falta pasar; el neto y el bruto son los de lo pendiente.";
+const NOTA_SIN_LINEAS = "No se pudo leer el detalle de productos de estos documentos al generar este informe.";
 const NOTA_INCOMPLETO =
   "Las notas de venta y las guías no estuvieron disponibles al generar este informe: el consolidado no las incluye.";
 
-function generarPdf(salida: NodeJS.WritableStream, ds: Dataset): Promise<void> {
+function generarPdf(salida: NodeJS.WritableStream, ds: Dataset, lineas: Map<ClaveCategoria, LineasPorDocumento>): Promise<void> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margin: 50 });
     doc.on("error", reject);
@@ -345,9 +484,122 @@ function generarPdf(salida: NodeJS.WritableStream, ds: Dataset): Promise<void> {
     const generado = new Date().toLocaleString("es-CL", { timeZone: "America/Santiago" });
     doc.moveDown(1).fillColor(GRIS).text(`Generado el ${generado}`, izquierda, doc.y, { width: ancho });
 
+    escribirDetallePdf(doc, ds, lineas);
+
     doc.end();
   });
 }
+
+/** Una página por categoría con cada documento y sus productos. */
+function escribirDetallePdf(doc: PDFKit.PDFDocument, ds: Dataset, lineas: Map<ClaveCategoria, LineasPorDocumento>) {
+  const izquierda = 50;
+  const ancho = doc.page.width - 100;
+  const limite = () => doc.page.height - 60;
+  // Columnas de las líneas: código, producto, cantidad, pendiente, precio, neto.
+  const cCodigo = izquierda + 8;
+  const cProducto = cCodigo + 70;
+  const cNeto = izquierda + ancho - 70;
+  const cPrecio = cNeto - 64;
+  const cPendiente = cPrecio - 52;
+  const cCantidad = cPendiente - 52;
+  const anchoProducto = cCantidad - cProducto - 6;
+  const unaLinea = { lineBreak: false } as const;
+  // pdfkit solo corta con "…" si hay alto fijo: se recorta a mano para que nada salte de línea.
+  const cabe = (t: string, w: number) => {
+    if (doc.widthOfString(t) <= w) return t;
+    let r = t;
+    while (r.length > 1 && doc.widthOfString(`${r}…`) > w) r = r.slice(0, -1);
+    return `${r.trimEnd()}…`;
+  };
+
+  let y = 0;
+  const asegurar = (alto: number, alSaltar?: () => void) => {
+    if (y + alto <= limite()) return;
+    doc.addPage();
+    y = 50;
+    alSaltar?.();
+  };
+
+  for (const c of ds.categorias) {
+    if (!c.documentos || c.documentos.length === 0) continue;
+    const delGrupo = lineas.get(c.clave) ?? null;
+    const conPendiente = c.clave === "nvv" || c.clave === "gdv";
+
+    doc.addPage();
+    y = 50;
+    doc.rect(izquierda, y, 4, 22).fill(MARCA);
+    doc.fillColor(TINTA).font("Helvetica-Bold").fontSize(14).text(`${c.titulo}: detalle por documento`, izquierda + 12, y + 3);
+    y += 30;
+    doc.fillColor(GRIS).font("Helvetica").fontSize(8).text(cabe(`${etiquetaPeriodo(ds.desde, ds.hasta)} · ${ds.filtrosTexto}`, ancho), izquierda, y, { width: ancho, ...unaLinea });
+    y += 12;
+    if (conPendiente) {
+      doc.text(NOTA_LINEAS, izquierda, y, { width: ancho });
+      y = doc.y + 4;
+    }
+    if (!delGrupo) {
+      doc.fillColor("#dc2626").text(NOTA_SIN_LINEAS, izquierda, y, { width: ancho });
+      y = doc.y + 4;
+    }
+    y += 6;
+
+    const encabezadoLineas = () => {
+      doc.fillColor(GRIS).font("Helvetica-Bold").fontSize(7);
+      doc.text("CÓDIGO", cCodigo, y, unaLinea);
+      doc.text("PRODUCTO", cProducto, y, unaLinea);
+      doc.text("CANTIDAD", cCantidad, y, { width: 48, align: "right", ...unaLinea });
+      if (conPendiente) doc.text("PENDIENTE", cPendiente, y, { width: 48, align: "right", ...unaLinea });
+      doc.text("PRECIO NETO", cPrecio, y, { width: 60, align: "right", ...unaLinea });
+      doc.text("NETO", cNeto, y, { width: 70, align: "right", ...unaLinea });
+      y += 11;
+    };
+
+    for (const d of c.documentos) {
+      const productos = delGrupo?.get(d.id) ?? [];
+      asegurar(delGrupo ? 40 : 20);
+      doc.rect(izquierda, y, ancho, 16).fill("#f3f4f6");
+      doc.fillColor(TINTA).font("Helvetica-Bold").fontSize(8.5);
+      doc.text(cabe(`${d.tipo} ${d.numero} · ${fechaCorta(d.fecha)} · ${d.cliente || d.codigoCliente}`, ancho - 206), izquierda + 6, y + 4, { width: ancho - 200, ...unaLinea });
+      doc.font("Helvetica").fillColor(GRIS).text(cabe(d.vendedor || "—", 110), izquierda + ancho - 190, y + 4, { width: 110, ...unaLinea });
+      doc.font("Helvetica-Bold").fillColor(TINTA).text(clp(d.neto), cNeto, y + 4, { width: 64, align: "right", ...unaLinea });
+      y += 20;
+      if (!delGrupo) continue;
+      if (productos.length === 0) {
+        doc.fillColor(GRIS).font("Helvetica").fontSize(7.5).text("Sin líneas en el sistema de gestión.", cCodigo, y, unaLinea);
+        y += 14;
+        continue;
+      }
+      encabezadoLineas();
+      for (const l of productos) {
+        asegurar(11, encabezadoLineas);
+        doc.fillColor(TINTA).font("Helvetica").fontSize(7.5);
+        doc.text(cabe(l.codigo, 66), cCodigo, y, { width: 66, ...unaLinea });
+        doc.text(cabe(l.producto, anchoProducto), cProducto, y, { width: anchoProducto, ...unaLinea });
+        doc.text(`${l.cantidad.toLocaleString("es-CL")} ${l.unidad}`.trim(), cCantidad, y, { width: 48, align: "right", ...unaLinea });
+        if (conPendiente) doc.text((l.pendiente ?? 0).toLocaleString("es-CL"), cPendiente, y, { width: 48, align: "right", ...unaLinea });
+        doc.text(clp(l.precio), cPrecio, y, { width: 60, align: "right", ...unaLinea });
+        doc.text(clp(l.neto), cNeto, y, { width: 70, align: "right", ...unaLinea });
+        y += 11;
+      }
+      y += 6;
+    }
+  }
+}
+
+const COLUMNAS_LINEAS: { titulo: string; ancho: number }[] = [
+  { titulo: "Tipo", ancho: 8 },
+  { titulo: "N° documento", ancho: 16 },
+  { titulo: "Fecha", ancho: 12 },
+  { titulo: "Cliente", ancho: 40 },
+  { titulo: "Vendedor", ancho: 28 },
+  { titulo: "Código producto", ancho: 18 },
+  { titulo: "Producto", ancho: 46 },
+  { titulo: "Unidad", ancho: 9 },
+  { titulo: "Cantidad", ancho: 11 },
+  { titulo: "Pendiente", ancho: 11 },
+  { titulo: "Precio neto", ancho: 14 },
+  { titulo: "Neto", ancho: 15 },
+  { titulo: "Bruto", ancho: 15 },
+];
 
 const COLUMNAS_DETALLE: { titulo: string; ancho: number }[] = [
   { titulo: "Tipo", ancho: 8 },
@@ -369,7 +621,7 @@ function estilarEncabezado(fila: ExcelJS.Row) {
   });
 }
 
-async function generarExcel(ds: Dataset): Promise<ExcelJS.Buffer> {
+async function generarExcel(ds: Dataset, lineas: Map<ClaveCategoria, LineasPorDocumento>): Promise<ExcelJS.Buffer> {
   const wb = new ExcelJS.Workbook();
   const periodo = etiquetaPeriodo(ds.desde, ds.hasta);
 
@@ -420,6 +672,46 @@ async function generarExcel(ds: Dataset): Promise<ExcelJS.Buffer> {
     totalHoja.getCell(9).numFmt = FORMATO_MONTO;
   }
 
+  // Una hoja de productos por categoría: una fila por línea, con los datos del documento repetidos para poder filtrar.
+  for (const c of ds.categorias) {
+    if (!c.documentos) continue;
+    const conPendiente = c.clave === "nvv" || c.clave === "gdv";
+    const columnas = COLUMNAS_LINEAS.filter((col) => conPendiente || col.titulo !== "Pendiente");
+    const hoja = wb.addWorksheet(`${c.hoja} - detalle`);
+    hoja.columns = columnas.map((col) => ({ width: col.ancho }));
+    hoja.addRow(["Período consultado", periodo]);
+    hoja.addRow(["Filtros", ds.filtrosTexto]);
+    if (conPendiente) hoja.addRow([NOTA_LINEAS]);
+    hoja.addRow([]);
+    const delGrupo = lineas.get(c.clave) ?? null;
+    if (!delGrupo) {
+      hoja.addRow([NOTA_SIN_LINEAS]).font = { color: { argb: "FFDC2626" } };
+      continue;
+    }
+    const encabezado = hoja.addRow(columnas.map((col) => col.titulo));
+    estilarEncabezado(encabezado);
+    hoja.views = [{ state: "frozen", ySplit: encabezado.number }];
+    const montos = columnas.length - 3; // precio, neto y bruto son las tres últimas
+    let totalNeto = 0;
+    let totalBruto = 0;
+    for (const d of c.documentos) {
+      for (const l of delGrupo.get(d.id) ?? []) {
+        const valores: (string | number)[] = [d.tipo, d.numero, fechaCorta(d.fecha), d.cliente || d.codigoCliente, d.vendedor, l.codigo, l.producto, l.unidad, l.cantidad];
+        if (conPendiente) valores.push(l.pendiente ?? 0);
+        valores.push(l.precio, l.neto, l.bruto);
+        const fila = hoja.addRow(valores);
+        for (let i = montos + 1; i <= columnas.length; i++) fila.getCell(i).numFmt = FORMATO_MONTO;
+        totalNeto += l.neto;
+        totalBruto += l.bruto;
+      }
+    }
+    const total = hoja.addRow([...Array(columnas.length - 2).fill(""), totalNeto, totalBruto]);
+    total.getCell(1).value = "Total";
+    total.font = { bold: true };
+    total.getCell(columnas.length - 1).numFmt = FORMATO_MONTO;
+    total.getCell(columnas.length).numFmt = FORMATO_MONTO;
+  }
+
   return wb.xlsx.writeBuffer();
 }
 
@@ -468,13 +760,29 @@ export function registerDetalleFacturacionRoutes(app: Express) {
     }),
   );
 
+  // Las líneas de un documento, para desplegarlas al pincharlo en la tabla.
+  app.get("/api/detalle-facturacion/lineas", requireRoles(ROLES_PERMITIDOS), async (req: any, res: any) => {
+    const clave = req.query.categoria as ClaveCategoria;
+    const id = typeof req.query.id === "string" ? req.query.id : "";
+    if (!["nvv", "gdv", "facturas", "ncv"].includes(clave)) return res.status(400).json({ message: "La categoría no es válida" });
+    if (!/^\d{1,20}$/.test(id)) return res.status(400).json({ message: "El documento no es válido" });
+    try {
+      const lineas = await cargarLineas(clave, [id]);
+      res.json({ lineas: lineas.get(id) ?? [] });
+    } catch (error: any) {
+      console.error("[detalle-facturacion] Error al leer líneas:", error?.message);
+      res.status(500).json({ message: "No se pudo leer el detalle del documento" });
+    }
+  });
+
   app.get(
     "/api/detalle-facturacion/pdf",
     requireRoles(ROLES_PERMITIDOS),
     conPeriodo(async (ds, res) => {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${nombreArchivo(ds, "pdf")}"`);
-      await generarPdf(res, ds);
+      const lineas = await cargarLineasDataset(ds);
+      await generarPdf(res, ds, lineas);
     }),
   );
 
@@ -482,7 +790,7 @@ export function registerDetalleFacturacionRoutes(app: Express) {
     "/api/detalle-facturacion/excel",
     requireRoles(ROLES_PERMITIDOS),
     conPeriodo(async (ds, res) => {
-      const archivo = await generarExcel(ds);
+      const archivo = await generarExcel(ds, await cargarLineasDataset(ds));
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename="${nombreArchivo(ds, "xlsx")}"`);
       res.send(Buffer.from(archivo as ArrayBuffer));
