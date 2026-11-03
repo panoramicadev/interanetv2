@@ -780,19 +780,24 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
   const needle = search.trim().toLowerCase();
   const calzaCliente = (r: { client: string; cadena?: string }) =>
     r.client.toLowerCase().includes(needle) || !!r.cadena?.toLowerCase().includes(needle);
+  // Las ferreterías de una cadena se pierden en una lista larga: el botón de la
+  // cadena deja solo esas, sumado a lo que se haya escrito en el buscador.
+  const [soloCadena, setSoloCadena] = useState(false);
+  const cadena = data?.clients.find((c) => c.cadena)?.cadena;
+  const clientesDeCadena = data?.clients.filter((c) => c.cadena).length ?? 0;
+  const filtrarCadena = soloCadena && !!cadena;
   const clients = useMemo(() => {
     if (!data) return [];
-    if (!needle) return data.clients;
-    return data.clients.filter(calzaCliente);
-  }, [data, needle]);
+    return data.clients.filter((c) => (!filtrarCadena || c.cadena) && (!needle || calzaCliente(c)));
+  }, [data, needle, filtrarCadena]);
   const documents = useMemo(() => {
     if (!data) return [];
-    if (!needle) return data.documents;
-    return data.documents.filter((d) =>
-      calzaCliente(d)
+    return data.documents.filter((d) => (!filtrarCadena || d.cadena) && (!needle
+      || calzaCliente(d)
       || d.numero.toLowerCase().includes(needle)
-      || d.tido.toLowerCase().includes(needle));
-  }, [data, needle]);
+      || d.tido.toLowerCase().includes(needle)));
+  }, [data, needle, filtrarCadena]);
+  const filtrando = !!needle || filtrarCadena;
   const shownCount = tab === "clients" ? clients.length : documents.length;
   const totalCount = tab === "clients" ? (data?.clients.length ?? 0) : (data?.documents.length ?? 0);
 
@@ -828,7 +833,20 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
             </button>
           )}
         </div>
-        {needle && (
+        {cadena && (
+          <button
+            type="button"
+            onClick={() => setSoloCadena((v) => !v)}
+            title={filtrarCadena ? "Ver todos los clientes" : `Ver solo las ferreterías de ${cadena}`}
+            className={`inline-flex items-center gap-1.5 h-9 px-3 text-sm font-semibold rounded-xl border transition-colors ${filtrarCadena
+              ? "border-orange-500 bg-orange-500 text-white hover:bg-orange-600"
+              : "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300"}`}
+          >
+            {cadena} ({clientesDeCadena})
+            {filtrarCadena && <X className="w-3.5 h-3.5" />}
+          </button>
+        )}
+        {filtrando && (
           <span className="text-xs text-slate-500 tabular-nums">{shownCount} de {totalCount}</span>
         )}
         {data && (
