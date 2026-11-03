@@ -61,6 +61,7 @@ import { requireAuth } from "./auth";
 import { requirePermission } from "./permissions";
 import { LINE_COST_EXPR } from "./costo-linea";
 import { buildCommissionWorkbook } from "./commissions-excel";
+import { marcarCadenas } from "./utils/sucursal-por-prefijo";
 
 // Documentos que forman la base: facturas menos notas de crédito.
 const BASE_TIDOS = sql`fv."tido" IN ('FCV', 'NCV')`;
@@ -596,7 +597,17 @@ export async function getSalespersonDetail(salesperson: string, startDate: strin
     };
   });
 
-  return { salesperson, startDate, endDate, defaultPct, defaultFletePct: DEFAULT_FLETE_RATE, clients, documents };
+  // Las ferreterías de una cadena (REDMAT) llevan `cadena`, para que la pantalla
+  // las marque: suelen tener un % de comisión distinto al del vendedor.
+  const [clientsConCadena, documentsConCadena] = await Promise.all([
+    marcarCadenas(clients, "client"),
+    marcarCadenas(documents, "client"),
+  ]);
+
+  return {
+    salesperson, startDate, endDate, defaultPct, defaultFletePct: DEFAULT_FLETE_RATE,
+    clients: clientsConCadena, documents: documentsConCadena,
+  };
 }
 
 // Tope de líneas del export: un período muy largo puede traer cientos de
