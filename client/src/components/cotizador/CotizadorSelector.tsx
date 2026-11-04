@@ -172,7 +172,7 @@ export function SelectorVariantes({ sel, onAdded, onPreview }: {
 
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-gray-800 truncate">{variant.color}</p>
-                  <p className="text-[10px] text-gray-400">
+                  <p className="text-[10px] text-gray-400 truncate">
                     <span className={variant.available ? 'text-emerald-500' : ''}>{variant.available ? '●' : '○'}</span>{' '}
                     {variant.available ? 'Disponible' : 'Consultar'}
                     <span className="ml-1 text-gray-300">SKU: {variant.sku}</span>

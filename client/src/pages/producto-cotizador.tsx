@@ -57,7 +57,7 @@ function Ficha({ product, onOpenQuotePanel }: { product: ProductData; onOpenQuot
   const retraso = (i: number) => ({ '--cz-delay': `${i * 70}ms` } as CSSProperties);
 
   return (
-    <div className="grid lg:grid-cols-[1fr_1fr] gap-6 lg:gap-12 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-6 lg:gap-12 items-start">
       {/* Vitrina */}
       <div className="lg:sticky lg:top-32 space-y-3">
         <CotizadorVitrina
@@ -117,14 +117,17 @@ function Ficha({ product, onOpenQuotePanel }: { product: ProductData; onOpenQuot
           {product.groupName && (
             <p style={retraso(0)} className="cz-subir text-xs font-bold uppercase tracking-[0.15em] text-[#fd6301] mb-2">{product.groupName}</p>
           )}
-          <h1 style={retraso(1)} className="cz-subir text-3xl sm:text-5xl font-black text-slate-900 uppercase tracking-tight leading-[1.02]">{product.genericName}</h1>
+          <h1 style={retraso(1)} className="cz-subir text-3xl sm:text-4xl 2xl:text-5xl font-black text-slate-900 uppercase tracking-tight leading-[1.05] break-words">{product.genericName}</h1>
           <div className="cz-raya mt-4 h-1.5 rounded-full bg-gradient-to-r from-[#fd6301] to-amber-400" />
           {product.breveResena && <p style={retraso(2)} className="cz-subir mt-4 text-base sm:text-lg text-slate-600 leading-relaxed">{product.breveResena}</p>}
         </div>
 
         <div style={retraso(3)} className="cz-subir rounded-3xl border border-slate-200/70 bg-white p-4 sm:p-5 shadow-xl shadow-slate-900/5 space-y-4">
           <SelectorVariantes sel={sel} onAdded={onOpenQuotePanel} onPreview={setVistaPrevia} />
-          <BotonAgregarCotizacion sel={sel} onAdded={onOpenQuotePanel} />
+          {/* En celular el botón queda pegado abajo mientras se recorre la lista de colores */}
+          <div className="sticky bottom-0 z-10 -mx-4 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white/95 backdrop-blur border-t border-slate-100 rounded-b-3xl sm:static sm:mx-0 sm:px-0 sm:pt-0 sm:pb-0 sm:bg-transparent sm:backdrop-blur-none sm:border-0">
+            <BotonAgregarCotizacion sel={sel} onAdded={onOpenQuotePanel} />
+          </div>
           <p className="text-[11px] text-slate-400 text-center">Cotización sin compromiso · sin registro · respuesta en 24 horas</p>
         </div>
 

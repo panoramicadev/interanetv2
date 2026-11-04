@@ -411,8 +411,9 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
             <h3 className="text-sm font-bold uppercase text-[#fd6301] flex-1 min-w-0 truncate">
               {product.genericName}
             </h3>
+            {/* En celular las etiquetas no caben junto al nombre: se ocultan para que el nombre se lea */}
             {displayedTags.length > 0 && (
-              <div className="flex items-center gap-1">
+              <div className="hidden sm:flex items-center gap-1">
                 {displayedTags.slice(0, 2).map(tag => {
                   const tagDef = adminTags.find(at => at.name === tag);
                   const bgClass = TAG_BG_SOLID[tagDef?.color || 'orange'] || 'bg-[#fd6301]';
@@ -766,7 +767,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
             <div className="flex items-center gap-2">
               {isStore && (props as StoreModeProps).onOpenDetail && (
                 <button
-                  className="h-11 px-4 rounded-xl border-2 border-[#fd6301] text-[#fd6301] hover:bg-[#fd6301]/5 transition-all duration-300 font-bold text-sm flex items-center gap-2"
+                  className="h-11 px-3 sm:px-4 rounded-xl border-2 border-[#fd6301] text-[#fd6301] hover:bg-[#fd6301]/5 transition-all duration-300 font-bold text-sm flex items-center gap-2"
                   onClick={e => {
                     e.stopPropagation();
                     (props as StoreModeProps).onOpenDetail?.(product, activeFormatData || variantsForFormat[0]);
@@ -779,7 +780,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
 
               {isCotizador && (props as CotizadorModeProps).onViewDetail && (
                 <button
-                  className="h-11 px-4 rounded-xl border-2 border-[#fd6301] text-[#fd6301] hover:bg-[#fd6301]/5 transition-all duration-300 font-bold text-sm flex items-center gap-2"
+                  className="h-11 px-3 sm:px-4 rounded-xl border-2 border-[#fd6301] text-[#fd6301] hover:bg-[#fd6301]/5 transition-all duration-300 font-bold text-sm flex items-center gap-2"
                   onClick={e => {
                     e.stopPropagation();
                     (props as CotizadorModeProps).onViewDetail?.(product);
@@ -794,7 +795,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                 <a
                   href={urlProducto(product.genericName)}
                   onClick={e => e.stopPropagation()}
-                  className="h-11 px-4 rounded-xl border-2 border-slate-200 text-slate-600 hover:border-[#fd6301] hover:text-[#fd6301] transition-all duration-300 font-bold text-sm flex items-center gap-2"
+                  className="h-11 px-3 sm:px-4 rounded-xl border-2 border-slate-200 text-slate-600 hover:border-[#fd6301] hover:text-[#fd6301] transition-all duration-300 font-bold text-sm flex items-center gap-2"
                   aria-label="Ver página del producto"
                 >
                   <ArrowUpRight className="h-4 w-4" />
@@ -803,7 +804,7 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
               )}
 
               <button
-                className="h-11 px-6 rounded-xl bg-[#fd6301] hover:bg-[#e35400] text-white transition-all duration-300 font-bold text-sm flex items-center gap-2 shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:shadow-orange-500/20 group"
+                className="h-11 px-4 sm:px-6 rounded-xl bg-[#fd6301] hover:bg-[#e35400] text-white transition-all duration-300 font-bold text-sm flex items-center gap-2 shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:shadow-orange-500/20 group"
                 onClick={e => {
                   e.stopPropagation();
                   if (isStore) handleStoreAddToCart();

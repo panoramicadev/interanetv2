@@ -6,7 +6,7 @@
  * Allows visitors to build a product list and request a quotation.
  */
 
-import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { QuoteProvider } from '@/contexts/QuoteContext';
 import CotizadorHeader from '@/components/cotizador/CotizadorHeader';
@@ -36,6 +36,19 @@ function CotizadorContent() {
   const [contactFormOpen, setContactFormOpen] = useState(false);
   const [detailProduct, setDetailProduct] = useState<any>(null);
   const [orden, setOrden] = useState<Orden>('categoria');
+  // La barra de categorías se pega justo bajo el encabezado, que cambia de alto
+  // (en celular el buscador baja a una segunda fila): se mide en vez de fijarlo.
+  const [altoHeader, setAltoHeader] = useState(0);
+  useEffect(() => {
+    const header = document.querySelector('header');
+    if (!header) return;
+    const medir = () => setAltoHeader(header.getBoundingClientRect().height);
+    medir();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(medir);
+    ro.observe(header);
+    return () => ro.disconnect();
+  }, []);
 
   // Fetch public config
   const { data: config } = useQuery({
@@ -127,7 +140,7 @@ function CotizadorContent() {
       {/* ═══ CATALOG ═══ */}
       <div id="catalogo" className="max-w-7xl mx-auto px-4 py-6">
         {/* Barra: categorías en pastillas (queda pegada bajo el encabezado), orden y conteo */}
-        <div data-sin-brillo="" className="sticky top-[96px] sm:top-[100px] md:top-[108px] z-30 -mx-4 px-4 pt-3 pb-2.5 mb-5 bg-[#F8FAFC]/90 backdrop-blur-md border-b border-slate-200/70">
+        <div data-sin-brillo="" style={{ top: altoHeader }} className="sticky z-30 -mx-4 px-4 pt-3 pb-2.5 mb-5 bg-[#F8FAFC]/90 backdrop-blur-md border-b border-slate-200/70">
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0 flex gap-2 overflow-x-auto pr-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,black_90%,transparent)]">
               {['all', ...categories].map(cat => {
