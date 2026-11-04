@@ -1,5 +1,6 @@
-import { X, Package, ChevronRight, ArrowUpRight } from 'lucide-react';
-import { imagenLiviana } from '@/lib/imagen-liviana';
+import { useEffect, useState } from 'react';
+import { X, ChevronRight, ArrowUpRight } from 'lucide-react';
+import CotizadorVitrina from './CotizadorVitrina';
 import { urlProducto } from '@/lib/slug-producto';
 import { useSeleccionCotizador, SelectorVariantes, BotonAgregarCotizacion, type ProductData } from './CotizadorSelector';
 
@@ -12,6 +13,8 @@ interface Props {
 
 export default function CotizadorProductDetail({ product, open, onClose, onOpenQuotePanel }: Props) {
   const sel = useSeleccionCotizador(product);
+  const [vistaPrevia, setVistaPrevia] = useState<string | undefined>();
+  useEffect(() => setVistaPrevia(undefined), [product?.genericName]);
 
   if (!open || !product) return null;
 
@@ -23,26 +26,25 @@ export default function CotizadorProductDetail({ product, open, onClose, onOpenQ
 
   return (
     <div className="fixed inset-0 z-[60]" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300" />
 
       {/* Modal — full screen on mobile, centered on desktop */}
       <div
-        className="absolute inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-w-5xl sm:w-full sm:max-h-[92vh] bg-white sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col sm:flex-row animate-in fade-in sm:zoom-in-95 duration-200"
+        className="absolute inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-w-5xl sm:w-full sm:max-h-[92vh] bg-white sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col sm:flex-row animate-in fade-in slide-in-from-bottom-8 sm:slide-in-from-bottom-4 sm:zoom-in-95 duration-300"
         onClick={e => e.stopPropagation()}
       >
         {/* Close */}
-        <button onClick={onClose} className="absolute top-3 right-3 z-20 p-2 rounded-full bg-white/90 backdrop-blur-sm hover:bg-white shadow-md">
+        <button onClick={onClose} className="absolute top-3 right-3 z-20 p-2 rounded-full bg-white/90 backdrop-blur-sm hover:bg-white shadow-md transition-transform hover:rotate-90">
           <X className="w-5 h-5 text-gray-600" />
         </button>
 
         {/* ═══ LEFT: Image ═══ */}
-        <div className="w-full sm:w-[42%] bg-gradient-to-br from-gray-50 to-white p-6 sm:p-8 flex items-center justify-center min-h-[260px] sm:min-h-[520px] flex-shrink-0">
-          {product.imageUrl ? (
-            <img src={imagenLiviana(product.imageUrl, 840)} alt={product.genericName} className="max-w-full max-h-[420px] object-contain drop-shadow-xl" />
-          ) : (
-            <Package className="w-24 h-24 text-gray-200" />
-          )}
-        </div>
+        <CotizadorVitrina
+          imageUrl={vistaPrevia || product.imageUrl}
+          alt={product.genericName}
+          ancho={840}
+          className="w-full sm:w-[42%] min-h-[260px] sm:min-h-[520px] flex-shrink-0"
+        />
 
         {/* ═══ RIGHT: Info + Selector (all visible, scrollable) ═══ */}
         <div className="flex-1 flex flex-col overflow-hidden sm:border-l sm:border-gray-100 min-h-0">
@@ -95,7 +97,7 @@ export default function CotizadorProductDetail({ product, open, onClose, onOpenQ
               </div>
             )}
 
-            <SelectorVariantes sel={sel} onAdded={closeAndOpenPanel} />
+            <SelectorVariantes sel={sel} onAdded={closeAndOpenPanel} onPreview={setVistaPrevia} />
           </div>
 
           {/* Sticky action footer */}

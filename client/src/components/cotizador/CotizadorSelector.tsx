@@ -3,7 +3,7 @@
  * (CotizadorProductDetail) y la página de producto (/productos/:slug), para que ambos
  * agreguen a la cotización exactamente igual.
  */
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { Plus, Check, Minus, ShoppingCart, Box, Palette } from 'lucide-react';
 import { useQuote } from '@/contexts/QuoteContext';
 import { VENTA_POR_UNIDAD_COTIZADOR_WEB } from '@shared/venta-por-unidad';
@@ -106,7 +106,12 @@ export function useSeleccionCotizador(product: ProductData | null) {
 
 type Seleccion = ReturnType<typeof useSeleccionCotizador>;
 
-export function SelectorVariantes({ sel, onAdded }: { sel: Seleccion; onAdded?: () => void }) {
+export function SelectorVariantes({ sel, onAdded, onPreview }: {
+  sel: Seleccion;
+  onAdded?: () => void;
+  /** Al pasar por un color se muestra su imagen en la vitrina; sin argumento, vuelve a la del producto. */
+  onPreview?: (imageUrl?: string) => void;
+}) {
   const { formatsList, activeFormat, setActiveFormat, variantsForFormat, quantities, updateQty, setQty, addToQuote, isItemInQuote } = sel;
 
   return (
@@ -122,10 +127,10 @@ export function SelectorVariantes({ sel, onAdded }: { sel: Seleccion; onAdded?: 
               <button
                 key={format}
                 onClick={() => setActiveFormat(format)}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 border active:scale-95 ${
                   format === activeFormat
-                    ? 'bg-[#fd6301] border-[#fd6301] text-white shadow-md'
-                    : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                    ? 'bg-[#fd6301] border-[#fd6301] text-white shadow-lg shadow-orange-500/30 -translate-y-0.5'
+                    : 'bg-white border-gray-200 text-gray-600 hover:border-[#fd6301]/40 hover:text-gray-900 hover:-translate-y-0.5'
                 }`}
               >
                 {format}
@@ -140,19 +145,24 @@ export function SelectorVariantes({ sel, onAdded }: { sel: Seleccion; onAdded?: 
         <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
           <Palette className="w-3 h-3" /> {variantsForFormat.length > 1 ? 'Color y cantidad' : 'Cantidad'}
         </h4>
-        <div className="space-y-2">
-          {variantsForFormat.map(variant => {
+        {/* key: al cambiar de formato las filas vuelven a entrar en cascada */}
+        <div key={activeFormat} className="space-y-2" onMouseLeave={() => onPreview?.()}>
+          {variantsForFormat.map((variant, i) => {
             const qty = quantities[variant.sku] || 0;
             const alreadyIn = isItemInQuote(variant.sku, variant.color, variant.format);
 
             return (
               <div
                 key={variant.sku}
-                className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
-                  qty > 0 ? 'bg-orange-50/50 border-[#fd6301]/30' : alreadyIn ? 'bg-emerald-50/50 border-emerald-200' : 'bg-white border-gray-100'
+                onMouseEnter={() => variant.imageUrl && onPreview?.(variant.imageUrl)}
+                style={{ '--cz-delay': `${Math.min(i, 10) * 45}ms` } as CSSProperties}
+                className={`cz-subir group/fila flex items-center gap-3 p-3 rounded-2xl border transition-[background-color,border-color,box-shadow] duration-200 ${
+                  qty > 0
+                    ? 'bg-orange-50/70 border-[#fd6301]/40 shadow-md shadow-orange-500/10'
+                    : alreadyIn ? 'bg-emerald-50/60 border-emerald-200' : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-md'
                 }`}
               >
-                <div className="w-11 h-11 rounded-full bg-gray-50 border-2 border-gray-200 flex-shrink-0 overflow-hidden">
+                <div className="w-11 h-11 rounded-full bg-gray-50 ring-2 ring-white shadow-md flex-shrink-0 overflow-hidden transition-transform duration-300 group-hover/fila:scale-110 group-hover/fila:rotate-6">
                   {variant.imageUrl ? (
                     <img src={imagenLiviana(variant.imageUrl, 80)} alt={variant.color} className="w-full h-full object-cover" />
                   ) : (
@@ -163,7 +173,8 @@ export function SelectorVariantes({ sel, onAdded }: { sel: Seleccion; onAdded?: 
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-gray-800 truncate">{variant.color}</p>
                   <p className="text-[10px] text-gray-400">
-                    {variant.available ? '● Disponible' : '○ Consultar'}
+                    <span className={variant.available ? 'text-emerald-500' : ''}>{variant.available ? '●' : '○'}</span>{' '}
+                    {variant.available ? 'Disponible' : 'Consultar'}
                     <span className="ml-1 text-gray-300">SKU: {variant.sku}</span>
                   </p>
                 </div>
@@ -171,7 +182,8 @@ export function SelectorVariantes({ sel, onAdded }: { sel: Seleccion; onAdded?: 
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button
                     onClick={() => updateQty(variant.sku, -(variant.stepSize || 1), variant.minUnit, variant.stepSize)}
-                    className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 active:bg-gray-200 text-gray-600"
+                    aria-label={`Restar ${variant.color}`}
+                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-90 transition-transform text-gray-600"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
@@ -184,13 +196,14 @@ export function SelectorVariantes({ sel, onAdded }: { sel: Seleccion; onAdded?: 
                     onChange={(e) => setQty(variant.sku, e.target.value)}
                     onFocus={(e) => e.target.select()}
                     aria-label="Cantidad"
-                    className={`w-9 h-9 text-sm text-center font-bold rounded-lg border outline-none focus:ring-1 focus:ring-[#fd6301] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${
+                    className={`w-10 h-9 transition-colors text-sm text-center font-black rounded-xl border outline-none focus:ring-1 focus:ring-[#fd6301] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${
                       qty > 0 ? 'bg-[#fd6301]/10 border-[#fd6301]/30 text-[#fd6301]' : 'bg-white border-gray-200 text-gray-400'
                     }`}
                   />
                   <button
                     onClick={() => updateQty(variant.sku, variant.stepSize || 1, variant.minUnit, variant.stepSize)}
-                    className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 active:bg-gray-200 text-gray-600"
+                    aria-label={`Sumar ${variant.color}`}
+                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-90 transition-transform text-gray-600"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
@@ -200,13 +213,14 @@ export function SelectorVariantes({ sel, onAdded }: { sel: Seleccion; onAdded?: 
                         addToQuote(variant);
                         onAdded?.();
                       }}
-                      className="w-9 h-9 flex items-center justify-center rounded-lg bg-[#fd6301] text-white active:scale-95 transition-all ml-0.5"
+                      aria-label={`Agregar ${variant.color} a la cotización`}
+                      className="cz-pop w-9 h-9 flex items-center justify-center rounded-xl bg-[#fd6301] text-white shadow-md shadow-orange-500/30 active:scale-90 transition-transform ml-0.5"
                     >
-                      <Plus className="w-4 h-4" />
+                      <ShoppingCart className="w-4 h-4" />
                     </button>
                   )}
                   {qty === 0 && alreadyIn && (
-                    <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 ml-0.5">
+                    <div className="cz-pop w-9 h-9 flex items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 ml-0.5" title="Ya está en tu cotización">
                       <Check className="w-4 h-4" />
                     </div>
                   )}
@@ -221,12 +235,21 @@ export function SelectorVariantes({ sel, onAdded }: { sel: Seleccion; onAdded?: 
 }
 
 export function BotonAgregarCotizacion({ sel, onAdded }: { sel: Seleccion; onAdded?: () => void }) {
-  const { hasItemsToAdd, addAll } = sel;
+  const { hasItemsToAdd, addAll, quantities } = sel;
+  const conCantidad = Object.values(quantities).filter(q => q > 0);
+  const unidades = conCantidad.reduce((s, q) => s + q, 0);
   return (
+    <div>
+    {hasItemsToAdd && (
+      <p className="cz-subir text-xs text-gray-500 text-center mb-2">
+        <span className="font-bold text-gray-800">{conCantidad.length}</span> {conCantidad.length === 1 ? 'color' : 'colores'} ·{' '}
+        <span className="font-bold text-[#fd6301]">{unidades}</span> {unidades === 1 ? 'unidad' : 'unidades'}
+      </p>
+    )}
     <button
       onClick={() => { if (addAll() > 0) onAdded?.(); }}
       disabled={!hasItemsToAdd}
-      className={`w-full flex items-center justify-center gap-2 py-3.5 font-bold rounded-xl transition-all text-sm ${
+      className={`w-full flex items-center justify-center gap-2 py-3.5 font-bold rounded-2xl transition-all text-sm ${
         hasItemsToAdd
           ? 'bg-gradient-to-r from-[#fd6301] to-[#e35400] text-white active:scale-[0.98] shadow-lg hover:from-[#e35400] hover:to-[#c94a00]'
           : 'bg-gray-100 text-gray-400 cursor-not-allowed'
@@ -235,5 +258,6 @@ export function BotonAgregarCotizacion({ sel, onAdded }: { sel: Seleccion; onAdd
       <ShoppingCart className="w-4 h-4" />
       {hasItemsToAdd ? 'Agregar a mi cotización' : 'Selecciona una cantidad'}
     </button>
+    </div>
   );
 }
