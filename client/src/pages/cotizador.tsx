@@ -22,6 +22,18 @@ import { useAparecer } from '@/hooks/use-aparecer';
 type Orden = 'categoria' | 'az';
 const OTROS = 'Otros productos';
 
+/** Título de una categoría del catálogo, con su conteo. */
+function TituloSeccion({ titulo, total }: { titulo: string; total: number }) {
+  return (
+    <div className="flex items-center gap-3 mb-4 min-w-0">
+      <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-[#fd6301] to-amber-400 flex-shrink-0" />
+      <h2 className="text-lg sm:text-xl font-black text-gray-900 tracking-tight truncate">{titulo}</h2>
+      <span className="px-2 py-0.5 rounded-full bg-orange-50 text-[#fd6301] text-xs font-bold tabular-nums flex-shrink-0">{total}</span>
+      <span className="flex-1 min-w-4 h-px bg-gradient-to-r from-gray-200 to-transparent" />
+    </div>
+  );
+}
+
 /** Envoltorio que hace entrar cada tarjeta al aparecer en pantalla. */
 function Revelar({ i, children }: { i: number; children: ReactNode }) {
   const ref = useAparecer<HTMLDivElement>();
@@ -110,8 +122,15 @@ function CotizadorContent() {
       if (!grupos.has(k)) grupos.set(k, []);
       grupos.get(k)!.push(p);
     });
+    // Primero las categorías con dos o más productos (llenan la grilla de dos columnas);
+    // las de un solo producto van al final, de a dos por fila (ver el render).
     return Array.from(grupos.entries())
-      .sort(([a], [b]) => (a === OTROS ? 1 : b === OTROS ? -1 : a.localeCompare(b, 'es')))
+      .sort(([a, ia], [b, ib]) => {
+        if (a === OTROS || b === OTROS) return a === OTROS ? 1 : -1;
+        const simpleA = ia.length < 2, simpleB = ib.length < 2;
+        if (simpleA !== simpleB) return simpleA ? 1 : -1;
+        return a.localeCompare(b, 'es');
+      })
       .map(([titulo, items]) => ({ titulo, items: items.sort(porNombre) }));
   }, [products, orden, selectedCategory]);
 
@@ -224,16 +243,9 @@ function CotizadorContent() {
           </div>
         ) : (
           <div key={`${selectedCategory}|${orden}`} className="space-y-10 animate-in fade-in duration-300">
-            {secciones.map(seccion => (
+            {secciones.filter(sec => sec.items.length > 1 || !sec.titulo).map(seccion => (
               <section key={seccion.titulo ?? 'todo'}>
-                {seccion.titulo && (
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-[#fd6301] to-amber-400" />
-                    <h2 className="text-lg sm:text-xl font-black text-gray-900 tracking-tight">{seccion.titulo}</h2>
-                    <span className="px-2 py-0.5 rounded-full bg-orange-50 text-[#fd6301] text-xs font-bold tabular-nums">{seccion.items.length}</span>
-                    <span className="flex-1 h-px bg-gradient-to-r from-gray-200 to-transparent" />
-                  </div>
-                )}
+                {seccion.titulo && <TituloSeccion titulo={seccion.titulo} total={seccion.items.length} />}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
                   {seccion.items.map((product: any, i: number) => (
                     <Revelar key={product.genericName} i={i}>
@@ -248,6 +260,25 @@ function CotizadorContent() {
                 </div>
               </section>
             ))}
+
+            {/* Categorías de un solo producto: de a dos por fila, cada una con su título */}
+            {secciones.some(sec => sec.titulo && sec.items.length === 1) && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-4 gap-y-10">
+                {secciones.filter(sec => sec.titulo && sec.items.length === 1).map((seccion, i) => (
+                  <section key={seccion.titulo!} className="min-w-0">
+                    <TituloSeccion titulo={seccion.titulo!} total={1} />
+                    <Revelar i={i}>
+                      <ProductCardExpandable
+                        mode="cotizador"
+                        product={seccion.items[0]}
+                        onViewDetail={setDetailProduct}
+                        onOpenQuotePanel={() => setQuotePanelOpen(true)}
+                      />
+                    </Revelar>
+                  </section>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
