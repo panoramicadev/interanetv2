@@ -131,7 +131,7 @@ export default function CotizadorHero({ products, categories, config, onExplore,
                     onClick={() => setActive(i)}
                     aria-label={p.genericName}
                     title={p.genericName}
-                    className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-white border p-1.5 transition-all ${
+                    className={`w-14 h-14 rounded-2xl bg-white border p-1.5 transition-all ${
                       i === active ? 'border-[#fd6301] ring-2 ring-[#fd6301]/20 scale-105' : 'border-slate-200 opacity-60 hover:opacity-100'
                     }`}
                   >
@@ -181,7 +181,7 @@ export default function CotizadorHero({ products, categories, config, onExplore,
           {/* Vitrina animada */}
           {product && (
             <div className="ch-up relative lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:self-center" style={{ animationDelay: '200ms' }}>
-              <div className="relative aspect-square sm:aspect-[4/3] lg:aspect-[1/1] max-h-[560px] w-full rounded-[2rem] bg-gradient-to-br from-[#fd6301] to-[#e35400] overflow-hidden shadow-2xl shadow-[#fd6301]/25">
+              <div className="relative aspect-[4/5] sm:aspect-[4/3] lg:aspect-[1/1] max-h-[620px] sm:max-h-[560px] w-full rounded-[2rem] bg-gradient-to-br from-[#fd6301] to-[#e35400] overflow-hidden shadow-2xl shadow-[#fd6301]/25">
                 {/* Decoración estática (arcos del logo) */}
                 <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-white/10" />
                 <svg className="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2 w-[480px] h-[480px] opacity-15" viewBox="0 0 400 400" fill="none" aria-hidden>
@@ -193,18 +193,17 @@ export default function CotizadorHero({ products, categories, config, onExplore,
                 {/* Producto */}
                 <button
                   onClick={() => onViewDetail(product)}
-                  className="absolute inset-0 flex items-center justify-center pb-24 sm:pb-36"
+                  className="absolute inset-0 flex items-center justify-center pt-10 pb-40 sm:pt-0 sm:pb-36"
                   aria-label={`Ver ${product.genericName}`}
                 >
-                  <span className="absolute bottom-[38%] sm:bottom-[36%] w-44 h-8 rounded-[50%] bg-[radial-gradient(closest-side,rgba(0,0,0,0.28),transparent)]" />
-                  <span key={product.genericName} className="ch-pop relative">
-                    <span className="block">
-                      <img
-                        src={imagenLiviana(product.imageUrl, 600)}
-                        alt={product.genericName}
-                        className="w-36 h-36 sm:w-56 sm:h-56 lg:w-72 lg:h-72 object-contain"
-                      />
-                    </span>
+                  {/* En celular el envase se escala al ancho de la pantalla (62 %), con tope */}
+                  <span key={product.genericName} className="ch-pop relative block w-[62%] max-w-[18rem] sm:w-64 sm:max-w-none lg:w-72">
+                    <span className="absolute left-1/2 -bottom-3 -translate-x-1/2 w-4/5 h-8 rounded-[50%] bg-[radial-gradient(closest-side,rgba(0,0,0,0.28),transparent)]" />
+                    <img
+                      src={imagenLiviana(product.imageUrl, 600)}
+                      alt={product.genericName}
+                      className="relative block w-full aspect-square object-contain drop-shadow-[0_18px_24px_rgba(0,0,0,0.25)]"
+                    />
                   </span>
                 </button>
 
