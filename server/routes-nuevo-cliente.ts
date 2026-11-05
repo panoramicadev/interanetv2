@@ -154,7 +154,8 @@ function cuerpoDelCorreo(s: SolicitudNuevoCliente): string {
   `;
 }
 
-async function avisarPorCorreo(s: SolicitudNuevoCliente): Promise<void> {
+/** A quién le llega la solicitud (y después, sus correcciones). */
+async function destinatariosDeLaSolicitud(s: SolicitudNuevoCliente): Promise<{ to: string[]; cc: string[] }> {
   const copia = await correosDeCopia(s.solicitanteId, s.supervisorId);
   const config = await destinatariosConfigurados();
 
@@ -163,6 +164,74 @@ async function avisarPorCorreo(s: SolicitudNuevoCliente): Promise<void> {
   // siempre, en los dos casos.
   const to = config.to.length > 0 ? config.to : [CORREO_ADMINISTRACION];
   const cc = Array.from(new Set([...config.cc, ...copia])).filter((email) => !to.includes(email));
+  return { to, cc };
+}
+
+/** Lo que el vendedor puede corregir después de enviarla, con cómo se lee en el correo. */
+const CAMPOS_EDITABLES: { key: keyof SolicitudNuevoCliente; label: string }[] = [
+  { key: 'segmento', label: 'Segmento' },
+  { key: 'rut', label: 'RUT' },
+  { key: 'razonSocial', label: 'Nombre / Razón social' },
+  { key: 'giro', label: 'Giro' },
+  { key: 'telefonos', label: 'Teléfonos' },
+  { key: 'correoEmpresa', label: 'Correo de empresa' },
+  { key: 'ciudad', label: 'Ciudad' },
+  { key: 'comuna', label: 'Comuna' },
+  { key: 'direccion', label: 'Dirección' },
+  { key: 'vendedorNombre', label: 'Vendedor' },
+  { key: 'condicionVenta', label: 'Condición de venta (inicial)' },
+  { key: 'receptorNombre', label: 'Recibe documentos' },
+  { key: 'receptorCorreo', label: 'Correo receptor' },
+  { key: 'receptorTelefono', label: 'Teléfono receptor' },
+  { key: 'requiereOrdenCompra', label: 'Incluir orden de compra' },
+  { key: 'requiereGuiaDespacho', label: 'Incluir guía de despacho' },
+];
+
+/** Qué cambió entre la versión guardada y la corregida, ya legible. */
+function cambiosEntre(antes: SolicitudNuevoCliente, despues: SolicitudNuevoCliente) {
+  const leer = (valor: unknown) =>
+    typeof valor === 'boolean' ? (valor ? 'SÍ' : 'NO') : String(valor ?? '').trim() || null;
+  return CAMPOS_EDITABLES
+    .map((c) => ({ label: c.label, antes: leer(antes[c.key]), despues: leer(despues[c.key]) }))
+    .filter((c) => c.antes !== c.despues);
+}
+
+/**
+ * Aviso de que el vendedor completó o corrigió una solicitud ya enviada. Va a
+ * los mismos que recibieron la original, con lo que cambió: así Administración
+ * no crea el cliente con el dato viejo.
+ */
+async function avisarCorreccionPorCorreo(
+  s: SolicitudNuevoCliente,
+  cambios: ReturnType<typeof cambiosEntre>,
+): Promise<void> {
+  const { to, cc } = await destinatariosDeLaSolicitud(s);
+  const filas = cambios
+    .map(
+      (c) => `<tr>
+        <td style="padding:4px 12px 4px 0;color:#64748b;font-size:13px">${c.label}</td>
+        <td style="padding:4px 12px 4px 0;color:#94a3b8;font-size:13px;text-decoration:line-through">${c.antes ?? '—'}</td>
+        <td style="padding:4px 0;color:#0f172a;font-size:13px;font-weight:600">${c.despues ?? '—'}</td>
+      </tr>`,
+    )
+    .join('');
+
+  await emailService.sendEmail({
+    to: to.join(', '),
+    cc: cc.length ? cc.join(', ') : undefined,
+    subject: `Nuevo cliente actualizado · ${s.razonSocial} · ${s.rut}`,
+    html: `
+      <p style="font-size:15px;color:#0f172a">
+        <strong>${s.solicitanteNombre ?? 'El vendedor'}</strong> actualizó la solicitud de creación del cliente
+        <strong>${s.razonSocial}</strong>.
+      </p>
+      <table style="border-collapse:collapse;margin:12px 0">${filas}</table>
+    `,
+  });
+}
+
+async function avisarPorCorreo(s: SolicitudNuevoCliente): Promise<void> {
+  const { to, cc } = await destinatariosDeLaSolicitud(s);
 
   await emailService.sendEmail({
     to: to.join(', '),
@@ -291,6 +360,67 @@ export function registerNuevoClienteRoutes(app: Express): void {
     } catch (error: any) {
       console.error('❌ Error al crear la solicitud de nuevo cliente:', error);
       res.status(500).json({ message: 'Error al enviar la solicitud', error: error.message });
+    }
+  });
+
+  // Completar o corregir los datos de una solicitud ya enviada (pedido del
+  // usuario, nov-2026). Solo quien la pidió, y solo mientras siga 'enviada':
+  // una vez creado el cliente, lo que vale es la ficha del ERP.
+  app.patch('/api/solicitudes-nuevo-cliente/:id/datos', requireAuth, async (req: any, res) => {
+    try {
+      const usuario = req.user;
+      const [actual] = await db
+        .select()
+        .from(solicitudesNuevoCliente)
+        .where(eq(solicitudesNuevoCliente.id, req.params.id));
+      if (!actual) return res.status(404).json({ message: 'La solicitud no existe' });
+      if (actual.solicitanteId !== usuario.id) {
+        return res.status(403).json({ message: 'Solo quien envió la solicitud puede editarla' });
+      }
+      if (actual.estado !== 'enviada') {
+        return res.status(409).json({ message: 'La solicitud ya fue resuelta: no se puede editar' });
+      }
+
+      const parsed = insertSolicitudNuevoClienteSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: parsed.error.errors[0]?.message ?? 'Datos de la solicitud inválidos',
+          errors: parsed.error.errors,
+        });
+      }
+
+      const [actualizada] = await db
+        .update(solicitudesNuevoCliente)
+        .set({
+          ...parsed.data,
+          vendedorId: parsed.data.vendedorId || null,
+          updatedAt: new Date(),
+        })
+        // Se vuelve a exigir aquí por si Administración la resolvió mientras tanto.
+        .where(
+          and(
+            eq(solicitudesNuevoCliente.id, actual.id),
+            eq(solicitudesNuevoCliente.solicitanteId, usuario.id),
+            eq(solicitudesNuevoCliente.estado, 'enviada'),
+          ),
+        )
+        .returning();
+
+      if (!actualizada) {
+        return res.status(409).json({ message: 'La solicitud ya fue resuelta: no se puede editar' });
+      }
+
+      const cambios = cambiosEntre(actual, actualizada);
+      if (cambios.length > 0) {
+        avisarCorreccionPorCorreo(actualizada, cambios).catch((error) =>
+          console.error('[nuevo-cliente] no se pudo avisar la corrección:', error?.message ?? error),
+        );
+      }
+
+      res.json(actualizada);
+    } catch (error: any) {
+      console.error('❌ Error al editar la solicitud de nuevo cliente:', error);
+      res.status(500).json({ message: 'Error al guardar los cambios', error: error.message });
     }
   });
 

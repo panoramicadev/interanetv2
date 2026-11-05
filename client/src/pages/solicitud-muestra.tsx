@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Check, Loader2, PaintBucket, Paperclip, Plus, Send, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Loader2, PaintBucket, Paperclip, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,6 +37,7 @@ interface FilaLista extends SolicitudMuestra {
 interface Detalle extends SolicitudMuestra {
   mensajes: SolicitudMuestraMensaje[];
   puedeAprobar: boolean;
+  puedeEditar?: boolean;
   puedeGestionar: boolean;
 }
 
@@ -64,6 +65,7 @@ const EVENTO: Record<string, string> = {
   aprobada: "la aprobó: queda en curso",
   rechazada: "la rechazó",
   nvv: "registró la NVV",
+  editada: "la corrigió",
   cerrada: "la cerró: muestra entregada",
 };
 
@@ -258,18 +260,50 @@ const PISTAS: Record<Tipo, { producto: string; color: string }> = {
   material: { producto: "Ej.: Cartilla de colores", color: "" },
 };
 
-function NuevaSolicitud({ onEnviada }: { onEnviada: (id: string) => void }) {
+/** El formulario lleno con una solicitud ya enviada, para corregirla. */
+const formDesde = (s: SolicitudMuestra) => ({
+  tipo: s.tipo as Tipo,
+  clienteId: s.clienteId,
+  clienteNombre: s.clienteNombre,
+  clienteRut: s.clienteRut ?? "",
+  obra: s.obra ?? "",
+  motivo: s.motivo ?? "",
+});
+const itemsDesde = (s: SolicitudMuestra) => {
+  const lista = itemsDe(s).map((i) => ({
+    producto: i.producto,
+    sku: i.sku ?? "",
+    color: i.color ?? "",
+    formato: i.formato,
+    cantidad: i.cantidad ? String(i.cantidad) : "",
+  }));
+  return lista.length > 0 ? lista : [{ ...ITEM_VACIO }];
+};
+
+/**
+ * El formulario de una muestra. Con `editar` corrige una ya enviada que sigue
+ * esperando aprobación (pedido del usuario, nov-2026): mismos campos, ya llenos.
+ */
+function NuevaSolicitud({
+  onEnviada,
+  editar,
+  onCancelar,
+}: {
+  onEnviada: (id: string) => void;
+  editar?: SolicitudMuestra;
+  onCancelar?: () => void;
+}) {
   const { toast } = useToast();
-  const [form, setForm] = useState(FORM_VACIO);
-  const [items, setItems] = useState([{ ...ITEM_VACIO }]);
+  const [form, setForm] = useState(() => (editar ? formDesde(editar) : FORM_VACIO));
+  const [items, setItems] = useState(() => (editar ? itemsDesde(editar) : [{ ...ITEM_VACIO }]));
   const set = <K extends keyof typeof FORM_VACIO>(k: K, v: (typeof FORM_VACIO)[K]) => setForm((f) => ({ ...f, [k]: v }));
   const setItem = (i: number, campo: keyof typeof ITEM_VACIO, v: string) =>
     setItems((l) => l.map((it, j) => (j === i ? { ...it, [campo]: v } : it)));
 
   const enviar = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("/api/solicitudes-muestra", {
-        method: "POST",
+      const res = await apiRequest(editar ? `/api/solicitudes-muestra/${editar.id}/datos` : "/api/solicitudes-muestra", {
+        method: editar ? "PATCH" : "POST",
         data: {
           ...form,
           clienteRut: form.clienteRut || null,
@@ -289,6 +323,13 @@ function NuevaSolicitud({ onEnviada }: { onEnviada: (id: string) => void }) {
       return res.json();
     },
     onSuccess: (nueva: SolicitudMuestra & { aprobadorNombre?: string | null }) => {
+      if (editar) {
+        queryClient.invalidateQueries({ queryKey: ["/api/solicitudes-muestra"] });
+        queryClient.invalidateQueries({ queryKey: [`/api/solicitudes-muestra/${editar.id}`] });
+        toast({ title: `Muestra #${nueva.numero} actualizada`, description: "Quien la aprueba recibió un aviso con la versión corregida." });
+        onEnviada(nueva.id);
+        return;
+      }
       setForm(FORM_VACIO);
       setItems([{ ...ITEM_VACIO }]);
       queryClient.invalidateQueries({ queryKey: ["/api/solicitudes-muestra"] });
@@ -490,15 +531,20 @@ function NuevaSolicitud({ onEnviada }: { onEnviada: (id: string) => void }) {
         </div>
       </Bloque>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {onCancelar && (
+          <Button variant="outline" onClick={onCancelar} className="h-10 rounded-xl text-sm">
+            Cancelar
+          </Button>
+        )}
         <Button
           onClick={() => enviar.mutate()}
           disabled={faltan || enviar.isPending}
           className={`h-10 ${BOTON_MARCA}`}
-          data-testid="button-enviar-solicitud-muestra"
+          data-testid={editar ? "button-guardar-edicion-muestra" : "button-enviar-solicitud-muestra"}
         >
           {enviar.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-          Enviar a aprobación
+          {editar ? "Guardar cambios" : "Enviar a aprobación"}
         </Button>
       </div>
     </div>
@@ -743,6 +789,9 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
     queryKey: [`/api/solicitudes-muestra/${id}`],
     enabled: !!id,
   });
+  const [editando, setEditando] = useState(false);
+  // Al abrir otra solicitud se vuelve a la vista de lectura.
+  useEffect(() => setEditando(false), [id]);
 
   const refrescar = () => {
     queryClient.invalidateQueries({ queryKey: [`/api/solicitudes-muestra/${id}`] });
@@ -786,6 +835,25 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
               </DialogDescription>
             </DialogHeader>
 
+            {s.puedeEditar && !editando && (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-orange-200/70 bg-orange-50/60 px-3 py-2 text-xs text-slate-600 dark:border-orange-900/40 dark:bg-orange-950/20 dark:text-slate-300">
+                <span>¿Te faltó algo? Mientras no la aprueben, puedes corregirla.</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 rounded-lg text-xs gap-1.5"
+                  onClick={() => setEditando(true)}
+                  data-testid="button-editar-muestra"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Editar
+                </Button>
+              </div>
+            )}
+
+            {editando && s.puedeEditar ? (
+              <NuevaSolicitud editar={s} onEnviada={() => setEditando(false)} onCancelar={() => setEditando(false)} />
+            ) : (
+            <>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-3">
               <Dato titulo="RUT" valor={s.clienteRut} />
               <Dato titulo={lugarDe(s.tipo)} valor={s.obra} />
@@ -822,6 +890,8 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
               </table>
             </div>
             {s.motivo && <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-line">{s.motivo}</p>}
+            </>
+            )}
 
             {s.estado === "rechazada" && (
               <div className="flex gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">

@@ -27,7 +27,7 @@ import { SUPERFICIE, EstadoVacio } from "@/components/gastos/ui";
 import { TABS_LIST_PILL, TAB_PILL } from "@/components/gastos/tabs-pill";
 import { cn } from "@/lib/utils";
 import {
-  Building2, Check, Loader2, Send, UserPlus, X,
+  Building2, Check, Loader2, Pencil, Send, UserPlus, X,
 } from "lucide-react";
 import type { SolicitudNuevoCliente } from "@shared/schema";
 
@@ -76,6 +76,27 @@ const BADGE_ESTADO: Record<string, { label: string; className: string }> = {
 const INPUT = "h-10 rounded-xl bg-slate-50/60 border-slate-200/80 text-sm " +
   "focus-visible:border-[#fd6301] focus-visible:ring-2 focus-visible:ring-orange-500/20 " +
   "dark:bg-slate-900/40 dark:border-slate-700";
+
+/** Lo que falta para poder enviar, en el orden en que se ve en pantalla. */
+const faltantesDe = (form: FormNuevoCliente): string[] => {
+  const requeridos: [keyof FormNuevoCliente, string][] = [
+    ["segmento", "Segmento"],
+    ["rut", "RUT"],
+    ["razonSocial", "Nombre / Razón social"],
+    ["giro", "Giro"],
+    ["telefonos", "Teléfonos"],
+    ["correoEmpresa", "Correo de empresa"],
+    ["ciudad", "Ciudad"],
+    ["comuna", "Comuna"],
+    ["direccion", "Dirección"],
+    ["vendedorNombre", "Vendedor"],
+    ["condicionVenta", "Condición de venta"],
+    ["receptorNombre", "Nombre de quien recibe los documentos"],
+    ["receptorCorreo", "Correo de quien recibe los documentos"],
+    ["receptorTelefono", "Teléfono de quien recibe los documentos"],
+  ];
+  return requeridos.filter(([k]) => !form[k].trim()).map(([, label]) => label);
+};
 
 export default function NuevoClientePage() {
   const { toast } = useToast();
@@ -154,28 +175,7 @@ export default function NuevoClientePage() {
     },
   });
 
-  const campo = (k: keyof FormNuevoCliente, valor: string) => setForm((p) => ({ ...p, [k]: valor }));
-
-  /** Lo que falta para poder enviar, en el orden en que se ve en pantalla. */
-  const faltantes = useMemo(() => {
-    const requeridos: [keyof FormNuevoCliente, string][] = [
-      ["segmento", "Segmento"],
-      ["rut", "RUT"],
-      ["razonSocial", "Nombre / Razón social"],
-      ["giro", "Giro"],
-      ["telefonos", "Teléfonos"],
-      ["correoEmpresa", "Correo de empresa"],
-      ["ciudad", "Ciudad"],
-      ["comuna", "Comuna"],
-      ["direccion", "Dirección"],
-      ["vendedorNombre", "Vendedor"],
-      ["condicionVenta", "Condición de venta"],
-      ["receptorNombre", "Nombre de quien recibe los documentos"],
-      ["receptorCorreo", "Correo de quien recibe los documentos"],
-      ["receptorTelefono", "Teléfono de quien recibe los documentos"],
-    ];
-    return requeridos.filter(([k]) => !form[k].trim()).map(([, label]) => label);
-  }, [form]);
+  const faltantes = useMemo(() => faltantesDe(form), [form]);
 
   const enviarSolicitud = () => {
     if (faltantes.length > 0) {
@@ -222,198 +222,15 @@ export default function NuevoClientePage() {
         </TabsList>
 
         <TabsContent value="nueva" className="mt-4 space-y-3">
-          <Bloque numero={1} titulo="Datos del cliente">
-            <Campo label="Segmento">
-              <Select value={form.segmento} onValueChange={(v) => campo("segmento", v)}>
-                <SelectTrigger className={INPUT} data-testid="select-nuevo-cliente-segmento">
-                  <SelectValue placeholder="Seleccionar segmento…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(catalogos?.segmentos ?? []).map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Campo>
-
-            <Campo label="RUT">
-              <Input
-                value={form.rut}
-                onChange={(e) => campo("rut", e.target.value)}
-                placeholder="76.123.456-7"
-                className={INPUT}
-                data-testid="input-nuevo-cliente-rut"
-              />
-            </Campo>
-
-            <Campo label="Nombre / Razón social" ancho>
-              <Input
-                value={form.razonSocial}
-                onChange={(e) => campo("razonSocial", e.target.value)}
-                placeholder="Comercial ..."
-                className={INPUT}
-                data-testid="input-nuevo-cliente-razon-social"
-              />
-            </Campo>
-
-            <Campo label="Giro" ancho>
-              <Input
-                value={form.giro}
-                onChange={(e) => campo("giro", e.target.value)}
-                placeholder="Venta al por menor de materiales de construcción"
-                className={INPUT}
-                data-testid="input-nuevo-cliente-giro"
-              />
-            </Campo>
-
-            <Campo label="Teléfonos">
-              <Input
-                value={form.telefonos}
-                onChange={(e) => campo("telefonos", e.target.value)}
-                placeholder="+56 9 ... / +56 2 ..."
-                className={INPUT}
-                data-testid="input-nuevo-cliente-telefonos"
-              />
-            </Campo>
-
-            <Campo label="Correo de empresa">
-              <Input
-                value={form.correoEmpresa}
-                onChange={(e) => campo("correoEmpresa", e.target.value)}
-                type="email"
-                placeholder="contacto@empresa.cl"
-                className={INPUT}
-                data-testid="input-nuevo-cliente-correo"
-              />
-            </Campo>
-
-            <Campo label="Ciudad">
-              <Input
-                value={form.ciudad}
-                onChange={(e) => campo("ciudad", e.target.value)}
-                placeholder="Santiago"
-                className={INPUT}
-                data-testid="input-nuevo-cliente-ciudad"
-              />
-            </Campo>
-
-            <Campo label="Comuna">
-              {/* Catálogo oficial de las 346 comunas: el campo libre dejaba entrar
-                  "las condes", "LAS CONDES" y "Las  Condes" como tres valores. */}
-              <ComunaSelect
-                value={form.comuna}
-                onChange={(c) => campo("comuna", c ?? "")}
-                className={cn(INPUT, "w-full justify-between font-normal")}
-                data-testid="select-nuevo-cliente-comuna"
-              />
-            </Campo>
-
-            <Campo label="Dirección" ancho>
-              <Input
-                value={form.direccion}
-                onChange={(e) => campo("direccion", e.target.value)}
-                placeholder="Av. ... 1234"
-                className={INPUT}
-                data-testid="input-nuevo-cliente-direccion"
-              />
-            </Campo>
-          </Bloque>
-
-          <Bloque numero={2} titulo="Vendedor y condición comercial">
-            <Campo label="Vendedor">
-              <Select
-                value={form.vendedorId}
-                onValueChange={(v) => {
-                  const vendedor = catalogos?.vendedores.find((x) => x.id === v);
-                  setForm((p) => ({
-                    ...p,
-                    vendedorId: vendedor?.id ?? "",
-                    vendedorNombre: vendedor?.nombre ?? "",
-                  }));
-                }}
-              >
-                <SelectTrigger className={INPUT} data-testid="select-nuevo-cliente-vendedor">
-                  <SelectValue placeholder="Seleccionar vendedor…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(catalogos?.vendedores ?? []).map((v) => (
-                    <SelectItem key={v.id} value={v.id}>{v.nombre}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Campo>
-
-            <Campo label="Condición de venta (inicial)">
-              <Select value={form.condicionVenta} onValueChange={(v) => campo("condicionVenta", v)}>
-                <SelectTrigger className={INPUT} data-testid="select-nuevo-cliente-condicion">
-                  <SelectValue placeholder="Seleccionar condición…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(catalogos?.condicionesVenta ?? []).map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Campo>
-          </Bloque>
-
-          <Bloque
-            numero={3}
-            titulo="Persona responsable de recepción de documentos"
-            bajada="Obligatorio para todos los clientes: todos son facturadores electrónicos."
-          >
-            <Campo label="Nombre">
-              <Input
-                value={form.receptorNombre}
-                onChange={(e) => campo("receptorNombre", e.target.value)}
-                className={INPUT}
-                data-testid="input-nuevo-cliente-receptor-nombre"
-              />
-            </Campo>
-
-            <Campo label="Correo">
-              <Input
-                value={form.receptorCorreo}
-                onChange={(e) => campo("receptorCorreo", e.target.value)}
-                type="email"
-                placeholder="facturas@empresa.cl"
-                className={INPUT}
-                data-testid="input-nuevo-cliente-receptor-correo"
-              />
-            </Campo>
-
-            <Campo label="Teléfono">
-              <Input
-                value={form.receptorTelefono}
-                onChange={(e) => campo("receptorTelefono", e.target.value)}
-                placeholder="+56 9 ..."
-                className={INPUT}
-                data-testid="input-nuevo-cliente-receptor-telefono"
-              />
-            </Campo>
-          </Bloque>
-
-          <Bloque
-            numero={4}
-            titulo="Requerimientos para la facturación"
-            bajada="Qué datos necesita el cliente dentro de la factura electrónica para poder aceptarla."
-          >
-            <Campo label="Incluir orden de compra">
-              <SiNo
-                valor={requiereOrdenCompra}
-                onChange={setRequiereOrdenCompra}
-                testId="orden-compra"
-              />
-            </Campo>
-
-            <Campo label="Incluir guía de despacho">
-              <SiNo
-                valor={requiereGuiaDespacho}
-                onChange={setRequiereGuiaDespacho}
-                testId="guia-despacho"
-              />
-            </Campo>
-          </Bloque>
+          <CamposSolicitud
+            form={form}
+            setForm={setForm}
+            catalogos={catalogos}
+            requiereOrdenCompra={requiereOrdenCompra}
+            setRequiereOrdenCompra={setRequiereOrdenCompra}
+            requiereGuiaDespacho={requiereGuiaDespacho}
+            setRequiereGuiaDespacho={setRequiereGuiaDespacho}
+          />
 
           {/* Solicitante y fecha no se piden: son del sistema. Se muestran para
               que quien envía vea con qué nombre y con qué fecha va a quedar. */}
@@ -474,6 +291,10 @@ export default function NuevoClientePage() {
                   key={s.id}
                   solicitud={s}
                   puedeResolver={puedeResolver && s.estado === "enviada"}
+                  // Solo quien la pidió la completa, y solo mientras Administración
+                  // no haya creado el cliente ni la haya rechazado.
+                  puedeEditar={s.estado === "enviada" && !!(user as any)?.id && s.solicitanteId === (user as any).id}
+                  catalogos={catalogos}
                   resolviendo={resolver.isPending}
                   onResolver={(datos) => resolver.mutate({ id: s.id, datos })}
                 />
@@ -483,6 +304,228 @@ export default function NuevoClientePage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+/**
+ * Los cuatro bloques del formulario. Los usan el alta y la edición de una
+ * solicitud ya enviada: son los mismos campos, con el mismo estado afuera.
+ */
+function CamposSolicitud({
+  form,
+  setForm,
+  catalogos,
+  requiereOrdenCompra,
+  setRequiereOrdenCompra,
+  requiereGuiaDespacho,
+  setRequiereGuiaDespacho,
+}: {
+  form: FormNuevoCliente;
+  setForm: React.Dispatch<React.SetStateAction<FormNuevoCliente>>;
+  catalogos: Catalogos | undefined;
+  requiereOrdenCompra: boolean;
+  setRequiereOrdenCompra: (v: boolean) => void;
+  requiereGuiaDespacho: boolean;
+  setRequiereGuiaDespacho: (v: boolean) => void;
+}) {
+  const campo = (k: keyof FormNuevoCliente, valor: string) => setForm((p) => ({ ...p, [k]: valor }));
+
+  return (
+    <>
+
+      <Bloque numero={1} titulo="Datos del cliente">
+        <Campo label="Segmento">
+          <Select value={form.segmento} onValueChange={(v) => campo("segmento", v)}>
+            <SelectTrigger className={INPUT} data-testid="select-nuevo-cliente-segmento">
+              <SelectValue placeholder="Seleccionar segmento…" />
+            </SelectTrigger>
+            <SelectContent>
+              {(catalogos?.segmentos ?? []).map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Campo>
+
+        <Campo label="RUT">
+          <Input
+            value={form.rut}
+            onChange={(e) => campo("rut", e.target.value)}
+            placeholder="76.123.456-7"
+            className={INPUT}
+            data-testid="input-nuevo-cliente-rut"
+          />
+        </Campo>
+
+        <Campo label="Nombre / Razón social" ancho>
+          <Input
+            value={form.razonSocial}
+            onChange={(e) => campo("razonSocial", e.target.value)}
+            placeholder="Comercial ..."
+            className={INPUT}
+            data-testid="input-nuevo-cliente-razon-social"
+          />
+        </Campo>
+
+        <Campo label="Giro" ancho>
+          <Input
+            value={form.giro}
+            onChange={(e) => campo("giro", e.target.value)}
+            placeholder="Venta al por menor de materiales de construcción"
+            className={INPUT}
+            data-testid="input-nuevo-cliente-giro"
+          />
+        </Campo>
+
+        <Campo label="Teléfonos">
+          <Input
+            value={form.telefonos}
+            onChange={(e) => campo("telefonos", e.target.value)}
+            placeholder="+56 9 ... / +56 2 ..."
+            className={INPUT}
+            data-testid="input-nuevo-cliente-telefonos"
+          />
+        </Campo>
+
+        <Campo label="Correo de empresa">
+          <Input
+            value={form.correoEmpresa}
+            onChange={(e) => campo("correoEmpresa", e.target.value)}
+            type="email"
+            placeholder="contacto@empresa.cl"
+            className={INPUT}
+            data-testid="input-nuevo-cliente-correo"
+          />
+        </Campo>
+
+        <Campo label="Ciudad">
+          <Input
+            value={form.ciudad}
+            onChange={(e) => campo("ciudad", e.target.value)}
+            placeholder="Santiago"
+            className={INPUT}
+            data-testid="input-nuevo-cliente-ciudad"
+          />
+        </Campo>
+
+        <Campo label="Comuna">
+          {/* Catálogo oficial de las 346 comunas: el campo libre dejaba entrar
+              "las condes", "LAS CONDES" y "Las  Condes" como tres valores. */}
+          <ComunaSelect
+            value={form.comuna}
+            onChange={(c) => campo("comuna", c ?? "")}
+            className={cn(INPUT, "w-full justify-between font-normal")}
+            data-testid="select-nuevo-cliente-comuna"
+          />
+        </Campo>
+
+        <Campo label="Dirección" ancho>
+          <Input
+            value={form.direccion}
+            onChange={(e) => campo("direccion", e.target.value)}
+            placeholder="Av. ... 1234"
+            className={INPUT}
+            data-testid="input-nuevo-cliente-direccion"
+          />
+        </Campo>
+      </Bloque>
+
+      <Bloque numero={2} titulo="Vendedor y condición comercial">
+        <Campo label="Vendedor">
+          <Select
+            value={form.vendedorId}
+            onValueChange={(v) => {
+              const vendedor = catalogos?.vendedores.find((x) => x.id === v);
+              setForm((p) => ({
+                ...p,
+                vendedorId: vendedor?.id ?? "",
+                vendedorNombre: vendedor?.nombre ?? "",
+              }));
+            }}
+          >
+            <SelectTrigger className={INPUT} data-testid="select-nuevo-cliente-vendedor">
+              <SelectValue placeholder="Seleccionar vendedor…" />
+            </SelectTrigger>
+            <SelectContent>
+              {(catalogos?.vendedores ?? []).map((v) => (
+                <SelectItem key={v.id} value={v.id}>{v.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Campo>
+
+        <Campo label="Condición de venta (inicial)">
+          <Select value={form.condicionVenta} onValueChange={(v) => campo("condicionVenta", v)}>
+            <SelectTrigger className={INPUT} data-testid="select-nuevo-cliente-condicion">
+              <SelectValue placeholder="Seleccionar condición…" />
+            </SelectTrigger>
+            <SelectContent>
+              {(catalogos?.condicionesVenta ?? []).map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Campo>
+      </Bloque>
+
+      <Bloque
+        numero={3}
+        titulo="Persona responsable de recepción de documentos"
+        bajada="Obligatorio para todos los clientes: todos son facturadores electrónicos."
+      >
+        <Campo label="Nombre">
+          <Input
+            value={form.receptorNombre}
+            onChange={(e) => campo("receptorNombre", e.target.value)}
+            className={INPUT}
+            data-testid="input-nuevo-cliente-receptor-nombre"
+          />
+        </Campo>
+
+        <Campo label="Correo">
+          <Input
+            value={form.receptorCorreo}
+            onChange={(e) => campo("receptorCorreo", e.target.value)}
+            type="email"
+            placeholder="facturas@empresa.cl"
+            className={INPUT}
+            data-testid="input-nuevo-cliente-receptor-correo"
+          />
+        </Campo>
+
+        <Campo label="Teléfono">
+          <Input
+            value={form.receptorTelefono}
+            onChange={(e) => campo("receptorTelefono", e.target.value)}
+            placeholder="+56 9 ..."
+            className={INPUT}
+            data-testid="input-nuevo-cliente-receptor-telefono"
+          />
+        </Campo>
+      </Bloque>
+
+      <Bloque
+        numero={4}
+        titulo="Requerimientos para la facturación"
+        bajada="Qué datos necesita el cliente dentro de la factura electrónica para poder aceptarla."
+      >
+        <Campo label="Incluir orden de compra">
+          <SiNo
+            valor={requiereOrdenCompra}
+            onChange={setRequiereOrdenCompra}
+            testId="orden-compra"
+          />
+        </Campo>
+
+        <Campo label="Incluir guía de despacho">
+          <SiNo
+            valor={requiereGuiaDespacho}
+            onChange={setRequiereGuiaDespacho}
+            testId="guia-despacho"
+          />
+        </Campo>
+      </Bloque>
+    </>
   );
 }
 
@@ -566,16 +609,21 @@ function SiNo({
 function FilaSolicitud({
   solicitud,
   puedeResolver,
+  puedeEditar = false,
+  catalogos,
   resolviendo,
   onResolver,
 }: {
   solicitud: SolicitudNuevoCliente;
   puedeResolver: boolean;
+  puedeEditar?: boolean;
+  catalogos?: Catalogos;
   resolviendo: boolean;
   onResolver: (datos: Record<string, unknown>) => void;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [detalle, setDetalle] = useState(false);
+  const [editando, setEditando] = useState(false);
   const [motivo, setMotivo] = useState("");
 
   const badge = BADGE_ESTADO[solicitud.estado] ?? {
@@ -627,6 +675,19 @@ function FilaSolicitud({
           {detalle ? "Ocultar" : "Ver datos"}
         </Button>
 
+        {puedeEditar && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-lg text-xs gap-1.5"
+            onClick={() => setEditando((v) => !v)}
+            data-testid={`button-editar-${solicitud.id}`}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            {editando ? "Cerrar" : "Editar"}
+          </Button>
+        )}
+
         {puedeResolver && (
           <Button
             variant="outline"
@@ -654,6 +715,10 @@ function FilaSolicitud({
           {dato("Orden de compra en factura", solicitud.requiereOrdenCompra ? "Sí" : "No")}
           {dato("Guía de despacho en factura", solicitud.requiereGuiaDespacho ? "Sí" : "No")}
         </div>
+      )}
+
+      {editando && puedeEditar && (
+        <EditarSolicitud solicitud={solicitud} catalogos={catalogos} onListo={() => setEditando(false)} />
       )}
 
       {solicitud.observaciones && (
@@ -696,6 +761,91 @@ function FilaSolicitud({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Completar o corregir una solicitud ya enviada (pedido del usuario, nov-2026):
+ * al vendedor seguido le falta algún antecedente y la única salida era mandar
+ * otra. Son los mismos bloques del alta, ya llenos. El servidor vuelve a exigir
+ * todo y le avisa a Administración qué cambió.
+ */
+function EditarSolicitud({
+  solicitud,
+  catalogos,
+  onListo,
+}: {
+  solicitud: SolicitudNuevoCliente;
+  catalogos?: Catalogos;
+  onListo: () => void;
+}) {
+  const { toast } = useToast();
+  const [form, setForm] = useState<FormNuevoCliente>(() => {
+    const inicial = { ...FORM_VACIO };
+    for (const k of Object.keys(FORM_VACIO) as (keyof FormNuevoCliente)[]) {
+      inicial[k] = String(solicitud[k] ?? "");
+    }
+    return inicial;
+  });
+  const [requiereOrdenCompra, setRequiereOrdenCompra] = useState(solicitud.requiereOrdenCompra);
+  const [requiereGuiaDespacho, setRequiereGuiaDespacho] = useState(solicitud.requiereGuiaDespacho);
+
+  const guardar = useMutation({
+    mutationFn: async (datos: Record<string, unknown>) => {
+      const res = await apiRequest(`/api/solicitudes-nuevo-cliente/${solicitud.id}/datos`, {
+        method: "PATCH",
+        data: datos,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/solicitudes-nuevo-cliente"] });
+      toast({ title: "Solicitud actualizada", description: "Administración recibió un aviso con lo que cambió." });
+      onListo();
+    },
+    onError: (error: any) => {
+      toast({ title: "No se pudo guardar", description: error?.message, variant: "destructive" });
+    },
+  });
+
+  const enviar = () => {
+    const faltantes = faltantesDe(form);
+    if (faltantes.length > 0) {
+      toast({ title: "Faltan datos", description: `Completá: ${faltantes.join(", ")}.`, variant: "destructive" });
+      return;
+    }
+    guardar.mutate({ ...form, vendedorId: form.vendedorId || null, requiereOrdenCompra, requiereGuiaDespacho });
+  };
+
+  return (
+    <div
+      className="mt-3 border-t border-slate-100 dark:border-slate-700/40 pt-3 space-y-3"
+      data-testid={`editar-solicitud-${solicitud.id}`}
+    >
+      <CamposSolicitud
+        form={form}
+        setForm={setForm}
+        catalogos={catalogos}
+        requiereOrdenCompra={requiereOrdenCompra}
+        setRequiereOrdenCompra={setRequiereOrdenCompra}
+        requiereGuiaDespacho={requiereGuiaDespacho}
+        setRequiereGuiaDespacho={setRequiereGuiaDespacho}
+      />
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" className="h-10 rounded-2xl text-sm" onClick={onListo}>
+          Cancelar
+        </Button>
+        <Button
+          onClick={enviar}
+          disabled={guardar.isPending}
+          className="h-10 rounded-2xl bg-[#fd6301] hover:bg-[#e35400] text-white shadow-md shadow-orange-500/25 text-sm font-semibold px-5"
+          data-testid={`button-guardar-edicion-${solicitud.id}`}
+        >
+          {guardar.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+          Guardar cambios
+        </Button>
+      </div>
     </div>
   );
 }

@@ -48,6 +48,24 @@ const SUCURSALES_FACTURAS = ["004", "006", "007"];
 const NETO_MINIMO_LINEA_GUIA = 1000;
 /** Hay clientes sin segmento en el ERP: sin esta opción, sus montos no saldrían en ningún filtro. */
 const SIN_SEGMENTO = "Sin segmento";
+/**
+ * Las sucursales que se pueden elegir en el filtro (pedido del usuario, nov-2026).
+ * "Todas" sigue siendo la opción por defecto: incluye también 005 y 006, para que
+ * los totales no cambien y las facturas sigan cuadrando con el dashboard.
+ */
+const SUCURSALES_FILTRO: { codigo: string; nombre: string }[] = [
+  { codigo: "004", nombre: "Lautaro" },
+  { codigo: "007", nombre: "Concepción" },
+];
+const nombreSucursal = (codigo: string) => {
+  const conocida = SUCURSALES_FILTRO.find((s) => s.codigo === codigo);
+  return conocida ? `${codigo} ${conocida.nombre}` : codigo || "—";
+};
+/** fact_ventas guarda la sucursal como número (4): el ERP la escribe "004". */
+const codigoSucursal = (v: unknown) => {
+  const t = texto(v);
+  return /^\d{1,3}$/.test(t) ? t.padStart(3, "0") : t;
+};
 
 const MARCA = "#fd6301";
 const TINTA = "#17181c";
@@ -67,6 +85,8 @@ interface Documento {
   cliente: string;
   vendedor: string;
   segmento: string;
+  /** Código de la sucursal del documento (SUDO), con sus ceros: "004". */
+  sucursal: string;
   neto: number;
   bruto: number;
 }
@@ -101,6 +121,12 @@ interface Filtros {
   /** Código del cliente: el nombre puede venir escrito distinto entre el ERP y fact_ventas. */
   cliente?: string;
   segmento?: string;
+  /** Código de sucursal: "004" o "007". Sin él, todas. */
+  sucursal?: string;
+  /** Lo escrito en el buscador de la tabla: así la descarga trae lo mismo que se ve. */
+  busqueda?: string;
+  /** Solo esta categoría: la descarga de una pestaña de la tabla. */
+  categoria?: ClaveCategoria;
 }
 
 interface Dataset {
@@ -108,9 +134,16 @@ interface Dataset {
   hasta: string;
   categorias: Categoria[];
   /** Lo que se puede elegir en el período, sin aplicar los filtros. */
-  opciones: { vendedores: string[]; clientes: { codigo: string; nombre: string }[]; segmentos: string[] };
-  /** Los filtros del informe, en palabras: siempre los tres, también los que están en "Todos". */
+  opciones: {
+    sucursales: { codigo: string; nombre: string }[];
+    vendedores: string[];
+    clientes: { codigo: string; nombre: string }[];
+    segmentos: string[];
+  };
+  /** Los filtros del informe, en palabras: siempre los cuatro, también los que están en "Todos". */
   filtrosTexto: string;
+  /** La descarga es de una sola pestaña: el total es el de esa categoría, no el consolidado. */
+  soloCategoria: boolean;
 }
 
 const montoDe = (c: Categoria) => c.documentos?.reduce((s, d) => s + d.neto, 0) ?? null;
@@ -146,7 +179,15 @@ function leerPeriodo(query: any): { desde: string; hasta: string } | { error: st
 
 function leerFiltros(query: any): Filtros {
   const valor = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim().slice(0, 200) : undefined);
-  return { vendedor: valor(query.vendedor), cliente: valor(query.cliente), segmento: valor(query.segmento) };
+  const categoria = valor(query.categoria) as ClaveCategoria | undefined;
+  return {
+    vendedor: valor(query.vendedor),
+    cliente: valor(query.cliente),
+    segmento: valor(query.segmento),
+    sucursal: valor(query.sucursal),
+    busqueda: valor(query.busqueda),
+    categoria: categoria && ["nvv", "gdv", "facturas", "ncv"].includes(categoria) ? categoria : undefined,
+  };
 }
 
 const nombreSegmento = (v: unknown) => String(canonicalSegmentName(texto(v))) || SIN_SEGMENTO;
@@ -162,7 +203,7 @@ async function documentosDelErp(tidos: string[], sucursales: string[], montos: s
   // se contaría una vez por sucursal. Por eso OUTER APPLY con TOP 1.
   const r = await req.query(`
     SELECT CAST(ed.IDMAEEDO AS varchar(20)) AS IDMAEEDO, ed.TIDO, ed.NUDO, CONVERT(varchar(10), ed.FEEMDO, 23) AS FECHA, ed.ENDO, en.NOKOEN, fu.NOKOFU,
-           ru.NOKORU, pe.NETO, pe.BRUTO
+           ru.NOKORU, ed.SUDO, pe.NETO, pe.BRUTO
     FROM dbo.MAEEDO ed
     ${montos}
     OUTER APPLY (
@@ -194,6 +235,7 @@ async function documentosDelErp(tidos: string[], sucursales: string[], montos: s
     cliente: texto(f.NOKOEN),
     vendedor: texto(f.NOKOFU),
     segmento: nombreSegmento(f.NOKORU),
+    sucursal: codigoSucursal(f.SUDO),
     neto: numero(f.NETO),
     bruto: numero(f.BRUTO),
   }));
@@ -236,6 +278,7 @@ async function documentosDeVentas(desde: string, hasta: string): Promise<Documen
            MAX(nokoen) AS cliente,
            MAX(nokofu) AS vendedor,
            MAX(noruen) AS segmento,
+           MAX(sudo)::text AS sucursal,
            ABS(SUM(vaneli)) AS neto,
            ABS(MAX(vabrdo)) AS bruto
     FROM ventas.fact_ventas
@@ -253,6 +296,7 @@ async function documentosDeVentas(desde: string, hasta: string): Promise<Documen
     cliente: texto(f.cliente),
     vendedor: texto(f.vendedor),
     segmento: nombreSegmento(f.segmento),
+    sucursal: codigoSucursal(f.sucursal),
     neto: numero(f.neto),
     bruto: numero(f.bruto),
   }));
@@ -387,6 +431,7 @@ async function cargarDataset(desde: string, hasta: string, filtros: Filtros = {}
     if (d.codigoCliente && !clientes.has(d.codigoCliente)) clientes.set(d.codigoCliente, d.cliente || d.codigoCliente);
   }
   const opciones = {
+    sucursales: SUCURSALES_FILTRO.map((s) => ({ codigo: s.codigo, nombre: `${s.codigo} ${s.nombre}` })),
     vendedores: Array.from(new Set(todos.map((d) => d.vendedor).filter(Boolean))).sort((a, b) => a.localeCompare(b, "es")),
     clientes: Array.from(clientes, ([codigo, nombre]) => ({ codigo, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
     // "Sin segmento" va al final: no es un segmento, es lo que falta clasificar.
@@ -395,36 +440,55 @@ async function cargarDataset(desde: string, hasta: string, filtros: Filtros = {}
     ),
   };
 
+  // La búsqueda es la misma del buscador de la tabla: número, cliente o vendedor.
+  const termino = filtros.busqueda?.toLowerCase();
   const pasa = (d: Documento) =>
     (!filtros.vendedor || d.vendedor === filtros.vendedor) &&
     (!filtros.cliente || d.codigoCliente === filtros.cliente) &&
-    (!filtros.segmento || d.segmento === filtros.segmento);
+    (!filtros.segmento || d.segmento === filtros.segmento) &&
+    (!filtros.sucursal || d.sucursal === filtros.sucursal) &&
+    (!termino || [d.numero, d.cliente, d.codigoCliente, d.vendedor].some((v) => v.toLowerCase().includes(termino)));
   const ventasFiltradas = ventas.filter(pasa);
 
   const filtrosTexto = [
+    `Sucursal: ${filtros.sucursal ? nombreSucursal(filtros.sucursal) : "Todas"}`,
     `Segmento: ${filtros.segmento ?? "Todos"}`,
     `Vendedor: ${filtros.vendedor ?? "Todos"}`,
     `Cliente: ${filtros.cliente ? clientes.get(filtros.cliente) ?? filtros.cliente : "Todos"}`,
+    ...(filtros.busqueda ? [`Búsqueda: "${filtros.busqueda}"`] : []),
   ].join(" · ");
+
+  const categorias: Categoria[] = [
+    { clave: "nvv", titulo: "Notas de venta", hoja: "Notas de venta", documentos: nvv && nvv.filter(pasa) },
+    { clave: "gdv", titulo: "Guías de despacho", hoja: "Guías de despacho", documentos: gdv && gdv.filter(pasa) },
+    { clave: "facturas", titulo: "Total facturado", hoja: "Facturas", documentos: ventasFiltradas.filter((d) => d.tipo !== "NCV") },
+    { clave: "ncv", titulo: "Notas de crédito", hoja: "Notas de crédito", documentos: ventasFiltradas.filter((d) => d.tipo === "NCV") },
+  ];
 
   return {
     desde,
     hasta,
     opciones,
     filtrosTexto,
-    categorias: [
-      { clave: "nvv", titulo: "Notas de venta", hoja: "Notas de venta", documentos: nvv && nvv.filter(pasa) },
-      { clave: "gdv", titulo: "Guías de despacho", hoja: "Guías de despacho", documentos: gdv && gdv.filter(pasa) },
-      { clave: "facturas", titulo: "Total facturado", hoja: "Facturas", documentos: ventasFiltradas.filter((d) => d.tipo !== "NCV") },
-      { clave: "ncv", titulo: "Notas de crédito", hoja: "Notas de crédito", documentos: ventasFiltradas.filter((d) => d.tipo === "NCV") },
-    ],
+    soloCategoria: !!filtros.categoria,
+    categorias: filtros.categoria ? categorias.filter((c) => c.clave === filtros.categoria) : categorias,
   };
 }
 
-const nombreArchivo = (ds: Dataset, ext: string) => `detalle-facturacion_${ds.desde}_${ds.hasta}.${ext}`;
+const nombreArchivo = (ds: Dataset, ext: string) =>
+  `detalle-facturacion${ds.soloCategoria ? `_${ds.categorias[0]?.clave ?? ""}` : ""}_${ds.desde}_${ds.hasta}.${ext}`;
+
+/** Título y total del informe: el consolidado, o el de la única pestaña que se descargó. */
+const tituloInforme = (ds: Dataset) =>
+  ds.soloCategoria && ds.categorias[0] ? `${ds.categorias[0].titulo}: detalle` : "Detalle facturación NVV y GDV";
+const totalInforme = (ds: Dataset): { etiqueta: string; monto: number } =>
+  ds.soloCategoria && ds.categorias[0]
+    ? { etiqueta: `Total ${ds.categorias[0].titulo.toLowerCase()}`, monto: montoDe(ds.categorias[0]) ?? 0 }
+    : { etiqueta: "Total consolidado del período", monto: consolidadoDe(ds) };
 
 const NOTA_CONSOLIDADO =
   "Notas de venta y guías muestran solo lo que falta pasar al documento siguiente. El consolidado suma notas de venta, guías y facturas, y resta las notas de crédito. Montos netos, sin IVA.";
+const NOTA_MONTOS = "Notas de venta y guías muestran solo lo que falta pasar al documento siguiente. Montos netos, sin IVA.";
 const NOTA_LINEAS =
   "En notas de venta y guías, cada línea muestra la cantidad del documento y lo que falta pasar; el neto y el bruto son los de lo pendiente.";
 const NOTA_SIN_LINEAS = "No se pudo leer el detalle de productos de estos documentos al generar este informe.";
@@ -444,7 +508,7 @@ function generarPdf(salida: NodeJS.WritableStream, ds: Dataset, lineas: Map<Clav
     const colMonto = izquierda + ancho - 140;
 
     doc.rect(izquierda, 50, 6, 44).fill(MARCA);
-    doc.fillColor(TINTA).font("Helvetica-Bold").fontSize(18).text("Detalle facturación NVV y GDV", izquierda + 16, 50);
+    doc.fillColor(TINTA).font("Helvetica-Bold").fontSize(18).text(tituloInforme(ds), izquierda + 16, 50);
     doc.fillColor(GRIS).font("Helvetica").fontSize(10).text("Pinturas Panorámica", izquierda + 16, 76);
 
     doc.fillColor(GRIS).fontSize(9).text("PERÍODO CONSULTADO", izquierda, 120);
@@ -472,12 +536,13 @@ function generarPdf(salida: NodeJS.WritableStream, ds: Dataset, lineas: Map<Clav
 
     y += 10;
     doc.rect(izquierda, y, ancho, 38).fill(FONDO_TOTAL);
-    doc.fillColor(TINTA).font("Helvetica-Bold").fontSize(12).text("Total consolidado del período", izquierda + 10, y + 13);
-    doc.fillColor(MARCA).fontSize(14).text(clp(consolidadoDe(ds)), colMonto - 10, y + 12, { width: 140, align: "right" });
+    const total = totalInforme(ds);
+    doc.fillColor(TINTA).font("Helvetica-Bold").fontSize(12).text(total.etiqueta, izquierda + 10, y + 13);
+    doc.fillColor(MARCA).fontSize(14).text(clp(total.monto), colMonto - 10, y + 12, { width: 140, align: "right" });
     y += 54;
 
     doc.fillColor(GRIS).font("Helvetica").fontSize(9);
-    doc.text(NOTA_CONSOLIDADO, izquierda, y, { width: ancho });
+    doc.text(ds.soloCategoria ? NOTA_MONTOS : NOTA_CONSOLIDADO, izquierda, y, { width: ancho });
     if (estaIncompleto(ds)) {
       doc.moveDown(0.5).fillColor("#dc2626").text(NOTA_INCOMPLETO, izquierda, doc.y, { width: ancho });
     }
@@ -558,7 +623,7 @@ function escribirDetallePdf(doc: PDFKit.PDFDocument, ds: Dataset, lineas: Map<Cl
       asegurar(delGrupo ? 40 : 20);
       doc.rect(izquierda, y, ancho, 16).fill("#f3f4f6");
       doc.fillColor(TINTA).font("Helvetica-Bold").fontSize(8.5);
-      doc.text(cabe(`${d.tipo} ${d.numero} · ${fechaCorta(d.fecha)} · ${d.cliente || d.codigoCliente}`, ancho - 206), izquierda + 6, y + 4, { width: ancho - 200, ...unaLinea });
+      doc.text(cabe(`${d.tipo} ${d.numero} · ${fechaCorta(d.fecha)} · Suc. ${nombreSucursal(d.sucursal)} · ${d.cliente || d.codigoCliente}`, ancho - 206), izquierda + 6, y + 4, { width: ancho - 200, ...unaLinea });
       doc.font("Helvetica").fillColor(GRIS).text(cabe(d.vendedor || "—", 110), izquierda + ancho - 190, y + 4, { width: 110, ...unaLinea });
       doc.font("Helvetica-Bold").fillColor(TINTA).text(clp(d.neto), cNeto, y + 4, { width: 64, align: "right", ...unaLinea });
       y += 20;
@@ -589,6 +654,7 @@ const COLUMNAS_LINEAS: { titulo: string; ancho: number }[] = [
   { titulo: "Tipo", ancho: 8 },
   { titulo: "N° documento", ancho: 16 },
   { titulo: "Fecha", ancho: 12 },
+  { titulo: "Sucursal", ancho: 16 },
   { titulo: "Cliente", ancho: 40 },
   { titulo: "Vendedor", ancho: 28 },
   { titulo: "Código producto", ancho: 18 },
@@ -605,6 +671,7 @@ const COLUMNAS_DETALLE: { titulo: string; ancho: number }[] = [
   { titulo: "Tipo", ancho: 8 },
   { titulo: "N° documento", ancho: 16 },
   { titulo: "Fecha", ancho: 12 },
+  { titulo: "Sucursal", ancho: 16 },
   { titulo: "Código cliente", ancho: 16 },
   { titulo: "Cliente", ancho: 44 },
   { titulo: "Vendedor", ancho: 30 },
@@ -627,7 +694,7 @@ async function generarExcel(ds: Dataset, lineas: Map<ClaveCategoria, LineasPorDo
 
   const resumen = wb.addWorksheet("Resumen");
   resumen.columns = [{ width: 34 }, { width: 14 }, { width: 18 }];
-  resumen.addRow(["Detalle facturación NVV y GDV"]).font = { bold: true, size: 14 };
+  resumen.addRow([tituloInforme(ds)]).font = { bold: true, size: 14 };
   resumen.addRow(["Período consultado", periodo]);
   resumen.addRow(["Filtros", ds.filtrosTexto]);
   resumen.addRow([]);
@@ -637,11 +704,12 @@ async function generarExcel(ds: Dataset, lineas: Map<ClaveCategoria, LineasPorDo
     const fila = resumen.addRow([c.titulo, c.documentos?.length ?? "—", monto ?? "No disponible"]);
     fila.getCell(3).numFmt = FORMATO_MONTO;
   }
-  const total = resumen.addRow(["Total consolidado del período", "", consolidadoDe(ds)]);
+  const { etiqueta, monto } = totalInforme(ds);
+  const total = resumen.addRow([etiqueta, "", monto]);
   total.font = { bold: true };
   total.getCell(3).numFmt = FORMATO_MONTO;
   resumen.addRow([]);
-  resumen.addRow([NOTA_CONSOLIDADO]);
+  resumen.addRow([ds.soloCategoria ? NOTA_MONTOS : NOTA_CONSOLIDADO]);
   if (estaIncompleto(ds)) resumen.addRow([NOTA_INCOMPLETO]).font = { color: { argb: "FFDC2626" } };
 
   for (const c of ds.categorias) {
@@ -658,18 +726,18 @@ async function generarExcel(ds: Dataset, lineas: Map<ClaveCategoria, LineasPorDo
     estilarEncabezado(encabezado);
     hoja.views = [{ state: "frozen", ySplit: encabezado.number }];
     for (const d of c.documentos) {
-      const fila = hoja.addRow([d.tipo, d.numero, fechaCorta(d.fecha), d.codigoCliente, d.cliente, d.vendedor, d.segmento, d.neto, d.bruto]);
-      fila.getCell(8).numFmt = FORMATO_MONTO;
+      const fila = hoja.addRow([d.tipo, d.numero, fechaCorta(d.fecha), nombreSucursal(d.sucursal), d.codigoCliente, d.cliente, d.vendedor, d.segmento, d.neto, d.bruto]);
       fila.getCell(9).numFmt = FORMATO_MONTO;
+      fila.getCell(10).numFmt = FORMATO_MONTO;
     }
     const totalHoja = hoja.addRow([
-      "Total", "", "", "", "", "", "",
+      "Total", "", "", "", "", "", "", "",
       c.documentos.reduce((s, d) => s + d.neto, 0),
       c.documentos.reduce((s, d) => s + d.bruto, 0),
     ]);
     totalHoja.font = { bold: true };
-    totalHoja.getCell(8).numFmt = FORMATO_MONTO;
     totalHoja.getCell(9).numFmt = FORMATO_MONTO;
+    totalHoja.getCell(10).numFmt = FORMATO_MONTO;
   }
 
   // Una hoja de productos por categoría: una fila por línea, con los datos del documento repetidos para poder filtrar.
@@ -696,7 +764,7 @@ async function generarExcel(ds: Dataset, lineas: Map<ClaveCategoria, LineasPorDo
     let totalBruto = 0;
     for (const d of c.documentos) {
       for (const l of delGrupo.get(d.id) ?? []) {
-        const valores: (string | number)[] = [d.tipo, d.numero, fechaCorta(d.fecha), d.cliente || d.codigoCliente, d.vendedor, l.codigo, l.producto, l.unidad, l.cantidad];
+        const valores: (string | number)[] = [d.tipo, d.numero, fechaCorta(d.fecha), nombreSucursal(d.sucursal), d.cliente || d.codigoCliente, d.vendedor, l.codigo, l.producto, l.unidad, l.cantidad];
         if (conPendiente) valores.push(l.pendiente ?? 0);
         valores.push(l.precio, l.neto, l.bruto);
         const fila = hoja.addRow(valores);

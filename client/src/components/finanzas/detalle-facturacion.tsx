@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, addMonths, addWeeks, endOfMonth, endOfWeek, format, parseISO, startOfMonth, startOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
-import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsUpDown, ClipboardList, FileDown, FileSpreadsheet, FileText, Layers, Loader2, Receipt, RefreshCw, RotateCcw, Search, Store, Truck, User, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsUpDown, ClipboardList, FileDown, FileSpreadsheet, FileText, Layers, Loader2, MapPin, Receipt, RefreshCw, RotateCcw, Search, Store, Truck, User, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -27,13 +27,19 @@ interface Resumen {
   categorias: CategoriaResumen[];
   consolidado: number;
   incompleto: boolean;
-  opciones: { vendedores: string[]; clientes: { codigo: string; nombre: string }[]; segmentos: string[] };
+  opciones: {
+    sucursales: { codigo: string; nombre: string }[];
+    vendedores: string[];
+    clientes: { codigo: string; nombre: string }[];
+    segmentos: string[];
+  };
 }
 
 const TODOS = "todos";
 const INTERVALO_ACTUALIZACION = 10 * 60 * 1000;
 
 interface FiltrosPanel {
+  sucursal: string;
   segmento: string;
   vendedor: string;
   cliente: string;
@@ -42,6 +48,7 @@ interface FiltrosPanel {
 /** Arma la consulta del período con los filtros, sin mandar los que están en "todos". */
 function armarParametros(desde: string, hasta: string, filtros: FiltrosPanel, extra: Record<string, string> = {}) {
   const parametros = new URLSearchParams({ desde, hasta, ...extra });
+  if (filtros.sucursal !== TODOS) parametros.set("sucursal", filtros.sucursal);
   if (filtros.segmento !== TODOS) parametros.set("segmento", filtros.segmento);
   if (filtros.vendedor !== TODOS) parametros.set("vendedor", filtros.vendedor);
   if (filtros.cliente !== TODOS) parametros.set("cliente", filtros.cliente);
@@ -129,9 +136,17 @@ interface DocumentoDetalle {
   codigoCliente: string;
   cliente: string;
   vendedor: string;
+  /** Código de la sucursal: "004". */
+  sucursal: string;
   neto: number;
   bruto: number;
 }
+
+/** Cómo se lee la sucursal en la tabla; las que no tienen nombre, por su código. */
+const NOMBRE_SUCURSAL: Record<string, string> = { "004": "Lautaro", "007": "Concepción" };
+const nombreSucursal = (codigo: string) => NOMBRE_SUCURSAL[codigo] ?? (codigo || "—");
+
+type FormatoDescarga = "pdf" | "excel";
 
 type ClaveCategoria = CategoriaResumen["clave"];
 
@@ -305,12 +320,18 @@ function DocumentosDelPeriodo({
   filtros,
   categoria,
   onCategoria,
+  descargando,
+  onDescargar,
 }: {
   desde: string;
   hasta: string;
   filtros: FiltrosPanel;
   categoria: ClaveCategoria;
   onCategoria: (clave: ClaveCategoria) => void;
+  /** La descarga en curso, de esta tabla o del informe completo: no se disparan dos a la vez. */
+  descargando: string | null;
+  /** Baja solo la pestaña que se está mirando, con la búsqueda escrita. */
+  onDescargar: (formato: FormatoDescarga, busqueda: string) => void;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const [pagina, setPagina] = useState(0);
@@ -382,16 +403,42 @@ function DocumentosDelPeriodo({
             </button>
           ))}
         </div>
-        <div className="relative lg:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar N°, cliente o vendedor"
-            aria-label="Buscar documento"
-            className="h-10 pl-9 rounded-2xl"
-            data-testid="detalle-busqueda"
-          />
+        <div className="flex flex-col sm:flex-row gap-2 lg:items-center">
+          <div className="relative lg:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar N°, cliente o vendedor"
+              aria-label="Buscar documento"
+              className="h-10 pl-9 rounded-2xl"
+              data-testid="detalle-busqueda"
+            />
+          </div>
+          {/* Solo esta pestaña (pedido del usuario, nov-2026): cada documento con sus
+              productos, con los filtros de arriba y lo escrito en el buscador. */}
+          <div className="grid grid-cols-2 sm:flex gap-2">
+            {(["pdf", "excel"] as const).map((formato) => (
+              <Button
+                key={formato}
+                variant="outline"
+                className="h-10 px-3 text-sm font-semibold rounded-2xl text-slate-700 dark:text-slate-200 hover:border-orange-200 hover:text-[#fd6301]"
+                disabled={descargando !== null || isLoading || !data?.documentos?.length || filtrados.length === 0}
+                onClick={() => onDescargar(formato, busqueda.trim())}
+                title={`Descargar ${TITULO_DETALLE[categoria].toLowerCase()} en ${formato === "pdf" ? "PDF" : "Excel"}, con el detalle de cada documento`}
+                data-testid={`detalle-tabla-${formato}`}
+              >
+                {descargando === `tabla-${formato}` ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : formato === "pdf" ? (
+                  <FileDown className="h-4 w-4 mr-2" />
+                ) : (
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                )}
+                {formato === "pdf" ? "PDF" : "Excel"}
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -434,6 +481,7 @@ function DocumentosDelPeriodo({
                       <IconoOrden className="h-3.5 w-3.5" />
                     </button>
                   </th>
+                  <th className="py-2 pr-3 font-semibold">Sucursal</th>
                   <th className="py-2 pr-3 font-semibold">Cliente</th>
                   <th className="py-2 pr-3 font-semibold">Vendedor</th>
                   <th className="py-2 pr-3 font-semibold text-right">Neto</th>
@@ -465,6 +513,7 @@ function DocumentosDelPeriodo({
                     </td>
                     <td className="py-2 pr-3 whitespace-nowrap tabular-nums">{d.numero}</td>
                     <td className="py-2 pr-3 whitespace-nowrap tabular-nums">{fechaCorta(d.fecha)}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap" title={`Sucursal ${d.sucursal}`}>{nombreSucursal(d.sucursal)}</td>
                     <td className="py-2 pr-3">{d.cliente || d.codigoCliente}</td>
                     <td className="py-2 pr-3">{d.vendedor || "—"}</td>
                     <td className="py-2 pr-3 text-right whitespace-nowrap tabular-nums font-medium">{clp(d.neto)}</td>
@@ -472,7 +521,7 @@ function DocumentosDelPeriodo({
                   </tr>
                   {abierto && (
                     <tr className="border-b border-slate-100 dark:border-slate-800/60 bg-slate-50/70 dark:bg-slate-800/30">
-                      <td colSpan={7} className="px-6">
+                      <td colSpan={8} className="px-6">
                         <LineasDelDocumento categoria={categoria} id={d.id} />
                       </td>
                     </tr>
@@ -514,7 +563,7 @@ function DocumentosDelPeriodo({
                   <p className="shrink-0 text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100">{clp(d.neto)}</p>
                 </div>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                  {d.tipo} {d.numero} · {fechaCorta(d.fecha)}
+                  {d.tipo} {d.numero} · {fechaCorta(d.fecha)} · {nombreSucursal(d.sucursal)}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">{d.vendedor || "—"} · Bruto {clp(d.bruto)}</p>
                 <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-orange-500">
@@ -564,12 +613,14 @@ export default function DetalleFacturacion() {
   const hoy = format(new Date(), ISO);
   const [rangoDesde, setRangoDesde] = useState(() => format(startOfMonth(new Date()), ISO));
   const [rangoHasta, setRangoHasta] = useState(hoy);
-  const [descargando, setDescargando] = useState<"pdf" | "excel" | null>(null);
+  // "pdf"/"excel" = el informe completo; "tabla-pdf"/"tabla-excel" = solo la pestaña de la tabla.
+  const [descargando, setDescargando] = useState<string | null>(null);
   const [categoria, setCategoria] = useState<ClaveCategoria>("nvv");
+  const [sucursal, setSucursal] = useState(TODOS);
   const [segmento, setSegmento] = useState(TODOS);
   const [vendedor, setVendedor] = useState(TODOS);
   const [cliente, setCliente] = useState(TODOS);
-  const filtros = useMemo(() => ({ segmento, vendedor, cliente }), [segmento, vendedor, cliente]);
+  const filtros = useMemo(() => ({ sucursal, segmento, vendedor, cliente }), [sucursal, segmento, vendedor, cliente]);
 
   const { desde, hasta } = periodoDe(tipo, referencia, rangoDesde, rangoHasta);
   const fechasListas = Boolean(desde && hasta);
@@ -613,10 +664,13 @@ export default function DetalleFacturacion() {
     queryClient.invalidateQueries({ queryKey: ["/api/detalle-facturacion/documentos"] });
   };
 
-  const descargar = async (formato: "pdf" | "excel") => {
-    setDescargando(formato);
+  /** Sin `soloTabla`, el informe completo; con él, solo la pestaña de la tabla y su búsqueda. */
+  const descargar = async (formato: FormatoDescarga, soloTabla?: { busqueda: string }) => {
+    setDescargando(soloTabla ? `tabla-${formato}` : formato);
     try {
-      const res = await fetch(`/api/detalle-facturacion/${formato}?${parametros}`, { credentials: "include" });
+      const extra: Record<string, string> = soloTabla ? { categoria } : {};
+      if (soloTabla?.busqueda) extra.busqueda = soloTabla.busqueda;
+      const res = await fetch(`/api/detalle-facturacion/${formato}?${armarParametros(desde, hasta, filtros, extra)}`, { credentials: "include" });
       if (!res.ok) {
         const cuerpo = await res.json().catch(() => null);
         throw new Error(cuerpo?.message || "No se pudo generar el archivo");
@@ -626,7 +680,13 @@ export default function DetalleFacturacion() {
       enlace.href = url;
       // El nombre lleva los filtros: dos descargas del mismo período no se confunden.
       const nombreCliente = data?.opciones.clientes.find((c) => c.codigo === cliente)?.nombre ?? cliente;
-      const sufijo = [segmento, vendedor, cliente === TODOS ? TODOS : nombreCliente]
+      const sufijo = [
+        soloTabla ? TITULO_DETALLE[categoria] : TODOS,
+        sucursal === TODOS ? TODOS : nombreSucursal(sucursal),
+        segmento,
+        vendedor,
+        cliente === TODOS ? TODOS : nombreCliente,
+      ]
         .filter((v) => v !== TODOS)
         .map((v) => `_${normalizar(v).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`)
         .join("");
@@ -682,7 +742,16 @@ export default function DetalleFacturacion() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-3">
+        <PillFiltro
+          etiqueta="Sucursal"
+          icono={MapPin}
+          valor={sucursal}
+          onChange={setSucursal}
+          testId="filtro-sucursal"
+          textoTodos="Todas las sucursales"
+          opciones={(data?.opciones.sucursales ?? []).map((s) => ({ valor: s.codigo, etiqueta: s.nombre }))}
+        />
         <PillFiltro
           etiqueta="Segmento"
           icono={Layers}
@@ -810,7 +879,15 @@ export default function DetalleFacturacion() {
           )}
 
           {fechasListas && (
-            <DocumentosDelPeriodo desde={desde} hasta={hasta} filtros={filtros} categoria={categoria} onCategoria={setCategoria} />
+            <DocumentosDelPeriodo
+              desde={desde}
+              hasta={hasta}
+              filtros={filtros}
+              categoria={categoria}
+              onCategoria={setCategoria}
+              descargando={descargando}
+              onDescargar={(formato, busqueda) => descargar(formato, { busqueda })}
+            />
           )}
         </>
       )}
