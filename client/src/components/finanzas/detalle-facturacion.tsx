@@ -36,6 +36,12 @@ interface Resumen {
 }
 
 const TODOS = "todos";
+
+/** Lo facturado menos lo devuelto con notas de crédito. */
+const ventasNetas = (r: Resumen) => {
+  const monto = (clave: string) => r.categorias.find((c) => c.clave === clave)?.monto ?? 0;
+  return monto("facturas") - monto("ncv");
+};
 const INTERVALO_ACTUALIZACION = 10 * 60 * 1000;
 
 interface FiltrosPanel {
@@ -861,20 +867,18 @@ export default function DetalleFacturacion() {
 
           <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 rounded-2xl bg-orange-50 dark:bg-orange-950/30 border border-orange-100 dark:border-orange-900/50 px-4 py-3">
             <div>
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Total consolidado del período</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Notas de venta + guías + facturas − notas de crédito. Lo que ya pasó al documento siguiente se cuenta solo en ese documento.
-              </p>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Ventas netas del período</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Total facturado − notas de crédito.</p>
             </div>
-            <p className="text-xl font-bold text-[#fd6301] tabular-nums shrink-0" data-testid="total-consolidado">
-              {isLoading || !data ? "…" : clp(data.consolidado)}
+            <p className="text-xl font-bold text-[#fd6301] tabular-nums shrink-0" data-testid="total-ventas-netas">
+              {isLoading || !data ? "…" : clp(ventasNetas(data))}
             </p>
           </div>
 
           {data?.incompleto && (
             <p className="mt-2 flex items-center gap-2 text-sm text-red-600 dark:text-red-400" data-testid="aviso-incompleto">
               <AlertTriangle className="h-4 w-4 shrink-0" />
-              No se pudo consultar el sistema de gestión: el consolidado no incluye las notas de venta ni las guías, y las facturas y notas de crédito vienen de la última carga.
+              No se pudo consultar el sistema de gestión: faltan las notas de venta y las guías, y las facturas y notas de crédito vienen de la última carga.
             </p>
           )}
 
