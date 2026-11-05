@@ -142,6 +142,8 @@ interface Dataset {
   };
   /** Los filtros del informe, en palabras: siempre los cuatro, también los que están en "Todos". */
   filtrosTexto: string;
+  /** Sin filtro de sucursal: el Excel separa además las notas de venta por sucursal. */
+  todasLasSucursales: boolean;
   /** La descarga es de una sola pestaña: el total es el de esa categoría, no el consolidado. */
   soloCategoria: boolean;
 }
@@ -470,6 +472,7 @@ async function cargarDataset(desde: string, hasta: string, filtros: Filtros = {}
     hasta,
     opciones,
     filtrosTexto,
+    todasLasSucursales: !filtros.sucursal,
     soloCategoria: !!filtros.categoria,
     categorias: filtros.categoria ? categorias.filter((c) => c.clave === filtros.categoria) : categorias,
   };
@@ -743,44 +746,71 @@ async function generarExcel(ds: Dataset, lineas: Map<ClaveCategoria, LineasPorDo
   // Una hoja de productos por categoría: una fila por línea, con los datos del documento repetidos para poder filtrar.
   for (const c of ds.categorias) {
     if (!c.documentos) continue;
-    const conPendiente = c.clave === "nvv" || c.clave === "gdv";
-    const columnas = COLUMNAS_LINEAS.filter((col) => conPendiente || col.titulo !== "Pendiente");
-    const hoja = wb.addWorksheet(`${c.hoja} - detalle`);
-    hoja.columns = columnas.map((col) => ({ width: col.ancho }));
-    hoja.addRow(["Período consultado", periodo]);
-    hoja.addRow(["Filtros", ds.filtrosTexto]);
-    if (conPendiente) hoja.addRow([NOTA_LINEAS]);
-    hoja.addRow([]);
-    const delGrupo = lineas.get(c.clave) ?? null;
-    if (!delGrupo) {
-      hoja.addRow([NOTA_SIN_LINEAS]).font = { color: { argb: "FFDC2626" } };
-      continue;
+    escribirHojaLineas(wb, `${c.hoja} - detalle`, c, c.documentos, lineas.get(c.clave) ?? null, periodo, ds.filtrosTexto);
+  }
+
+  // Con todas las sucursales, las notas de venta pendientes se separan además en una hoja por sucursal.
+  const nvv = ds.categorias.find((c) => c.clave === "nvv");
+  if (nvv?.documentos && ds.todasLasSucursales) {
+    for (const { hoja, sucursal } of HOJAS_NVV_POR_SUCURSAL) {
+      const filtros = ds.filtrosTexto.replace("Sucursal: Todas", `Sucursal: ${nombreSucursal(sucursal)}`);
+      const documentos = nvv.documentos.filter((d) => d.sucursal === sucursal);
+      escribirHojaLineas(wb, hoja, nvv, documentos, lineas.get("nvv") ?? null, periodo, filtros);
     }
-    const encabezado = hoja.addRow(columnas.map((col) => col.titulo));
-    estilarEncabezado(encabezado);
-    hoja.views = [{ state: "frozen", ySplit: encabezado.number }];
-    const montos = columnas.length - 3; // precio, neto y bruto son las tres últimas
-    let totalNeto = 0;
-    let totalBruto = 0;
-    for (const d of c.documentos) {
-      for (const l of delGrupo.get(d.id) ?? []) {
-        const valores: (string | number)[] = [d.tipo, d.numero, fechaCorta(d.fecha), nombreSucursal(d.sucursal), d.cliente || d.codigoCliente, d.vendedor, l.codigo, l.producto, l.unidad, l.cantidad];
-        if (conPendiente) valores.push(l.pendiente ?? 0);
-        valores.push(l.precio, l.neto, l.bruto);
-        const fila = hoja.addRow(valores);
-        for (let i = montos + 1; i <= columnas.length; i++) fila.getCell(i).numFmt = FORMATO_MONTO;
-        totalNeto += l.neto;
-        totalBruto += l.bruto;
-      }
-    }
-    const total = hoja.addRow([...Array(columnas.length - 2).fill(""), totalNeto, totalBruto]);
-    total.getCell(1).value = "Total";
-    total.font = { bold: true };
-    total.getCell(columnas.length - 1).numFmt = FORMATO_MONTO;
-    total.getCell(columnas.length).numFmt = FORMATO_MONTO;
   }
 
   return wb.xlsx.writeBuffer();
+}
+
+/** Hojas extra del Excel con las notas de venta pendientes de una sola sucursal. */
+const HOJAS_NVV_POR_SUCURSAL = [
+  { hoja: "Planta", sucursal: "004" },
+  { hoja: "Store Concepción", sucursal: "007" },
+];
+
+function escribirHojaLineas(
+  wb: ExcelJS.Workbook,
+  nombre: string,
+  c: Categoria,
+  documentos: Documento[],
+  delGrupo: LineasPorDocumento | null,
+  periodo: string,
+  filtrosTexto: string,
+) {
+  const conPendiente = c.clave === "nvv" || c.clave === "gdv";
+  const columnas = COLUMNAS_LINEAS.filter((col) => conPendiente || col.titulo !== "Pendiente");
+  const hoja = wb.addWorksheet(nombre);
+  hoja.columns = columnas.map((col) => ({ width: col.ancho }));
+  hoja.addRow(["Período consultado", periodo]);
+  hoja.addRow(["Filtros", filtrosTexto]);
+  if (conPendiente) hoja.addRow([NOTA_LINEAS]);
+  hoja.addRow([]);
+  if (!delGrupo) {
+    hoja.addRow([NOTA_SIN_LINEAS]).font = { color: { argb: "FFDC2626" } };
+    return;
+  }
+  const encabezado = hoja.addRow(columnas.map((col) => col.titulo));
+  estilarEncabezado(encabezado);
+  hoja.views = [{ state: "frozen", ySplit: encabezado.number }];
+  const montos = columnas.length - 3; // precio, neto y bruto son las tres últimas
+  let totalNeto = 0;
+  let totalBruto = 0;
+  for (const d of documentos) {
+    for (const l of delGrupo.get(d.id) ?? []) {
+      const valores: (string | number)[] = [d.tipo, d.numero, fechaCorta(d.fecha), nombreSucursal(d.sucursal), d.cliente || d.codigoCliente, d.vendedor, l.codigo, l.producto, l.unidad, l.cantidad];
+      if (conPendiente) valores.push(l.pendiente ?? 0);
+      valores.push(l.precio, l.neto, l.bruto);
+      const fila = hoja.addRow(valores);
+      for (let i = montos + 1; i <= columnas.length; i++) fila.getCell(i).numFmt = FORMATO_MONTO;
+      totalNeto += l.neto;
+      totalBruto += l.bruto;
+    }
+  }
+  const total = hoja.addRow([...Array(columnas.length - 2).fill(""), totalNeto, totalBruto]);
+  total.getCell(1).value = "Total";
+  total.font = { bold: true };
+  total.getCell(columnas.length - 1).numFmt = FORMATO_MONTO;
+  total.getCell(columnas.length).numFmt = FORMATO_MONTO;
 }
 
 export function registerDetalleFacturacionRoutes(app: Express) {
