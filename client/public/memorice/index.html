@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Memorice Panorámica</title>
+<meta name="description" content="Memorice Colores Patagonia de Pinturas Panorámica · Feria Redmat">
+<link rel="icon" href="/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: kiosk de una pantalla — juego a la izquierda, ranking del día a la derecha, como una carta de colores */
+:root{
+  --paper:#f7f6f2; --card:#ffffff; --ink:#1d2330; --muted:#5d6472; --line:#dedbd2;
+  --brand:#e56112; --brand-soft:#fbe7dc; --brand-ink:#ffffff; --gold:#c98a12; --ok:#2e7d4f; --warn:#a4501b;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"Figtree",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:16px;padding-inline:16px;padding-block:16px;box-sizing:border-box}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+button{font:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.app{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;min-height:100%}
+@media (max-width:900px){.app{grid-template-columns:1fr}}
+header.top{grid-column:1/-1;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:2px solid var(--ink);padding-bottom:12px}
+.brand-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.logo{height:clamp(44px,6vw,64px);width:auto;display:block}
+.brand{font-family:var(--f-display);font-weight:800;font-size:clamp(22px,3vw,32px);letter-spacing:-.01em;line-height:1}
+.brand small{display:block;font-family:var(--f-body);font-weight:600;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.daytag{font-family:var(--f-mono);font-size:13px;letter-spacing:.06em;text-transform:uppercase;background:var(--ink);color:var(--paper);padding:6px 10px;border-radius:4px}
+.daytag.test{background:var(--warn)}
+main.stage{min-width:0;display:flex;flex-direction:column;gap:16px}
+.screen{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:clamp(20px,3vw,36px);min-height:520px;display:flex;flex-direction:column}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(34px,5.4vw,64px);line-height:.98;letter-spacing:-.02em;margin:0 0 16px;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:800;font-size:clamp(24px,3vw,34px);margin:0 0 12px;text-wrap:balance}
+p.lead{font-size:clamp(17px,1.8vw,21px);color:var(--muted);max-width:44ch;margin:0 0 24px;line-height:1.45}
+.prize{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:8px 0 28px}
+.prize .bike{width:clamp(150px,22vw,240px);height:auto;max-width:100%;flex:none}
+.prize .big{font-family:var(--f-mono);font-weight:600;font-size:clamp(48px,7vw,84px);line-height:1;color:var(--brand)}
+.prize .txt{font-size:18px;line-height:1.35;max-width:26ch}
+.btn{border:0;border-radius:6px;padding:18px 32px;font-weight:600;font-size:20px;background:var(--brand);color:var(--brand-ink);min-height:60px}
+.btn.ghost{background:transparent;color:var(--ink);border:2px solid var(--ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.strip{display:flex;height:14px;border-radius:3px;overflow:hidden;margin-top:auto}
+.strip span{flex:1}
+.rules{font-size:14px;color:var(--muted);line-height:1.5;margin:20px 0 0;padding-left:18px}
+form.reg{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:680px}
+@media (max-width:560px){form.reg{grid-template-columns:1fr}}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field label{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.field input{font:inherit;font-size:20px;padding:14px 14px;border:2px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);min-width:0}
+.field input:focus{border-color:var(--brand)}
+.full{grid-column:1/-1}
+.err{color:var(--warn);font-size:15px;min-height:20px;margin:0}
+.hud{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.hud .who{font-size:18px;font-weight:600}
+.hud .who span{display:block;font-size:14px;font-weight:400;color:var(--muted)}
+.clock{font-family:var(--f-mono);font-weight:600;font-size:clamp(36px,5vw,56px);font-variant-numeric:tabular-nums;line-height:1}
+.stat{font-family:var(--f-mono);font-size:14px;color:var(--muted);text-align:right}
+.board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;width:100%;max-width:640px;margin:0 auto}
+.chip{position:relative;aspect-ratio:3/4;max-width:100%;border:0;padding:0;background:none;perspective:900px}
+.chip .in{position:absolute;inset:0;transition:transform .35s ease;transform-style:preserve-3d}
+.chip.up .in,.chip.done .in{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;backface-visibility:hidden;border-radius:6px;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--line)}
+.back{background:var(--card);color:var(--ink);align-items:center;justify-content:center;gap:8px;border:2px solid var(--brand);background-image:linear-gradient(var(--brand),var(--brand)),linear-gradient(var(--brand),var(--brand));background-size:100% 8px;background-position:top,bottom;background-repeat:no-repeat}
+.back img{width:84%;height:auto}
+.back i{font-style:normal;font-family:var(--f-mono);font-size:clamp(9px,1.1vw,11px);letter-spacing:.16em;color:var(--brand);font-weight:600}
+.front{transform:rotateY(180deg);background:var(--card)}
+.front .sw{flex:1}
+.front .lab{padding:8px 8px 10px;text-align:left;border-top:1px solid var(--line)}
+.front .lab b{display:block;font-size:clamp(11px,1.4vw,14px);font-weight:600;color:var(--ink);line-height:1.15}
+.front .lab i{font-style:normal;font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.chip.done .face{box-shadow:0 0 0 3px var(--ok)}
+.result{align-items:flex-start}
+.result .time{font-family:var(--f-mono);font-weight:600;font-size:clamp(56px,9vw,110px);line-height:1;font-variant-numeric:tabular-nums;color:var(--brand);margin:8px 0 12px}
+.place{font-size:22px;margin:0 0 24px}
+.place b{color:var(--gold)}
+aside.board-rank{min-width:0;background:var(--ink);color:var(--paper);border-radius:6px;padding:24px;display:flex;flex-direction:column;gap:12px;align-self:start}
+aside h3{font-family:var(--f-display);font-weight:800;font-size:24px;margin:0}
+aside .sub{font-size:13px;color:#b9bfcb;margin:0}
+ol.rank{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+ol.rank li{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:10px 0;border-bottom:1px solid #3a4253}
+ol.rank li .n{font-family:var(--f-mono);color:#b9bfcb}
+ol.rank li .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ol.rank li .nm small{display:block;color:#b9bfcb;font-size:12px;overflow:hidden;text-overflow:ellipsis}
+ol.rank li .t{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-weight:600}
+ol.rank li.first .n,ol.rank li.first .t{color:#f2c25b}
+ol.rank li.me{background:#2a3242}
+.empty{color:#b9bfcb;font-size:15px;line-height:1.5;padding:12px 0}
+.note{font-size:13px;color:#b9bfcb;line-height:1.45}
+.banner{background:#fff4e5;color:var(--warn);border:1px solid #f0d2a8;border-radius:6px;padding:10px 14px;font-size:14px}
+.adminlink{background:none;border:0;color:#b9bfcb;font-size:12px;text-decoration:underline;padding:4px 0;text-align:left}
+.admin{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:24px}
+.admin table{width:100%;border-collapse:collapse;font-size:14px}
+.admin th,.admin td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.admin td.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.admin .wrap{overflow-x:auto;margin-top:16px}
+.admin select{font:inherit;padding:10px;border-radius:6px;border:2px solid var(--line);background:var(--paper);color:var(--ink)}
+@media (prefers-reduced-motion:reduce){.chip .in{transition:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand-row"><img class="logo" src="/panoramica-logo.png" alt="Pinturas Panorámica"><div class="brand"><small>Feria Redmat · El Fogón, Chicureo</small>Memorice Colores Patagonia</div></div>
+    <div class="daytag" id="daytag">Día —</div>
+  </header>
+
+  <main class="stage">
+    <div class="banner" id="offline" hidden>Sin conexión: hay tiempos guardados en este equipo que se enviarán apenas vuelva la red.</div>
+
+    <section class="screen" id="s-home">
+      <h1>Arma la carta Colores Patagonia en el menor tiempo</h1>
+      <p class="lead">Encuentra los 8 pares de colores del Esmalte al Agua Copper. El mejor tiempo de cada día se lleva un parlante karaoke.</p>
+      <div class="prize"><svg class="bike" viewBox="0 0 220 150" role="img" aria-label="Parlante karaoke de premio">
+  <path d="M70 22 C70 8 150 8 150 22" fill="none" stroke="var(--ink)" stroke-width="6" stroke-linecap="round"/>
+  <rect x="52" y="20" width="116" height="122" rx="14" fill="var(--card)" stroke="var(--ink)" stroke-width="5"/>
+  <circle cx="110" cy="48" r="14" fill="none" stroke="var(--brand)" stroke-width="5"/>
+  <circle cx="110" cy="48" r="4" fill="var(--brand)"/>
+  <circle cx="110" cy="100" r="30" fill="none" stroke="var(--brand)" stroke-width="6"/>
+  <circle cx="110" cy="100" r="16" fill="none" stroke="var(--line)" stroke-width="2"/>
+  <circle cx="110" cy="100" r="6" fill="var(--ink)"/>
+  <g stroke="var(--brand)" stroke-width="3" stroke-linecap="round"><path d="M64 34 h8"/><path d="M148 34 h8"/></g>
+  <g transform="rotate(-28 190 70)">
+    <rect x="183" y="78" width="14" height="52" rx="6" fill="var(--ink)"/>
+    <circle cx="190" cy="66" r="16" fill="var(--card)" stroke="var(--ink)" stroke-width="5"/>
+    <path d="M178 62 h24 M178 70 h24" stroke="var(--line)" stroke-width="2"/>
+  </g>
+  <g fill="none" stroke="var(--brand)" stroke-width="3" stroke-linecap="round"><path d="M28 70 q-10 12 0 24"/><path d="M18 62 q-16 20 0 40"/></g>
+</svg><div class="big">1</div><div class="txt">parlante karaoke por día para el mejor tiempo de la feria</div></div>
+      <div class="row"><button class="btn" id="go-reg">Jugar</button><button class="btn ghost" id="go-pre">Registrarme y jugar</button></div>
+      <ul class="rules">
+        <li>Puedes registrarte antes de jugar o al terminar. Solo los tiempos registrados entran al ranking.</li>
+        <li>Cuenta tu mejor tiempo del día. Puedes jugar más de una vez.</li>
+        <li>Si hay empate, gana quien lo logró primero.</li>
+        <li>El ganador se anuncia al cierre de cada día. Personal de Panorámica y Redmat no participa.</li>
+      </ul>
+      <div class="strip" aria-hidden="true" id="strip"></div>
+    </section>
+
+    <section class="screen" id="s-reg" hidden>
+      <h2 id="reg-title">Tus datos para el ranking</h2>
+      <p class="lead" id="reg-lead">Los usamos para avisarte si ganas.</p>
+      <form class="reg" id="reg" novalidate>
+        <div class="field"><label for="f-nombre">Nombre y apellido</label><input id="f-nombre" autocomplete="off" required></div>
+        <div class="field"><label for="f-ferre">Ferretería</label><input id="f-ferre" autocomplete="off" required></div>
+        <div class="field"><label for="f-ciudad">Ciudad</label><input id="f-ciudad" autocomplete="off"></div>
+        <div class="field"><label for="f-tel">Teléfono</label><input id="f-tel" inputmode="tel" autocomplete="off" placeholder="9 1234 5678" required></div>
+        <div class="field full"><label for="f-mail">Correo electrónico</label><input id="f-mail" type="email" inputmode="email" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="nombre@ferreteria.cl" required></div>
+        <p class="err full" id="reg-err"></p>
+        <div class="row full"><button class="btn" type="submit" id="reg-go">Guardar mi tiempo</button><button class="btn ghost" type="button" id="reg-back">No guardar</button></div>
+      </form>
+    </section>
+
+    <section class="screen" id="s-game" hidden>
+      <div class="hud">
+        <div class="who" id="who"></div>
+        <div class="clock" id="clock">00:00.0</div>
+        <div class="stat" id="stat">0 / 8 pares<br>0 intentos</div>
+      </div>
+      <div class="board" id="board"></div>
+      <div class="row" style="justify-content:center;margin-top:20px"><button class="btn ghost" id="game-back" style="min-height:48px;padding:10px 24px;font-size:17px">← Volver al inicio</button></div>
+    </section>
+
+    <section class="screen result" id="s-done" hidden>
+      <h2 id="done-title">¡Listo!</h2>
+      <div class="time" id="done-time">00:00.0</div>
+      <p class="place" id="done-place"></p>
+      <div class="row"><button class="btn" id="done-home">Siguiente jugador</button><button class="btn ghost" id="done-again">Jugar de nuevo</button></div>
+      <p class="rules" style="padding:0;list-style:none" id="done-auto">Volviendo al inicio en 20 s.</p>
+    </section>
+
+    <section class="admin" id="s-admin" hidden>
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">Panel del organizador</h2>
+        <button class="btn ghost" id="admin-close" style="min-height:44px;padding:8px 16px;font-size:16px">Cerrar</button>
+      </div>
+      <p class="lead" style="margin:8px 0 16px">Mejor tiempo por persona y todos los contactos registrados.</p>
+      <div class="row">
+        <label for="admin-day" style="font-weight:600">Día</label>
+        <select id="admin-day"></select>
+        <button class="btn" id="admin-csv" style="min-height:44px;padding:8px 16px;font-size:16px">Descargar CSV</button>
+      </div>
+      <p class="err" id="admin-msg"></p>
+      <div class="wrap"><table id="admin-table"></table></div>
+    </section>
+  </main>
+
+  <aside class="board-rank">
+    <h3>Ranking de hoy</h3>
+    <p class="sub" id="rank-sub">Mejor tiempo por persona</p>
+    <ol class="rank" id="rank"></ol>
+    <p class="note">El parlante karaoke del día es para el primer lugar al cierre de la feria.</p>
+    <button class="adminlink" id="admin-open">Panel del organizador</button>
+  </aside>
+</div>
+
+<script>
+(() => {
+  const FAIR = {"2026-11-04":"Día 1 · 4 nov","2026-11-05":"Día 2 · 5 nov","2026-11-06":"Día 3 · 6 nov"};
+  // Esmalte al Agua Copper · Colores Patagonia (nombres y códigos del ERP; hex de la paleta de la intranet)
+  const COLORS = [
+    {n:"Glaciar Austral",c:"#d0e3ec",k:"ECOPGA"},{n:"Bosque Encantado",c:"#5a7e58",k:"ECOPBE"},
+    {n:"Sur Mágico",c:"#a8e6bb",k:"ECOPSM"},{n:"Misterio Cósmico",c:"#a9a0ca",k:"ECOPMC"},
+    {n:"Buenas Vibras",c:"#7bbedb",k:"ECOPBV"},{n:"Cálida Calma",c:"#f5d6e7",k:"ECOPCC"},
+    {n:"Toque Creativo",c:"#f5e6a3",k:"ECOPTC"},{n:"Amarillo Topacio",c:"#f4c430",k:"ECOPAT"}
+  ];
+  const LOGO = "/panoramica-logo.png";
+  const API = "/api/public/memorice";
+  const $ = id => document.getElementById(id);
+  const fmt = ms => { const s = ms/1000, m = Math.floor(s/60); return String(m).padStart(2,"0")+":"+(s-m*60).toFixed(1).padStart(4,"0"); };
+  const normTel = t => (t||"").replace(/\D/g,"").slice(-9);
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+  const chileDay = () => new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+
+  let player = null, pending = null, autoTimer = null, day = chileDay(), top = [], total = 0;
+
+  $("strip").innerHTML = COLORS.map(c => `<span style="background:${c.c}"></span>`).join("");
+
+  function setDay(d){
+    day = d || chileDay();
+    const tag = $("daytag");
+    if (FAIR[day]) { tag.textContent = FAIR[day]; tag.classList.remove("test"); }
+    else { tag.textContent = "Modo prueba · " + day; tag.classList.add("test"); }
+  }
+  setDay();
+
+  // ---------- cola local: si se cae la red, la partida espera y se reintenta ----------
+  const QK = "memorice-pendientes";
+  const qAll = () => { try { return JSON.parse(localStorage.getItem(QK) || "[]"); } catch { return []; } };
+  const qSet = a => { try { localStorage.setItem(QK, JSON.stringify(a)); } catch {} };
+
+  async function post(rec){
+    const r = await fetch(API + "/partidas", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(rec)});
+    if (r.status === 400) { const j = await r.json().catch(() => ({})); const e = new Error(j.message || "Datos inválidos"); e.invalid = true; throw e; }
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  }
+  async function flush(){
+    const q = qAll(); if (!q.length) return;
+    const left = [];
+    for (const rec of q) { try { await post(rec); } catch (e) { if (!e.invalid) left.push(rec); } }
+    qSet(left);
+    $("offline").hidden = left.length === 0;
+    if (left.length < q.length) loadRank();
+  }
+
+  // ---------- ranking ----------
+  async function loadRank(){
+    try {
+      const r = await fetch(API + "/ranking", {cache:"no-store"});
+      if (!r.ok) throw 0;
+      const j = await r.json();
+      if (j.hoy && j.hoy !== day) setDay(j.hoy);
+      top = j.top || []; total = j.jugadores || 0;
+      renderRank();
+    } catch {}
+  }
+  function renderRank(){
+    const ol = $("rank");
+    $("rank-sub").textContent = total ? `${total} jugador${total===1?"":"es"} · mejor tiempo por persona` : "Mejor tiempo por persona";
+    if (!top.length) { ol.innerHTML = `<li class="empty" style="display:block;border:0">Todavía no hay tiempos hoy. El primero en jugar marca la meta.</li>`; return; }
+    const me = player ? (player.nombre + "|" + player.ferreteria).toLowerCase() : null;
+    ol.innerHTML = top.map((r,i) => `<li class="${i===0?"first":""} ${me && (r.nombre+"|"+r.ferreteria).toLowerCase()===me?"me":""}"><span class="n">${i+1}</span><span class="nm">${esc(r.nombre)}<small>${esc(r.ferreteria)}${r.ciudad?" · "+esc(r.ciudad):""}</small></span><span class="t">${fmt(r.ms)}</span></li>`).join("");
+  }
+  loadRank(); flush();
+  setInterval(() => { loadRank(); flush(); }, 15000);
+
+  // ---------- pantallas ----------
+  const screens = ["s-home","s-reg","s-game","s-done","s-admin"];
+  const show = id => { screens.forEach(s => $(s).hidden = s !== id); clearInterval(autoTimer); };
+
+  $("go-reg").onclick = () => { player = null; pending = null; startGame(); };
+  $("reg-back").onclick = () => { pending = null; player = null; renderRank(); show("s-home"); };
+  $("go-pre").onclick = () => {
+    player = null; pending = null; show("s-reg"); $("reg").reset(); $("reg-err").textContent = "";
+    $("reg-title").textContent = "Tus datos para el ranking";
+    $("reg-lead").textContent = "Los usamos para avisarte si ganas. Después de esto parte el juego.";
+    $("reg-go").textContent = "Empezar"; $("reg-back").textContent = "Volver";
+    setTimeout(() => $("f-nombre").focus(), 50);
+  };
+  function askData(res){
+    $("reg-go").textContent = "Guardar mi tiempo"; $("reg-back").textContent = "No guardar";
+    pending = res; show("s-reg"); $("reg").reset(); $("reg-err").textContent = "";
+    $("reg-title").textContent = `Tu tiempo: ${fmt(res.ms)}`;
+    $("reg-lead").textContent = "Registra tus datos para entrar al ranking del día y competir por el parlante karaoke.";
+    setTimeout(() => $("f-nombre").focus(), 50);
+  }
+  $("reg").addEventListener("submit", e => {
+    e.preventDefault();
+    const p = {nombre:$("f-nombre").value.trim(), ferreteria:$("f-ferre").value.trim(), ciudad:$("f-ciudad").value.trim(), telefono:$("f-tel").value.trim(), email:$("f-mail").value.trim().toLowerCase()};
+    if (p.nombre.length < 2 || p.ferreteria.length < 2) { $("reg-err").textContent = "Escribe tu nombre y el nombre de tu ferretería."; return; }
+    if (normTel(p.telefono).length < 8) { $("reg-err").textContent = "Escribe un teléfono de al menos 8 dígitos para poder avisarte si ganas."; return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(p.email)) { $("reg-err").textContent = "Escribe un correo válido, por ejemplo nombre@ferreteria.cl."; return; }
+    player = p;
+    if (pending) { const res = pending; pending = null; saveAndShow(res); } else startGame();
+  });
+
+  // ---------- juego ----------
+  let deck = [], open = [], found = 0, tries = 0, t0 = 0, tick = null, lock = false, finished = false;
+  function shuffle(a){ for (let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+  function startGame(){
+    show("s-game");
+    $("who").innerHTML = player ? `${esc(player.nombre)}<span>${esc(player.ferreteria)}</span>` : `¡A jugar!<span>Al terminar registras tu tiempo</span>`;
+    deck = shuffle([...COLORS, ...COLORS].map((c,i) => ({...c, i})));
+    open = []; found = 0; tries = 0; t0 = 0; lock = false; finished = false;
+    clearInterval(tick); $("clock").textContent = "00:00.0"; updStat();
+    $("board").innerHTML = deck.map((c,i) => `<button class="chip" data-i="${i}" aria-label="Carta ${i+1}"><div class="in"><div class="face back"><img src="${LOGO}" alt=""><i>PATAGONIA</i></div><div class="face front"><div class="sw" style="background:${c.c}"></div><div class="lab"><b>${c.n}</b><i>${c.k}</i></div></div></div></button>`).join("");
+  }
+  $("game-back").onclick = () => { clearInterval(tick); finished = true; pending = null; player = null; renderRank(); show("s-home"); };
+  function updStat(){ $("stat").innerHTML = `${found} / 8 pares<br>${tries} intentos`; }
+
+  $("board").addEventListener("click", e => {
+    const b = e.target.closest(".chip"); if (!b || lock || finished) return;
+    if (b.classList.contains("up") || b.classList.contains("done")) return;
+    if (!t0) { t0 = performance.now(); tick = setInterval(() => $("clock").textContent = fmt(performance.now()-t0), 100); }
+    b.classList.add("up"); open.push(b);
+    if (open.length === 2) {
+      tries++; const [a, c] = open; const A = deck[+a.dataset.i], C = deck[+c.dataset.i];
+      if (A.n === C.n) {
+        a.classList.replace("up","done"); c.classList.replace("up","done"); a.setAttribute("aria-label", A.n); c.setAttribute("aria-label", C.n);
+        open = []; found++; updStat();
+        if (found === 8) finish();
+      } else {
+        lock = true; updStat();
+        setTimeout(() => { a.classList.remove("up"); c.classList.remove("up"); open = []; lock = false; }, 700);
+      }
+    }
+  });
+
+  function finish(){
+    finished = true; clearInterval(tick);
+    const ms = Math.round(performance.now() - t0);
+    $("clock").textContent = fmt(ms);
+    const res = {ms, intentos: tries};
+    setTimeout(() => { if (player) saveAndShow(res); else askData(res); }, 600);
+  }
+  async function saveAndShow(res){
+    const rec = {...player, ...res};
+    show("s-done");
+    $("done-time").textContent = fmt(res.ms);
+    $("done-title").textContent = `¡Bien, ${player.nombre.split(" ")[0]}!`;
+    $("done-place").textContent = "Guardando tu tiempo…";
+    try {
+      const j = await post(rec);
+      $("done-place").innerHTML = j.posicion === 1
+        ? (!j.esMejor ? `Sigues en el <b>1.er lugar</b> con tu mejor tiempo de ${fmt(j.mejorMs)}.` : `Vas en el <b>1.er lugar</b> del día. ¡Quédate atento al cierre!`)
+        : `Tu mejor tiempo te deja en el <b>lugar ${j.posicion}</b> de ${j.jugadores}.` + (!j.esMejor ? ` (Tu mejor marca hoy: ${fmt(j.mejorMs)}.)` : "");
+      loadRank();
+    } catch (e) {
+      if (e.invalid) { $("done-place").textContent = "No pudimos guardar este tiempo: " + e.message; }
+      else {
+        qSet([...qAll(), rec]); $("offline").hidden = false;
+        $("done-place").textContent = "Sin conexión: tu tiempo quedó guardado en este equipo y se envía apenas vuelva la red.";
+      }
+    }
+    let left = 20; $("done-auto").textContent = `Volviendo al inicio en ${left} s.`;
+    autoTimer = setInterval(() => { left--; $("done-auto").textContent = `Volviendo al inicio en ${left} s.`; if (left <= 0) { clearInterval(autoTimer); player = null; renderRank(); show("s-home"); } }, 1000);
+  }
+  $("done-home").onclick = () => { clearInterval(autoTimer); player = null; renderRank(); show("s-home"); };
+  $("done-again").onclick = () => { clearInterval(autoTimer); startGame(); };
+
+  // ---------- panel del organizador (requiere sesión de la intranet) ----------
+  let adminRows = [];
+  $("admin-open").onclick = () => { show("s-admin"); loadAdmin(); };
+  $("admin-close").onclick = () => show("s-home");
+  $("admin-day").onchange = () => loadAdmin($("admin-day").value);
+  async function loadAdmin(d){
+    $("admin-msg").textContent = "Cargando…"; $("admin-table").innerHTML = "";
+    try {
+      const r = await fetch("/api/memorice/admin" + (d ? "?dia=" + encodeURIComponent(d) : ""), {credentials:"same-origin", cache:"no-store"});
+      if (r.status === 401 || r.status === 403) {
+        $("admin-msg").innerHTML = `Necesitas entrar a la intranet con un usuario admin o supervisor. <a href="/" target="_blank" rel="noopener">Iniciar sesión</a> y vuelve a abrir el panel.`;
+        return;
+      }
+      if (!r.ok) throw 0;
+      const j = await r.json();
+      const sel = $("admin-day");
+      const days = [...new Set([...Object.keys(FAIR), ...j.dias, j.dia])].sort();
+      sel.innerHTML = days.map(x => `<option value="${x}">${FAIR[x] || x + " (prueba)"}</option>`).join("");
+      sel.value = j.dia;
+      adminRows = j.ranking;
+      $("admin-msg").textContent = adminRows.length ? `${adminRows.length} personas · ${j.partidas} partidas` : "Sin partidas para este día.";
+      $("admin-table").innerHTML = `<thead><tr><th>#</th><th>Nombre</th><th>Ferretería</th><th>Ciudad</th><th>Teléfono</th><th>Correo</th><th>Tiempo</th><th>Intentos</th></tr></thead><tbody>` +
+        adminRows.map(r => `<tr><td class="num">${r.lugar}</td><td>${esc(r.nombre)}</td><td>${esc(r.ferreteria)}</td><td>${esc(r.ciudad)}</td><td class="num">${esc(r.telefono)}</td><td>${esc(r.email)}</td><td class="num">${r.tiempo}</td><td class="num">${r.intentos}</td></tr>`).join("") + `</tbody>`;
+    } catch { $("admin-msg").textContent = "No se pudo cargar el panel."; }
+  }
+  $("admin-csv").onclick = () => {
+    const d = $("admin-day").value || day;
+    const q = v => `"${String(v ?? "").replace(/"/g,'""')}"`;
+    const csv = ["lugar,nombre,ferreteria,ciudad,telefono,email,tiempo,intentos", ...adminRows.map(r => [r.lugar,q(r.nombre),q(r.ferreteria),q(r.ciudad),q(r.telefono),q(r.email),r.tiempo,r.intentos].join(","))].join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(["﻿" + csv], {type:"text/csv;charset=utf-8"}));
+    a.download = `memorice-${d}.csv`; document.body.appendChild(a); a.click(); a.remove();
+    $("admin-msg").textContent = "CSV listo.";
+  };
+})();
+</script>
+</body>
+</html>

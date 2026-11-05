@@ -9810,3 +9810,26 @@ export const guardarPuentePersonalSchema = z.object({
   tipo: z.enum(['cuenta', 'centro_costo']),
   valores: z.array(z.string().min(1).max(255)),
 });
+
+// ===== JUEGO MEMORICE (Feria Redmat 2026) =====
+// Partidas del memorice público /memorice. Ver migrations/099_juego_memorice.sql.
+export const juegoMemoricePartidas = pgTable("juego_memorice_partidas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  evento: varchar("evento").notNull().default("feria-redmat-2026"),
+  dia: varchar("dia", { length: 10 }).notNull(), // YYYY-MM-DD, hora de Chile
+  nombre: text("nombre").notNull(),
+  ferreteria: text("ferreteria").notNull(),
+  ciudad: text("ciudad"),
+  telefono: varchar("telefono").notNull(),
+  telefonoNorm: varchar("telefono_norm", { length: 9 }).notNull(), // últimos 9 dígitos: identifica a la persona
+  email: varchar("email").notNull(),
+  ms: integer("ms").notNull(),
+  intentos: integer("intentos").notNull(),
+  crmSeguimientoId: varchar("crm_seguimiento_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  eventoDiaIdx: index("IDX_memorice_evento_dia").on(table.evento, table.dia),
+  telIdx: index("IDX_memorice_tel").on(table.telefonoNorm),
+}));
+
+export type JuegoMemoricePartida = typeof juegoMemoricePartidas.$inferSelect;

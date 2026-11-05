@@ -46,7 +46,7 @@ const VENDEDOR_SIN_ASIGNAR_ID = 'web-sin-asignar';
 const VENDEDOR_SIN_ASIGNAR_NOMBRE = 'Sin asignar (web)';
 
 /** Encargado/supervisor del área, o el primer vendedor de ese equipo. */
-async function resolveOwnerForSegmento(segmentoValue: string | null | undefined) {
+export async function resolveOwnerForSegmento(segmentoValue: string | null | undefined) {
   const segmento = getSegmentoCotizacionWeb(segmentoValue);
   if (!segmento) return null;
 
@@ -95,7 +95,7 @@ async function resolveOwnerForSegmento(segmentoValue: string | null | undefined)
 }
 
 /** Etiquetas actuales del lead (JSON array en texto), tolerante a basura. */
-function parseEtiquetas(raw: string | null | undefined): string[] {
+export function parseEtiquetas(raw: string | null | undefined): string[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -126,7 +126,7 @@ function describeItems(items: QuoteRequestItem[]): string {
 }
 
 /** Lead activo del mismo contacto (email o RUT), para no duplicar el pipeline. */
-async function findExistingLead(email?: string | null, rut?: string | null) {
+export async function findExistingLead(email?: string | null, rut?: string | null) {
   const keys: any[] = [];
   if (email?.trim()) keys.push(ilike(crmSeguimientoClientes.email, email.trim()));
   if (rut?.trim()) keys.push(eq(crmSeguimientoClientes.rut, rut.trim()));

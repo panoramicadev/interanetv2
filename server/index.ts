@@ -150,6 +150,10 @@ app.use((req, res, next) => {
   const { registerB2CRoutes } = await import('./routes-b2c');
   registerB2CRoutes(app);
 
+  // Memorice público de la Feria Redmat (juego + ranking + leads de Ferretería)
+  const { registerMemoriceRoutes } = await import('./routes-memorice');
+  registerMemoriceRoutes(app);
+
   // Register Web Push (PWA) routes
   const { registerPushRoutes } = await import('./routes-push');
   registerPushRoutes(app);
