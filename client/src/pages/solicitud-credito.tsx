@@ -37,6 +37,7 @@ import {
   FileText,
   Loader2,
   Paperclip,
+  Pencil,
   Search,
   Send,
   TrendingUp,
@@ -247,6 +248,52 @@ function ChipsDias({
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Empresa, socios y bancos de una solicitud nueva. Los usan el formulario y la
+ * edición de una ya enviada: son los mismos campos, leídos del contexto.
+ */
+function DatosEmpresa() {
+  return (
+    <>
+      <Seccion icono={<Building2 className="h-3.5 w-3.5" />} titulo="Datos de la empresa">
+        <Campo k="razonSocial" label="Razón social" obligatorio placeholder="Constructora ..." />
+        <Campo k="rut" label="RUT" obligatorio placeholder="76.123.456-7" />
+        <Campo k="direccion" label="Dirección" obligatorio />
+        <Campo k="ciudad" label="Ciudad" obligatorio />
+        <Campo k="telefono" label="Teléfono" obligatorio placeholder="+56 9 ..." />
+        <Campo k="giro" label="Giro" />
+        {/* En el teléfono, tipo email cambia el teclado: aparece la arroba. */}
+        <Campo k="correo" label="Correo cobranza" placeholder="cobranza@empresa.cl" tipo="email" />
+        <Campo
+          k="correoDte"
+          label="Correo receptor DTE (SII)"
+          obligatorio
+          placeholder="dte@empresa.cl"
+          tipo="email"
+        />
+      </Seccion>
+
+      <Seccion icono={<Users className="h-3.5 w-3.5" />} titulo="Socios y representante legal">
+        <Campo k="socio1Nombre" label="Socio 1" />
+        <Campo k="socio1Direccion" label="Dirección socio 1" />
+        <Campo k="socio2Nombre" label="Socio 2" />
+        <Campo k="socio2Direccion" label="Dirección socio 2" />
+        <Campo k="representanteNombre" label="Representante legal" />
+        <Campo k="representanteCedula" label="Cédula del representante" />
+      </Seccion>
+
+      <Seccion icono={<Banknote className="h-3.5 w-3.5" />} titulo="Bancos">
+        <Campo k="banco1" label="Banco 1" />
+        <Campo k="cuenta1" label="Cuenta 1" />
+        <Campo k="sucursal1" label="Sucursal 1" />
+        <Campo k="banco2" label="Banco 2" />
+        <Campo k="cuenta2" label="Cuenta 2" />
+        <Campo k="sucursal2" label="Sucursal 2" />
+      </Seccion>
+    </>
   );
 }
 
@@ -485,41 +532,7 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
         </TabsList>
 
         <TabsContent value="nueva" className="mt-4 space-y-3">
-          <Seccion icono={<Building2 className="h-3.5 w-3.5" />} titulo="Datos de la empresa">
-            <Campo k="razonSocial" label="Razón social" obligatorio placeholder="Constructora ..." />
-            <Campo k="rut" label="RUT" obligatorio placeholder="76.123.456-7" />
-            <Campo k="direccion" label="Dirección" obligatorio />
-            <Campo k="ciudad" label="Ciudad" obligatorio />
-            <Campo k="telefono" label="Teléfono" obligatorio placeholder="+56 9 ..." />
-            <Campo k="giro" label="Giro" />
-            {/* En el teléfono, tipo email cambia el teclado: aparece la arroba. */}
-            <Campo k="correo" label="Correo cobranza" placeholder="cobranza@empresa.cl" tipo="email" />
-            <Campo
-              k="correoDte"
-              label="Correo receptor DTE (SII)"
-              obligatorio
-              placeholder="dte@empresa.cl"
-              tipo="email"
-            />
-          </Seccion>
-
-          <Seccion icono={<Users className="h-3.5 w-3.5" />} titulo="Socios y representante legal">
-            <Campo k="socio1Nombre" label="Socio 1" />
-            <Campo k="socio1Direccion" label="Dirección socio 1" />
-            <Campo k="socio2Nombre" label="Socio 2" />
-            <Campo k="socio2Direccion" label="Dirección socio 2" />
-            <Campo k="representanteNombre" label="Representante legal" />
-            <Campo k="representanteCedula" label="Cédula del representante" />
-          </Seccion>
-
-          <Seccion icono={<Banknote className="h-3.5 w-3.5" />} titulo="Bancos">
-            <Campo k="banco1" label="Banco 1" />
-            <Campo k="cuenta1" label="Cuenta 1" />
-            <Campo k="sucursal1" label="Sucursal 1" />
-            <Campo k="banco2" label="Banco 2" />
-            <Campo k="cuenta2" label="Cuenta 2" />
-            <Campo k="sucursal2" label="Sucursal 2" />
-          </Seccion>
+          <DatosEmpresa />
 
           <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 p-4 space-y-3">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
@@ -605,6 +618,9 @@ export function SolicitudCreditoContent({ embedded = false }: { embedded?: boole
                   key={s.id}
                   solicitud={s}
                   puedeResolver={puedeResolver}
+                  // Solo quien la pidió la completa, y solo mientras siga
+                  // pendiente: lo resuelto se apoya en los datos de ese momento.
+                  puedeEditar={!!user?.id && s.solicitanteId === user.id}
                   soloAnaliza={soloAnaliza}
                   resolviendo={resolver.isPending}
                   onResolver={(datos) => resolver.mutate({ id: s.id, datos })}
@@ -1129,12 +1145,14 @@ function Descarga({
 function FilaSolicitud({
   solicitud,
   puedeResolver,
+  puedeEditar = false,
   soloAnaliza,
   resolviendo,
   onResolver,
 }: {
   solicitud: SolicitudCredito;
   puedeResolver: boolean;
+  puedeEditar?: boolean;
   soloAnaliza: boolean;
   resolviendo: boolean;
   onResolver: (datos: Record<string, unknown>) => void;
@@ -1142,6 +1160,7 @@ function FilaSolicitud({
   const { toast } = useToast();
   const [abierto, setAbierto] = useState(false);
   const [detalle, setDetalle] = useState(false);
+  const [editando, setEditando] = useState(false);
   const [bajando, setBajando] = useState<null | "pdf" | "carpeta" | "csv">(null);
   const [monto, setMonto] = useState("");
   // Arranca con el plazo pedido; Finanzas lo cambia si aprueba otro.
@@ -1257,6 +1276,19 @@ function FilaSolicitud({
         >
           {detalle ? "Ocultar" : "Ver datos"}
         </Button>
+
+        {puedeEditar && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-lg text-xs gap-1.5"
+            onClick={() => setEditando((v) => !v)}
+            data-testid={`button-editar-${solicitud.id}`}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            {editando ? "Cerrar" : "Editar"}
+          </Button>
+        )}
 
         {/* Las tres descargas: el PDF para archivar y mandar, la carpeta
             tributaria que subió el vendedor, y el CSV para trabajarla en Excel.
@@ -1374,6 +1406,10 @@ function FilaSolicitud({
         </div>
       )}
 
+      {editando && puedeEditar && (
+        <EditarSolicitud solicitud={solicitud} onListo={() => setEditando(false)} />
+      )}
+
       {solicitud.observaciones && (
         <p className="mt-2 text-xs text-slate-500 border-t border-slate-100 dark:border-slate-700/40 pt-2">
           {solicitud.observaciones}
@@ -1474,5 +1510,178 @@ function FilaSolicitud({
         </div>
       )}
     </div>
+  );
+}
+
+/** El formulario lleno con lo que ya se envió: los montos como dígitos, lo vacío como "". */
+const formDesde = (s: SolicitudCredito): FormSolicitud => {
+  const form = { ...FORM_VACIO };
+  for (const k of Object.keys(FORM_VACIO) as (keyof FormSolicitud)[]) {
+    const valor = s[k as keyof SolicitudCredito];
+    form[k] = valor == null ? "" : String(valor);
+  }
+  form.creditoSolicitado = Number(s.creditoSolicitado) > 0 ? String(Math.round(Number(s.creditoSolicitado))) : "";
+  return form;
+};
+
+/**
+ * Completar o corregir una solicitud ya enviada (pedido del usuario, nov-2026):
+ * al vendedor seguido le falta algún antecedente y la única salida era mandar
+ * otra. Son los mismos campos del formulario, ya llenos. El servidor vuelve a
+ * exigir los obligatorios y avisa por correo qué cambió.
+ */
+function EditarSolicitud({ solicitud, onListo }: { solicitud: SolicitudCredito; onListo: () => void }) {
+  const { toast } = useToast();
+  const aumento = esAumento(solicitud);
+  const [form, setForm] = useState<FormSolicitud>(() => formDesde(solicitud));
+  const [motivo, setMotivo] = useState(solicitud.motivo ?? "");
+  const [carpeta, setCarpeta] = useState<CarpetaAdjunta | null>(
+    solicitud.carpetaTributariaUrl
+      ? { url: solicitud.carpetaTributariaUrl, nombre: solicitud.carpetaTributariaNombre || "Carpeta tributaria" }
+      : null,
+  );
+  const [subiendo, setSubiendo] = useState(false);
+
+  const campo = (k: keyof FormSolicitud, valor: string) => setForm((p) => ({ ...p, [k]: valor }));
+
+  const guardar = useMutation({
+    mutationFn: async (datos: Record<string, unknown>) => {
+      const res = await apiRequest(`/api/solicitudes-credito/${solicitud.id}/datos`, { method: "PATCH", data: datos });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/solicitudes-credito"] });
+      toast({ title: "Solicitud actualizada", description: "Finanzas recibió un aviso con lo que cambió." });
+      onListo();
+    },
+    onError: (error: any) => {
+      toast({ title: "No se pudo guardar", description: error?.message, variant: "destructive" });
+    },
+  });
+
+  const faltan = aumento
+    ? !form.rut.trim() || !(Number(form.creditoSolicitado) > 0) || !(Number(form.diasSolicitados) > 0) || !motivo.trim()
+    : !form.razonSocial.trim() ||
+      !form.rut.trim() ||
+      !form.direccion.trim() ||
+      !form.ciudad.trim() ||
+      !form.telefono.trim() ||
+      !form.correoDte.trim() ||
+      !(Number(form.creditoSolicitado) > 0) ||
+      !(Number(form.diasSolicitados) > 0);
+
+  const enviar = () => {
+    if (faltan) {
+      toast({
+        title: "Faltan datos",
+        description: aumento
+          ? "El RUT, la nueva línea, el plazo y el motivo del aumento son obligatorios."
+          : "Razón social, RUT, dirección, ciudad, teléfono, correo DTE, crédito solicitado y plazo son obligatorios.",
+        variant: "destructive",
+      });
+      return;
+    }
+    guardar.mutate({
+      ...form,
+      correo: form.correo.trim() || null,
+      correoDte: form.correoDte.trim() || null,
+      creditoSolicitado: Number(form.creditoSolicitado),
+      diasSolicitados: Number(form.diasSolicitados),
+      ...(aumento ? { motivo: motivo.trim() } : {}),
+      carpetaTributariaUrl: carpeta?.url ?? null,
+      carpetaTributariaNombre: carpeta?.nombre ?? null,
+    });
+  };
+
+  return (
+    <FormularioCreditoCtx.Provider value={{ form, campo }}>
+      <div
+        className="mt-3 border-t border-slate-100 dark:border-slate-700/40 pt-3 space-y-3"
+        data-testid={`editar-solicitud-${solicitud.id}`}
+      >
+        {aumento ? (
+          // Un aumento no pide socios ni bancos: Finanzas ya conoce al cliente.
+          <Seccion icono={<Building2 className="h-3.5 w-3.5" />} titulo="Datos del cliente">
+            <Campo k="rut" label="RUT" obligatorio placeholder="76.123.456-7" />
+            <Campo k="telefono" label="Teléfono" placeholder="+56 9 ..." />
+            <Campo k="direccion" label="Dirección" />
+            <Campo k="ciudad" label="Ciudad" />
+            <Campo k="correo" label="Correo cobranza" placeholder="cobranza@empresa.cl" tipo="email" />
+            <Campo k="correoDte" label="Correo receptor DTE (SII)" placeholder="dte@empresa.cl" tipo="email" />
+          </Seccion>
+        ) : (
+          <DatosEmpresa />
+        )}
+
+        <Seccion
+          icono={aumento ? <TrendingUp className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
+          titulo={aumento ? "Aumento solicitado" : "Crédito y carpeta tributaria"}
+        >
+          <div className="space-y-3">
+            <div>
+              <Etiqueta texto={aumento ? "Nueva línea solicitada" : "Crédito solicitado"} obligatorio />
+              <Input
+                value={montoVisible(form.creditoSolicitado)}
+                onChange={(e) => campo("creditoSolicitado", soloDigitos(e.target.value))}
+                placeholder="$0"
+                type="text"
+                inputMode="numeric"
+                className="h-9 rounded-xl text-sm font-semibold tabular-nums"
+                data-testid={`input-editar-monto-${solicitud.id}`}
+              />
+              {aumento && (
+                <p className="mt-1 pl-1 text-[11px] text-slate-400">
+                  Línea actual {lineaActual(solicitud)}. Es la línea total que quedaría, no lo que se suma.
+                </p>
+              )}
+            </div>
+            <div>
+              <Etiqueta texto="Días solicitados" obligatorio />
+              <ChipsDias
+                valor={form.diasSolicitados}
+                onElegir={(dias) => campo("diasSolicitados", dias)}
+                prefijoTestId={`editar-${solicitud.id}-`}
+              />
+            </div>
+          </div>
+
+          <CarpetaTributaria
+            carpeta={carpeta}
+            onCarpeta={setCarpeta}
+            subiendo={subiendo}
+            onSubiendo={setSubiendo}
+            prefijoTestId={`editar-${solicitud.id}-`}
+          />
+
+          {aumento && (
+            <div className="sm:col-span-2">
+              <Etiqueta texto="Motivo del aumento" obligatorio />
+              <Textarea
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                rows={3}
+                className="resize-none rounded-xl text-sm"
+                data-testid={`input-editar-motivo-${solicitud.id}`}
+              />
+            </div>
+          )}
+        </Seccion>
+
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" className="h-9 rounded-xl text-sm" onClick={onListo}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={enviar}
+            disabled={guardar.isPending || subiendo}
+            className="h-9 rounded-xl bg-gradient-to-r from-orange-500 to-[#fd6301] hover:from-[#e35400] hover:to-[#e35400] text-white text-sm font-semibold"
+            data-testid={`button-guardar-edicion-${solicitud.id}`}
+          >
+            {guardar.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+            Guardar cambios
+          </Button>
+        </div>
+      </div>
+    </FormularioCreditoCtx.Provider>
   );
 }

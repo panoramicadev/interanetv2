@@ -167,7 +167,13 @@ function cuerpoDelCorreo(s: SolicitudCredito): string {
   `;
 }
 
-async function avisarPorCorreo(s: SolicitudCredito): Promise<void> {
+/**
+ * A quién le llega una solicitud enviada (y después, sus correcciones).
+ * null = no hay a quién avisarle.
+ */
+async function destinatariosDeLaSolicitud(
+  s: SolicitudCredito,
+): Promise<{ to: string[]; cc: string[] } | null> {
   const { vendedor, supervisor } = await correosDelFlujo(s.solicitanteId, s.supervisorId);
   const config = await destinatariosConfigurados();
 
@@ -188,8 +194,15 @@ async function avisarPorCorreo(s: SolicitudCredito): Promise<void> {
   }
   if (to.length === 0) {
     console.warn('[solicitud-credito] sin destinatarios: no hay correos configurados ni del solicitante/supervisor');
-    return;
+    return null;
   }
+  return { to, cc };
+}
+
+async function avisarPorCorreo(s: SolicitudCredito): Promise<void> {
+  const destinatarios = await destinatariosDeLaSolicitud(s);
+  if (!destinatarios) return;
+  const { to, cc } = destinatarios;
 
   const plazo = s.diasSolicitados ? ` a ${s.diasSolicitados} días` : '';
   await emailService.sendEmail({
@@ -201,6 +214,99 @@ async function avisarPorCorreo(s: SolicitudCredito): Promise<void> {
     html: cuerpoDelCorreo(s),
   });
 }
+
+/**
+ * Lo que el vendedor puede corregir después de enviarla, con cómo se lee en el
+ * correo. Lo del flujo (estado, montos aprobados, la foto de la línea en un
+ * aumento) no está: eso no lo cambia el vendedor.
+ */
+const CAMPOS_EDITABLES: { key: keyof SolicitudCredito; label: string; leer?: (s: SolicitudCredito) => string | null }[] = [
+  { key: 'razonSocial', label: 'Razón social' },
+  { key: 'rut', label: 'RUT' },
+  { key: 'direccion', label: 'Dirección' },
+  { key: 'ciudad', label: 'Ciudad' },
+  { key: 'telefono', label: 'Teléfono' },
+  { key: 'giro', label: 'Giro' },
+  { key: 'correo', label: 'Correo cobranza' },
+  { key: 'correoDte', label: 'Correo DTE (SII)' },
+  { key: 'socio1Nombre', label: 'Socio 1' },
+  { key: 'socio1Direccion', label: 'Dirección socio 1' },
+  { key: 'socio2Nombre', label: 'Socio 2' },
+  { key: 'socio2Direccion', label: 'Dirección socio 2' },
+  { key: 'representanteNombre', label: 'Representante legal' },
+  { key: 'representanteCedula', label: 'Cédula del representante' },
+  { key: 'banco1', label: 'Banco 1' },
+  { key: 'cuenta1', label: 'Cuenta 1' },
+  { key: 'sucursal1', label: 'Sucursal 1' },
+  { key: 'banco2', label: 'Banco 2' },
+  { key: 'cuenta2', label: 'Cuenta 2' },
+  { key: 'sucursal2', label: 'Sucursal 2' },
+  { key: 'creditoSolicitado', label: 'Crédito solicitado', leer: (s) => money(s.creditoSolicitado) },
+  { key: 'diasSolicitados', label: 'Plazo solicitado', leer: (s) => (s.diasSolicitados ? `${s.diasSolicitados} días` : null) },
+  { key: 'motivo', label: 'Motivo del aumento' },
+  {
+    key: 'carpetaTributariaUrl',
+    label: 'Carpeta tributaria',
+    leer: (s) => (s.carpetaTributariaUrl ? s.carpetaTributariaNombre || 'adjunta' : null),
+  },
+];
+
+/** Qué cambió entre la versión guardada y la corregida, ya legible. */
+function cambiosEntre(antes: SolicitudCredito, despues: SolicitudCredito) {
+  const leer = (c: (typeof CAMPOS_EDITABLES)[number], s: SolicitudCredito) =>
+    (c.leer ? c.leer(s) : (s[c.key] as string | null))?.toString().trim() || null;
+  return CAMPOS_EDITABLES
+    .map((c) => ({ label: c.label, antes: leer(c, antes), despues: leer(c, despues) }))
+    .filter((c) => c.antes !== c.despues);
+}
+
+/**
+ * Aviso de que el vendedor completó o corrigió una solicitud que ya estaba en
+ * la bandeja. Le llega a los mismos que recibieron la original, con lo que
+ * cambió: así Finanzas no evalúa con el dato viejo ni tiene que buscar la
+ * diferencia.
+ */
+async function avisarCorreccionPorCorreo(
+  s: SolicitudCredito,
+  cambios: ReturnType<typeof cambiosEntre>,
+): Promise<void> {
+  const destinatarios = await destinatariosDeLaSolicitud(s);
+  if (!destinatarios) return;
+  const { to, cc } = destinatarios;
+
+  const filas = cambios
+    .map(
+      (c) => `<tr>
+        <td style="padding:4px 12px 4px 0;color:#64748b;font-size:13px">${c.label}</td>
+        <td style="padding:4px 12px 4px 0;color:#94a3b8;font-size:13px;text-decoration:line-through">${c.antes ?? '—'}</td>
+        <td style="padding:4px 0;color:#0f172a;font-size:13px;font-weight:600">${c.despues ?? '—'}</td>
+      </tr>`,
+    )
+    .join('');
+
+  await emailService.sendEmail({
+    to: to.join(', '),
+    cc: cc.length ? cc.join(', ') : undefined,
+    subject: `Solicitud de ${esAumento(s) ? 'aumento de crédito' : 'crédito'} actualizada · ${s.razonSocial}`,
+    html: `
+      <p style="font-size:15px;color:#0f172a">
+        <strong>${s.solicitanteNombre ?? 'El vendedor'}</strong> actualizó la solicitud de
+        ${esAumento(s) ? 'aumento de crédito' : 'crédito'} de <strong>${s.razonSocial}</strong>.
+      </p>
+      <table style="border-collapse:collapse;margin:12px 0">${filas}</table>
+      ${
+        s.carpetaTributariaUrl
+          ? `<p style="font-size:14px"><a href="${s.carpetaTributariaUrl}" style="color:#fd6301;font-weight:600">
+               Ver carpeta tributaria${s.carpetaTributariaNombre ? ` (${s.carpetaTributariaNombre})` : ''}
+             </a></p>`
+          : ''
+      }
+    `,
+  });
+}
+
+/** Mientras Finanzas no la cierre, el vendedor todavía puede completarla. */
+const ESTADOS_EDITABLES = ['enviada', 'analizando'];
 
 /** Plazo vigente de la solicitud: el aprobado si lo hay, si no el pedido. */
 const diasDe = (s: SolicitudCredito) => s.diasAprobados ?? s.diasSolicitados;
@@ -364,6 +470,83 @@ export function registerSolicitudesCreditoRoutes(app: Express): void {
     } catch (error: any) {
       console.error('❌ Error al crear la solicitud de crédito:', error);
       res.status(500).json({ message: 'Error al enviar la solicitud', error: error.message });
+    }
+  });
+
+  // Completar o corregir los datos de una solicitud ya enviada. Al vendedor le
+  // falta seguido algún antecedente (pedido del usuario, nov-2026): antes la
+  // única salida era mandar otra solicitud. Solo quien la pidió, y solo
+  // mientras siga pendiente: una vez resuelta, lo aprobado se apoya en lo que
+  // había en ese momento.
+  app.patch('/api/solicitudes-credito/:id/datos', requireAuth, async (req: any, res) => {
+    try {
+      const usuario = req.user;
+      const [actual] = await db
+        .select()
+        .from(solicitudesCredito)
+        .where(eq(solicitudesCredito.id, req.params.id));
+      if (!actual) return res.status(404).json({ message: 'La solicitud no existe' });
+      if (actual.solicitanteId !== usuario.id) {
+        return res.status(403).json({ message: 'Solo quien envió la solicitud puede editarla' });
+      }
+      if (!ESTADOS_EDITABLES.includes(actual.estado)) {
+        return res.status(409).json({ message: 'La solicitud ya fue resuelta: no se puede editar' });
+      }
+
+      // Las mismas reglas que al enviarla. El tipo, el cliente y la foto de la
+      // línea en un aumento no los cambia la corrección: vienen de lo guardado.
+      const parsed = insertSolicitudCreditoSchema.safeParse({
+        ...req.body,
+        tipo: actual.tipo,
+        creditoActual: actual.creditoActual,
+        diasActuales: actual.diasActuales,
+      });
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: parsed.error.errors[0]?.message ?? 'Datos de la solicitud inválidos',
+          errors: parsed.error.errors,
+        });
+      }
+
+      const datos = parsed.data;
+      const [actualizada] = await db
+        .update(solicitudesCredito)
+        .set({
+          ...datos,
+          tipo: actual.tipo,
+          clienteId: actual.clienteId,
+          correo: datos.correo || null,
+          correoDte: datos.correoDte || null,
+          creditoSolicitado: String(datos.creditoSolicitado),
+          creditoActual: actual.creditoActual,
+          diasActuales: actual.diasActuales,
+          updatedAt: new Date(),
+        })
+        // Se vuelve a exigir aquí por si Finanzas la resolvió mientras tanto.
+        .where(
+          and(
+            eq(solicitudesCredito.id, actual.id),
+            eq(solicitudesCredito.solicitanteId, usuario.id),
+            inArray(solicitudesCredito.estado, ESTADOS_EDITABLES),
+          ),
+        )
+        .returning();
+
+      if (!actualizada) {
+        return res.status(409).json({ message: 'La solicitud ya fue resuelta: no se puede editar' });
+      }
+
+      const cambios = cambiosEntre(actual, actualizada);
+      if (cambios.length > 0) {
+        avisarCorreccionPorCorreo(actualizada, cambios).catch((error) =>
+          console.error('[solicitud-credito] no se pudo avisar la corrección:', error?.message ?? error),
+        );
+      }
+
+      res.json(actualizada);
+    } catch (error: any) {
+      console.error('❌ Error al editar la solicitud de crédito:', error);
+      res.status(500).json({ message: 'Error al guardar los cambios', error: error.message });
     }
   });
 

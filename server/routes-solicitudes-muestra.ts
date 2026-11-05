@@ -206,6 +206,14 @@ async function alcance(usuario: any): Promise<SQL | undefined> {
   return or(...condiciones);
 }
 
+/**
+ * Quien la pidió la completa o corrige mientras espera la aprobación (pedido del
+ * usuario, nov-2026). Después ya no: el supervisor aprobó lo que había, y lo
+ * que falte se dice en el hilo.
+ */
+const puedeEditar = (usuario: any, s: SolicitudMuestra) =>
+  s.estado === 'pendiente' && s.solicitanteId === usuario?.id;
+
 function puedeAprobar(usuario: any, s: SolicitudMuestra): boolean {
   if (s.estado !== 'pendiente' || fueraDeMuestras(usuario)) return false;
   if (usuario.role === 'admin') return true;
@@ -309,6 +317,7 @@ export function registerSolicitudesMuestraRoutes(app: Express) {
         ...s,
         mensajes,
         puedeAprobar: puedeAprobar(req.user, s),
+        puedeEditar: puedeEditar(req.user, s),
         puedeGestionar: s.estado === 'en_curso' && (await gestiona(req.user)),
       });
     } catch (error: any) {
@@ -372,6 +381,77 @@ export function registerSolicitudesMuestraRoutes(app: Express) {
     } catch (error: any) {
       console.error('[muestras] no se pudo crear la solicitud:', error);
       res.status(500).json({ message: 'No se pudo enviar la solicitud' });
+    }
+  });
+
+  // ── Solicitante: completar o corregir antes de la aprobación ─────────────
+  app.patch('/api/solicitudes-muestra/:id/datos', requireAuth, async (req: any, res) => {
+    try {
+      const s = await buscar(req.user, req.params.id);
+      if (!s) return res.status(404).json({ message: 'Solicitud no encontrada' });
+      if (!puedeEditar(req.user, s)) {
+        return res.status(s.solicitanteId === req.user.id ? 409 : 403).json({
+          message:
+            s.solicitanteId === req.user.id
+              ? 'La solicitud ya no está pendiente: lo que falte, escríbelo en la conversación.'
+              : 'Solo quien pidió la muestra puede editarla.',
+        });
+      }
+      const parsed = insertSolicitudMuestraSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: parsed.error.errors[0]?.message || 'Datos de la solicitud inválidos',
+          errors: parsed.error.errors,
+        });
+      }
+      const d = parsed.data;
+      const [actualizada] = await db
+        .update(solicitudesMuestra)
+        .set({
+          ...d,
+          clienteRut: d.clienteRut || null,
+          obra: d.obra || null,
+          motivo: d.motivo || null,
+          items: d.items.map((i) => ({
+            producto: i.producto,
+            sku: i.sku || null,
+            color: i.color || null,
+            formato: i.formato,
+            cantidad: d.tipo === 'material' ? null : i.cantidad ?? null,
+          })),
+        })
+        // Se vuelve a exigir aquí por si el supervisor la resolvió mientras tanto.
+        .where(
+          and(
+            eq(solicitudesMuestra.id, s.id),
+            eq(solicitudesMuestra.solicitanteId, req.user.id),
+            eq(solicitudesMuestra.estado, 'pendiente'),
+          ),
+        )
+        .returning();
+      if (!actualizada) {
+        return res.status(409).json({ message: 'La solicitud ya no está pendiente: lo que falte, escríbelo en la conversación.' });
+      }
+      await registrarEvento(actualizada, req.user, 'editada', null);
+
+      // Quien la aprueba tiene que ver la versión corregida antes de decidir.
+      const aprobadores = actualizada.supervisorId
+        ? await correosDe([actualizada.supervisorId])
+        : await correosDeRoles(['supervisor']);
+      enviar({
+        to: aprobadores,
+        cc: await correosDe([req.user.id]),
+        subject: asunto(actualizada, 'Actualizada'),
+        html: `
+          <p style="font-size:15px;color:#0f172a"><strong>${escapar(nombreDe(req.user))}</strong> actualizó la muestra
+            #${actualizada.numero} para <strong>${escapar(actualizada.clienteNombre)}</strong>. Así quedó:</p>
+          ${fichaHtml(actualizada)}
+          ${boton(enlace(req, actualizada.id), 'Aprobar o rechazar')}`,
+      });
+      res.json(actualizada);
+    } catch (error: any) {
+      console.error('[muestras] no se pudo editar la solicitud:', error.message);
+      res.status(500).json({ message: 'No se pudieron guardar los cambios' });
     }
   });
 
