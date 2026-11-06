@@ -18185,6 +18185,23 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // El tomador de pedidos muestra este texto tal cual en el aviso rojo: tiene
+  // que decir qué campo falló ("clientEmail: Email inválido"), no "Validation error".
+  const QUOTE_FIELD_LABELS: Record<string, string> = {
+    clientName: "Cliente", clientRut: "RUT", clientEmail: "Email", clientPhone: "Teléfono",
+    clientAddress: "Dirección", validUntil: "Válido hasta", paymentCondition: "Condición de pago",
+    notes: "Notas", productName: "Producto", quantity: "Cantidad", unitPrice: "Precio",
+    pricingMode: "Modo de precio", type: "Tipo de producto",
+  };
+  const describeQuoteValidationError = (error: z.ZodError) =>
+    "Datos inválidos: " + error.errors
+      .slice(0, 3)
+      .map((e) => {
+        const field = String(e.path[e.path.length - 1] ?? "");
+        return `${QUOTE_FIELD_LABELS[field] ?? (field || "dato")}: ${e.message}`;
+      })
+      .join("; ");
+
   app.post('/api/quotes', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
@@ -18219,11 +18236,11 @@ export function registerRoutes(app: Express): Server {
       console.error("Error creating quote:", error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({
-          message: "Validation error",
+          message: describeQuoteValidationError(error),
           errors: error.errors
         });
       }
-      res.status(500).json({ message: "Failed to create quote" });
+      res.status(500).json({ message: "No se pudo crear la cotización" });
     }
   });
 
@@ -18550,11 +18567,11 @@ export function registerRoutes(app: Express): Server {
       console.error("Error syncing quote with items:", error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({
-          message: "Validation error",
+          message: describeQuoteValidationError(error),
           errors: error.errors
         });
       }
-      res.status(500).json({ message: "Failed to sync quote with items" });
+      res.status(500).json({ message: "No se pudieron guardar los productos de la cotización" });
     }
   });
 
