@@ -151,6 +151,14 @@ const INITIAL_QUOTE_FORM: QuoteFormData = {
   obraNombre: "",
 };
 
+// El email del cliente es opcional y uno mal escrito no impide guardar el
+// presupuesto: solo se avisa, para que el vendedor lo corrija antes de enviarlo.
+const emailLooksWrong = (email?: string | null) => {
+  const value = (email ?? "").trim();
+  return value !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+};
+const EMAIL_WARNING = "Este email parece estar mal escrito. Puedes guardar igual, pero revísalo antes de enviar el presupuesto.";
+
 const INITIAL_CUSTOM_PRODUCT: CustomProductData = {
   productName: "",
   sku: "",
@@ -3190,6 +3198,13 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
         });
       }
 
+      if (emailLooksWrong(quoteForm.clientEmail)) {
+        toast({
+          title: "Presupuesto guardado",
+          description: `El email "${quoteForm.clientEmail?.trim()}" parece estar mal escrito. Revísalo antes de enviar el presupuesto.`,
+        });
+      }
+
       // Mark quote as saved and store ID for PDF and order actions
       setSavedQuoteId(quote.id);
       setEditingQuoteId(quote.id);
@@ -3197,9 +3212,12 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
 
     } catch (error) {
       console.error('Error saving quote:', error);
+      // apiRequest deja en el mensaje lo que respondió el servidor: mostrarlo
+      // es lo que permite saber por qué no se guardó sin abrir la consola.
+      const reason = error instanceof Error && error.message ? error.message : "";
       toast({
-        title: "Error",
-        description: "Error al guardar el presupuesto",
+        title: "Error al guardar el presupuesto",
+        description: reason || "Inténtalo de nuevo en unos segundos.",
         variant: "destructive",
       });
     } finally {
@@ -3717,7 +3735,7 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
               </select>
             </div>
             <div><div style={lbl("")}>RUT</div><input style={inputStyle} value={quoteForm.clientRut ?? ""} onChange={(e) => setQuoteForm((p) => ({ ...p, clientRut: e.target.value }))} placeholder="12345678-9" /></div>
-            <div><div style={lbl("")}>Email</div><input style={inputStyle} value={quoteForm.clientEmail ?? ""} onChange={(e) => setQuoteForm((p) => ({ ...p, clientEmail: e.target.value }))} placeholder="cliente@email.com" /></div>
+            <div><div style={lbl("")}>Email (opcional)</div><input style={inputStyle} value={quoteForm.clientEmail ?? ""} onChange={(e) => setQuoteForm((p) => ({ ...p, clientEmail: e.target.value }))} placeholder="cliente@email.com" />{emailLooksWrong(quoteForm.clientEmail) && <div style={{ marginTop: 4, fontSize: 12, color: "#b45309" }}>{EMAIL_WARNING}</div>}</div>
             <div><div style={lbl("")}>Teléfono</div><input style={inputStyle} value={quoteForm.clientPhone ?? ""} onChange={(e) => setQuoteForm((p) => ({ ...p, clientPhone: e.target.value }))} placeholder="+56 9 1234 5678" /></div>
             <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}><div style={lbl("")}>Dirección</div><input style={inputStyle} value={quoteForm.clientAddress ?? ""} onChange={(e) => setQuoteForm((p) => ({ ...p, clientAddress: e.target.value }))} placeholder="Dirección completa" /></div>
             <div><div style={lbl("")}>Válido hasta</div><input type="date" style={inputStyle} value={quoteForm.validUntil ?? ""} onChange={(e) => setQuoteForm((p) => ({ ...p, validUntil: e.target.value }))} /></div>
@@ -4663,10 +4681,10 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
                           />
                         </div>
                         <div>
-                          <Label htmlFor="mobile-client-email">Email</Label>
+                          <Label htmlFor="mobile-client-email">Email (opcional)</Label>
                           <Input
                             id="mobile-client-email"
-                            type="email"
+                            type="text"
                             value={quoteForm.clientEmail}
                             onChange={(e) => setQuoteForm(prev => ({ ...prev, clientEmail: e.target.value }))}
                             data-testid="mobile-input-client-email"
@@ -4675,6 +4693,7 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
                             style={{ fontSize: '16px' }}
                             inputMode="email"
                           />
+                          {emailLooksWrong(quoteForm.clientEmail) && (<p className="mt-1 text-xs text-amber-700">{EMAIL_WARNING}</p>)}
                         </div>
                         <div>
                           <Label htmlFor="mobile-client-phone">Teléfono</Label>
@@ -5499,15 +5518,16 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
                               />
                             </div>
                             <div>
-                              <Label htmlFor="modal-client-email">Email</Label>
+                              <Label htmlFor="modal-client-email">Email (opcional)</Label>
                               <Input
                                 id="modal-client-email"
-                                type="email"
+                                type="text"
                                 value={quoteForm.clientEmail}
                                 onChange={(e) => setQuoteForm(prev => ({ ...prev, clientEmail: e.target.value }))}
                                 data-testid="modal-input-client-email"
                                 placeholder="cliente@email.com"
                               />
+                              {emailLooksWrong(quoteForm.clientEmail) && (<p className="mt-1 text-xs text-amber-700">{EMAIL_WARNING}</p>)}
                             </div>
                             <div>
                               <Label htmlFor="modal-client-phone">Teléfono</Label>

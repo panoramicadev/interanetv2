@@ -2306,7 +2306,9 @@ export const quoteItemsRelations = relations(quoteItems, ({ one }) => ({
 export const insertQuoteSchema = createInsertSchema(quotes, {
   clientName: z.string().min(1, "Nombre del cliente es requerido"),
   clientRut: z.string().optional(),
-  clientEmail: z.string().email("Email inválido").optional().or(z.literal("")),
+  // El email no es obligatorio y uno mal escrito no impide guardar: el
+  // tomador de pedidos avisa al vendedor y la cotización se guarda igual.
+  clientEmail: z.string().trim().nullish(),
   clientPhone: z.string().optional(),
   clientAddress: z.string().optional(),
   status: z.enum(["draft", "sent", "accepted", "rejected", "converted"]).default("draft"),

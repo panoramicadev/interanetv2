@@ -16346,24 +16346,37 @@ export class DatabaseStorage implements IStorage {
     const year = chileanTime.getFullYear();
     const prefix = `Q-${day}-${month}-${year}-`;
 
-    // Contar cotizaciones del día para calcular el correlativo
-    const [{ todayCount }] = await db
-      .select({ todayCount: sql<number>`count(*)` })
+    // El correlativo sale del número más alto del día, no de cuántas hay:
+    // si se borró una cotización del día, contar daba un número ya usado y
+    // el insert chocaba con el unique de quote_number hasta el día siguiente.
+    const [{ maxSeq }] = await db
+      .select({
+        maxSeq: sql<number>`coalesce(max(nullif(regexp_replace(substring(${quotes.quoteNumber} from ${sql.raw(String(prefix.length + 1))}), '[^0-9]', '', 'g'), '')::int), 0)`,
+      })
       .from(quotes)
       .where(ilike(quotes.quoteNumber, `${prefix}%`));
 
-    const seq = String(Number(todayCount ?? 0) + 1).padStart(3, '0');
-    const quoteNumber = `${prefix}${seq}`;
-
-    const [newQuote] = await db
-      .insert(quotes)
-      .values({
-        ...quote,
-        quoteNumber,
-      })
-      .returning();
-
-    return newQuote;
+    // Dos vendedores guardando al mismo tiempo pueden calcular el mismo número:
+    // si choca, se prueba con el siguiente.
+    let seq = Number(maxSeq ?? 0) + 1;
+    for (let attempt = 0; ; attempt++) {
+      const quoteNumber = `${prefix}${String(seq).padStart(3, '0')}`;
+      try {
+        const [newQuote] = await db
+          .insert(quotes)
+          .values({
+            ...quote,
+            quoteNumber,
+          })
+          .returning();
+        return newQuote;
+      } catch (err: any) {
+        const pgErr = err?.code ? err : err?.cause;
+        const isDuplicateNumber = pgErr?.code === '23505' && String(pgErr?.constraint ?? pgErr?.detail ?? '').includes('quote_number');
+        if (!isDuplicateNumber || attempt >= 4) throw err;
+        seq++;
+      }
+    }
   }
 
   async getQuotes(filters?: {
