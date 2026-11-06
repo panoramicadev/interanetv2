@@ -40,6 +40,8 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ codigo: "", precio: "" });
   const [simulatorPrices, setSimulatorPrices] = useState<Record<string, string>>({});
+  // % de descuento sobre el precio de la lista; excluyente con el precio manual del simulador
+  const [simulatorDiscounts, setSimulatorDiscounts] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -325,6 +327,7 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
                     <TableHead className="text-xs">Código</TableHead>
                     <TableHead className="text-xs">Producto</TableHead>
                     <TableHead className="text-xs">Formato</TableHead>
+                    <TableHead className="text-right text-xs text-blue-600 dark:text-blue-400">Precio c/desc.</TableHead>
                     <TableHead className="text-right text-xs font-semibold text-blue-600 dark:text-blue-400">Precio {listName}</TableHead>
                     <TableHead className="text-right text-xs text-amber-700 dark:text-amber-400">Costo</TableHead>
                     <TableHead className="text-right text-xs">Margen</TableHead>
@@ -347,8 +350,22 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
                     if (precioNum && costoNum && precioNum > 0) {
                       margen = ((precioNum - costoNum) / precioNum) * 100;
                     }
-                    const simVal = simulatorPrices[item.id];
-                    const simNum = simVal ? parseFloat(simVal) : null;
+                    // Simulador: o se escribe un precio, o un % de descuento sobre el precio de la lista
+                    const descVal = simulatorDiscounts[item.id];
+                    const descNum = descVal ? parseFloat(descVal) : NaN;
+                    let simNum: number | null = null;
+                    let simDesc: number | null = null;
+                    if (!isNaN(descNum) && precioNum) {
+                      simNum = Math.round(precioNum * (1 - descNum / 100));
+                      simDesc = descNum;
+                    } else {
+                      const simVal = simulatorPrices[item.id];
+                      const p = simVal ? parseFloat(simVal) : NaN;
+                      if (!isNaN(p) && p > 0) {
+                        simNum = p;
+                        if (precioNum) simDesc = (1 - p / precioNum) * 100;
+                      }
+                    }
                     let simMargen: number | null = null;
                     if (simNum && costoNum && simNum > 0) {
                       simMargen = ((simNum - costoNum) / simNum) * 100;
@@ -361,6 +378,20 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
                           {item.producto || <span className="text-muted-foreground italic">SKU no encontrado</span>}
                         </TableCell>
                         <TableCell className="text-xs py-2">{item.unidad || "-"}</TableCell>
+                        <TableCell className="text-right text-xs py-2">
+                          {simNum !== null ? (
+                            <div>
+                              <span className="font-semibold text-blue-600 dark:text-blue-400">{formatCurrency(simNum)}</span>
+                              {simDesc !== null && Math.abs(simDesc) >= 0.05 && (
+                                <span className="block text-[9px] leading-tight mt-0.5 text-muted-foreground">
+                                  {simDesc > 0 ? "−" : "+"}{Math.abs(simDesc).toFixed(1)}% vs lista
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground/40">—</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right text-xs py-2 font-semibold text-blue-600 dark:text-blue-400">
                           {formatCurrency(item.precio)}
                         </TableCell>
@@ -385,13 +416,33 @@ export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix', v
                         </TableCell>
                         <TableCell className="py-2">
                           <div className="flex flex-col items-end">
-                            <Input
-                              type="number"
-                              placeholder="$"
-                              value={simulatorPrices[item.id] || ""}
-                              onChange={(e) => setSimulatorPrices(prev => ({ ...prev, [item.id]: e.target.value }))}
-                              className="h-6 w-20 text-[11px] text-right px-1.5 border-blue-200 focus:border-blue-400"
-                            />
+                            <div className="flex items-center gap-1">
+                              <Input
+                                type="number"
+                                placeholder="$"
+                                title="Precio a simular"
+                                value={simulatorPrices[item.id] || ""}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setSimulatorPrices(prev => ({ ...prev, [item.id]: v }));
+                                  setSimulatorDiscounts(prev => ({ ...prev, [item.id]: "" }));
+                                }}
+                                className="h-6 w-20 text-[11px] text-right px-1.5 border-blue-200 focus:border-blue-400"
+                              />
+                              <Input
+                                type="number"
+                                placeholder="%"
+                                title={`% de descuento sobre el precio ${listName}`}
+                                step="0.5"
+                                value={simulatorDiscounts[item.id] || ""}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setSimulatorDiscounts(prev => ({ ...prev, [item.id]: v }));
+                                  setSimulatorPrices(prev => ({ ...prev, [item.id]: "" }));
+                                }}
+                                className="h-6 w-14 text-[11px] text-right px-1.5 border-blue-200 focus:border-blue-400"
+                              />
+                            </div>
                             {simMargen !== null && (
                               <span className={`text-[10px] font-semibold mt-0.5 ${
                                 simMargen >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
