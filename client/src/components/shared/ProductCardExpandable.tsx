@@ -31,6 +31,7 @@ import {
 import { QuoteContext } from '@/contexts/QuoteContext';
 import { VENTA_POR_UNIDAD, VENTA_POR_UNIDAD_COTIZADOR_WEB } from '@shared/venta-por-unidad';
 import { imagenLiviana } from '@/lib/imagen-liviana';
+import { ColorSwatch } from '@/components/shared/ColorSwatch';
 import { urlProducto } from '@/lib/slug-producto';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -571,7 +572,25 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                       {/* Color info */}
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div className="w-10 h-10 rounded-full bg-gray-50 border border-gray-200 shadow-inner flex-shrink-0 overflow-hidden relative">
-                          {variant.imageUrl ? (
+                          {variant.swatch?.hex ? (
+                            // Color elegido en la pantonera, con su brillo
+                            <ColorSwatch
+                              hex={variant.swatch.hex}
+                              acabado={variant.swatch.acabado}
+                              className="w-full h-full"
+                              title={`${variant.color} · ${variant.swatch.acabado}`}
+                            />
+                          ) : (variant.paletteHex || variant.hex) ? (
+                            // Sin color elegido: el de la paleta según el nombre del color.
+                            // La foto del producto va como imagen común, no en el círculo.
+                            <ColorSwatch
+                              hex={variant.paletteHex || variant.hex}
+                              acabado="semibrillo"
+                              className="w-full h-full"
+                              title={variant.color}
+                            />
+                          ) : variant.imageUrl ? (
+                            // Color sin código en la paleta: queda la foto como antes
                             <img
                               src={imagenLiviana(variant.imageUrl, 80)}
                               alt={variant.color}

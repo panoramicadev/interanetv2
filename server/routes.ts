@@ -21743,6 +21743,98 @@ export function registerRoutes(app: Express): Server {
   // Invalidate store cache (call this when products/order/images change)
   const invalidateStoreCache = () => { _storeCatalogCache = null; };
 
+  // ──────── Color y brillo del círculo de cada producto (pantonera) ────────
+  // Se guarda en app_config 'product_color_swatches' como { SKU: { hex, acabado, nombreColor } }.
+  const SWATCH_ACABADOS = ['brillante', 'semibrillo', 'mate'] as const;
+  type ProductSwatch = { hex: string; acabado: typeof SWATCH_ACABADOS[number]; nombreColor: string | null };
+  const loadProductSwatches = async (): Promise<Record<string, ProductSwatch>> => {
+    try {
+      const r = await db.execute(sql`SELECT value FROM app_config WHERE key = 'product_color_swatches'`);
+      return ((r as any).rows?.[0]?.value as Record<string, ProductSwatch>) || {};
+    } catch {
+      return {};
+    }
+  };
+
+  // Color actual de cada producto para la columna "Color" del Catálogo SAP:
+  // lo elegido en la pantonera, la imagen de la tienda y el hex de la paleta por nombre.
+  // Solo devuelve los códigos que tienen algo que mostrar.
+  app.get('/api/ecommerce/product-colors', requireAuth, asyncHandler(async (_req: any, res: any) => {
+    const swatches = await loadProductSwatches();
+    // Imagen común de cada producto (la misma para todos sus colores), por nombre de producto.
+    let groupImages: Record<string, string> = {};
+    try {
+      const gi = await db.execute(sql`SELECT value FROM app_config WHERE key = 'ecommerce_product_group_images'`);
+      groupImages = ((gi as any).rows?.[0]?.value as Record<string, string>) || {};
+    } catch { /* sin imágenes comunes */ }
+    const out: Record<string, {
+      swatch: ProductSwatch | null; imageUrl: string | null; colorName: string | null; paletteHex: string | null;
+      genericName: string | null; commonImage: string | null;
+    }> = {};
+    try {
+      const r = await db.execute(sql`
+        SELECT UPPER(pl.codigo) AS codigo, ep.imagen_url, TRIM(ep.color) AS color, cp.hex AS palette_hex,
+               TRIM(COALESCE(ep.variant_generic_display_name, pl.producto)) AS generic_name
+        FROM price_list pl
+        JOIN ecommerce_products ep ON ep.price_list_id = pl.id
+        LEFT JOIN color_palette cp ON UPPER(TRIM(cp.nombre_color)) = UPPER(TRIM(ep.color))
+      `);
+      for (const row of ((r as any).rows || []) as any[]) {
+        if (!row.codigo) continue;
+        const genericName = row.generic_name || null;
+        out[row.codigo] = {
+          swatch: swatches[row.codigo] || null,
+          imageUrl: row.imagen_url || null,
+          colorName: row.color || null,
+          paletteHex: row.palette_hex || null,
+          genericName,
+          commonImage: genericName ? groupImages[genericName] || null : null,
+        };
+      }
+    } catch (e) {
+      console.error('[product-colors] error:', e);
+    }
+    for (const [codigo, swatch] of Object.entries(swatches)) {
+      if (!out[codigo]) out[codigo] = { swatch, imageUrl: null, colorName: null, paletteHex: null, genericName: null, commonImage: null };
+    }
+    res.json(out);
+  }));
+
+  app.get('/api/ecommerce/product-swatches/:codigo', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const codigo = String(req.params.codigo || '').trim().toUpperCase();
+    const map = await loadProductSwatches();
+    res.json({ swatch: map[codigo] || null });
+  }));
+
+  app.put('/api/ecommerce/product-swatches/:codigo', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor', 'encargado_area'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+    const codigo = String(req.params.codigo || '').trim().toUpperCase();
+    const hex = String(req.body?.hex || '').trim();
+    const acabado = String(req.body?.acabado || '').trim().toLowerCase();
+    const nombreColorRaw = req.body?.nombreColor;
+    const nombreColor = nombreColorRaw ? String(nombreColorRaw).trim().slice(0, 80) : null;
+    if (!codigo) return res.status(400).json({ message: 'Falta el código del producto' });
+    if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex)) {
+      return res.status(400).json({ message: 'Color inválido' });
+    }
+    if (!(SWATCH_ACABADOS as readonly string[]).includes(acabado)) {
+      return res.status(400).json({ message: 'Brillo inválido (brillante, semibrillo o mate)' });
+    }
+    const swatch: ProductSwatch = { hex: hex.toLowerCase(), acabado: acabado as ProductSwatch['acabado'], nombreColor };
+    // Merge atómico: solo se agrega/reemplaza la llave de este SKU.
+    await db.execute(sql`
+      INSERT INTO app_config (key, value, updated_at)
+      VALUES ('product_color_swatches', jsonb_build_object(${codigo}::text, ${JSON.stringify(swatch)}::jsonb), NOW())
+      ON CONFLICT (key) DO UPDATE
+        SET value = COALESCE(app_config.value, '{}'::jsonb) || EXCLUDED.value,
+            updated_at = NOW()
+    `);
+    invalidateStoreCache();
+    res.json({ ok: true, codigo, swatch });
+  }));
+
   // Build the full catalog
   const buildStoreCatalog = async (priceList?: string): Promise<{ catalog: any[]; totalProducts: number }> => {
     // El código llega ya resuelto y validado por price-list-resolver; se normaliza
@@ -21822,6 +21914,17 @@ export function registerRoutes(app: Express): Server {
       const mcRow = (mcResult as any).rows?.[0];
       multiCatAssignments = mcRow?.value || {};
     } catch {}
+
+    // Círculo de color de cada SKU: el elegido a mano en "Editar Producto"
+    // (pantonera + brillo) y, de respaldo, el hex de la paleta por nombre de color.
+    const swatchMap = await loadProductSwatches();
+    const paletteHexMap = new Map<string, string>();
+    try {
+      const palResult = await db.execute(sql`SELECT nombre_color, hex FROM color_palette`);
+      for (const pr of ((palResult as any).rows || []) as any[]) {
+        if (pr.nombre_color && pr.hex) paletteHexMap.set(String(pr.nombre_color).trim().toUpperCase(), pr.hex);
+      }
+    } catch { /* sin paleta: el círculo usa la imagen o queda gris */ }
 
     const productsMap = new Map<string, {
       genericName: string;
@@ -21905,6 +22008,8 @@ export function registerRoutes(app: Express): Server {
         ...reglaDeVenta(row.min_unit, row.step_size),
         description: row.description,
         imageUrl: (row as any).imagen_url || null,
+        swatch: swatchMap[String(sku).toUpperCase()] || null,
+        paletteHex: paletteHexMap.get(color.toUpperCase()) || null,
         packaging: {
           // Pallet desde price_list_offers (offer_type='pallet'); incluye ambos modos:
           // discountPct (% sobre precio de lista) o palletPrice (total fijo del pallet).

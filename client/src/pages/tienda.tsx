@@ -2145,17 +2145,19 @@ export default function TiendaPage() {
           </div>
 
           {/* Main header */}
-          <div className="flex items-center justify-between py-2 md:py-3 gap-2 md:gap-4">
-            {/* Logo */}
-            <Link href="/tienda">
-              <div className="flex items-center cursor-pointer flex-shrink-0 group">
-                <img 
-                  src={storeConfig?.logoUrl || "/panoramica-logo.png"} 
-                  alt="Panorámica"
-                  className="h-8 md:h-11 w-auto transition-transform group-hover:scale-[1.02]"
-                />
-              </div>
-            </Link>
+          <div className="flex flex-wrap md:flex-nowrap items-center justify-between py-2 md:py-3 gap-x-2 gap-y-2 md:gap-4">
+            {/* Logo — en móvil ocupa su propia fila, centrado, arriba de los controles */}
+            <div className="w-full md:w-auto flex justify-center md:justify-start flex-shrink-0">
+              <Link href="/tienda">
+                <div className="flex items-center cursor-pointer flex-shrink-0 group">
+                  <img
+                    src={storeConfig?.logoUrl || "/panoramica-logo.png"}
+                    alt="Panorámica"
+                    className="h-10 md:h-11 w-auto transition-transform group-hover:scale-[1.02]"
+                  />
+                </div>
+              </Link>
+            </div>
 
             {/* Search Bar — Desktop (with integrated SKU button) */}
             <div className="hidden md:flex flex-1 max-w-xl">
