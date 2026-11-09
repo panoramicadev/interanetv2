@@ -741,18 +741,39 @@ function PctCell({ value, isOverride, onSave, onReset }: {
   );
 }
 
-/** Marca la ferretería que es sucursal de una cadena (REDMAT): suele llevar otro %. */
-function CadenaBadge({ cadena }: { cadena?: string }) {
-  if (!cadena) return null;
-  return (
-    <Badge
-      variant="outline"
-      title={`Ferretería de la cadena ${cadena}`}
-      className="shrink-0 border-orange-300 bg-orange-50 text-orange-700 text-[10px] px-1.5 py-0 font-semibold dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
-    >
-      {cadena}
-    </Badge>
-  );
+type ClientGroup =
+  | { kind: "single"; row: DetailClient }
+  | {
+      kind: "cadena"; cadena: string; rows: DetailClient[];
+      total: Pick<DetailClient, "revenue" | "cost" | "margin" | "fleteCobrado" | "fleteDeficit" | "marginAdjusted">;
+    };
+
+/**
+ * Junta las ferreterías de una misma cadena (REDMAT) en un solo grupo con su
+ * total. El resto de los clientes queda tal cual. Orden: por facturado.
+ */
+function agruparPorCadena(rows: DetailClient[]): ClientGroup[] {
+  const grupos: ClientGroup[] = [];
+  const porCadena = new Map<string, Extract<ClientGroup, { kind: "cadena" }>>();
+  for (const r of rows) {
+    if (!r.cadena) { grupos.push({ kind: "single", row: r }); continue; }
+    let g = porCadena.get(r.cadena);
+    if (!g) {
+      g = { kind: "cadena", cadena: r.cadena, rows: [],
+        total: { revenue: 0, cost: 0, margin: 0, fleteCobrado: 0, fleteDeficit: 0, marginAdjusted: 0 } };
+      porCadena.set(r.cadena, g);
+      grupos.push(g);
+    }
+    g.rows.push(r);
+    g.total.revenue += r.revenue;
+    g.total.cost += r.cost;
+    g.total.margin += r.margin;
+    g.total.fleteCobrado += r.fleteCobrado;
+    g.total.fleteDeficit += r.fleteDeficit;
+    g.total.marginAdjusted += r.marginAdjusted;
+  }
+  const facturado = (g: ClientGroup) => (g.kind === "single" ? g.row.revenue : g.total.revenue);
+  return grupos.sort((a, b) => facturado(b) - facturado(a));
 }
 
 function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverride, onSaveFleteRate }: {
@@ -793,8 +814,20 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
       || d.numero.toLowerCase().includes(needle)
       || d.tido.toLowerCase().includes(needle));
   }, [data, needle]);
-  const shownCount = tab === "clients" ? clients.length : documents.length;
-  const totalCount = tab === "clients" ? (data?.clients.length ?? 0) : (data?.documents.length ?? 0);
+  // Las ferreterías de una cadena (REDMAT) se muestran como UNA fila con su
+  // total; el desplegable abre cada ferretería con su % editable.
+  const clientGroups = useMemo(() => agruparPorCadena(clients), [clients]);
+  const totalGroups = useMemo(() => agruparPorCadena(data?.clients ?? []).length, [data]);
+  const [abiertas, setAbiertas] = useState<Set<string>>(new Set());
+  const toggleCadena = (cadena: string) =>
+    setAbiertas((prev) => {
+      const next = new Set(prev);
+      if (next.has(cadena)) next.delete(cadena); else next.add(cadena);
+      return next;
+    });
+
+  const shownCount = tab === "clients" ? clientGroups.length : documents.length;
+  const totalCount = tab === "clients" ? totalGroups : (data?.documents.length ?? 0);
 
   return (
     <div className="p-4">
@@ -802,7 +835,7 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
         <div className="inline-flex gap-1.5 bg-slate-100/70 dark:bg-slate-800/60 p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
           <button type="button" onClick={() => setTab("clients")}
             className={`inline-flex items-center px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-200 ${tab === "clients" ? "bg-white text-orange-600 shadow-sm dark:bg-slate-900" : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"}`}>
-            <Users className="w-4 h-4 mr-1.5" /> Clientes ({data?.clients.length ?? 0})
+            <Users className="w-4 h-4 mr-1.5" /> Clientes ({totalGroups})
           </button>
           <button type="button" onClick={() => setTab("documents")}
             className={`inline-flex items-center px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-200 ${tab === "documents" ? "bg-white text-orange-600 shadow-sm dark:bg-slate-900" : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"}`}>
@@ -859,12 +892,102 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
               </TableRow>
             </TableHeader>
             <TableBody>
-              {clients.map((c) => (
+              {clientGroups.map((g) => {
+                if (g.kind === "cadena") {
+                  // Con búsqueda activa se abre sola: si no, el resultado queda escondido.
+                  const abierta = abiertas.has(g.cadena) || !!needle;
+                  const pcts = g.rows.map((r) => r.effectivePct);
+                  const mismoPct = pcts.every((p) => p === pcts[0]);
+                  const fletes = g.rows.map((r) => r.fleteEffectivePct);
+                  const mismoFlete = fletes.every((p) => p === fletes[0]);
+                  return (
+                    <Fragment key={`cadena:${g.cadena}`}>
+                      <TableRow className="bg-orange-50/50 dark:bg-orange-950/10 hover:bg-orange-50 dark:hover:bg-orange-950/20">
+                        <TableCell>
+                          <button
+                            type="button"
+                            onClick={() => toggleCadena(g.cadena)}
+                            className="flex items-center gap-1.5 font-semibold text-left"
+                            title={abierta ? "Ocultar ferreterías" : "Ver a qué ferreterías corresponde"}
+                          >
+                            {abierta ? <ChevronDown className="w-4 h-4 text-orange-600" /> : <ChevronRight className="w-4 h-4 text-orange-600" />}
+                            <span>{g.cadena}</span>
+                            <Badge variant="outline" className="shrink-0 border-orange-300 bg-white text-orange-700 text-[10px] px-1.5 py-0 font-medium dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300">
+                              {g.rows.length} {g.rows.length === 1 ? "ferretería" : "ferreterías"}
+                            </Badge>
+                          </button>
+                        </TableCell>
+                        <TableCell className={`text-right tabular-nums whitespace-nowrap font-medium ${g.total.revenue < 0 ? "text-rose-600" : ""}`}>{formatCLP(g.total.revenue)}</TableCell>
+                        <TableCell className="text-right tabular-nums whitespace-nowrap text-slate-500">{formatCLP(g.total.cost)}</TableCell>
+                        <TableCell className="text-right tabular-nums whitespace-nowrap">{formatCLP(g.total.margin)}</TableCell>
+                        <TableCell className="text-right tabular-nums whitespace-nowrap text-slate-500">{formatCLP(g.total.fleteCobrado)}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="inline-flex flex-col items-end">
+                            <FletePctCell
+                              value={fletes[0]}
+                              isOverride={g.rows.some((r) => r.fleteOverridePct !== null)}
+                              onSave={(pct) => g.rows.forEach((r) => onSaveFleteRate("client", r.client, pct))}
+                              onReset={() => g.rows.filter((r) => r.fleteOverridePct !== null)
+                                .forEach((r) => onSaveFleteRate("client", r.client, null))}
+                            />
+                            {!mismoFlete && <span className="text-[10px] text-slate-500 mr-5">varía por ferretería</span>}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums whitespace-nowrap">
+                          <FleteDeficit value={g.total.fleteDeficit} />
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums whitespace-nowrap font-semibold">{formatCLP(g.total.marginAdjusted)}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="inline-flex flex-col items-end">
+                            <PctCell
+                              value={pcts[0]}
+                              isOverride={g.rows.some((r) => r.overridePct !== null)}
+                              onSave={(pct) => g.rows.forEach((r) => onSaveOverride("client", r.client, pct))}
+                              onReset={() => g.rows.filter((r) => r.overridePct !== null)
+                                .forEach((r) => onSaveOverride("client", r.client, null))}
+                            />
+                            {!mismoPct && <span className="text-[10px] text-slate-500 mr-6">varía por ferretería</span>}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {abierta && g.rows.map((c) => (
+                        <TableRow key={c.client} className={`bg-orange-50/20 dark:bg-orange-950/5 ${c.effectivePct === 0 ? "opacity-60" : ""}`}>
+                          <TableCell className="pl-10 text-sm text-slate-600 dark:text-slate-300">{c.client}</TableCell>
+                          <TableCell className={`text-right tabular-nums whitespace-nowrap text-sm ${c.revenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(c.revenue)}</TableCell>
+                          <TableCell className="text-right tabular-nums whitespace-nowrap text-sm text-slate-500">{formatCLP(c.cost)}</TableCell>
+                          <TableCell className="text-right tabular-nums whitespace-nowrap text-sm">{formatCLP(c.margin)}</TableCell>
+                          <TableCell className="text-right tabular-nums whitespace-nowrap text-sm text-slate-500">{formatCLP(c.fleteCobrado)}</TableCell>
+                          <TableCell className="text-right">
+                            <FletePctCell
+                              value={c.fleteEffectivePct}
+                              isOverride={c.fleteOverridePct !== null}
+                              onSave={(pct) => onSaveFleteRate("client", c.client, pct)}
+                              onReset={() => onSaveFleteRate("client", c.client, null)}
+                            />
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums whitespace-nowrap text-sm">
+                            <FleteDeficit value={c.fleteDeficit} />
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums whitespace-nowrap text-sm">{formatCLP(c.marginAdjusted)}</TableCell>
+                          <TableCell className="text-right">
+                            <PctCell
+                              value={c.effectivePct}
+                              isOverride={c.overridePct !== null}
+                              onSave={(pct) => onSaveOverride("client", c.client, pct)}
+                              onReset={() => onSaveOverride("client", c.client, null)}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </Fragment>
+                  );
+                }
+                const c = g.row;
+                return (
                 <TableRow key={c.client} className={c.effectivePct === 0 ? "opacity-60" : ""}>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <span>{c.client}</span>
-                      <CadenaBadge cadena={c.cadena} />
                     </div>
                   </TableCell>
                   <TableCell className={`text-right tabular-nums whitespace-nowrap ${c.revenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(c.revenue)}</TableCell>
@@ -892,7 +1015,8 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                     />
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
               {data && clients.length === 0 && (
                 <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-6">
                   {needle ? `Ningún cliente coincide con "${search}"` : "Sin clientes"}
@@ -936,10 +1060,16 @@ function SalespersonDetailPanel({ salesperson, startDate, endDate, onSaveOverrid
                   </TableCell>
                   <TableCell>{formatFecha(d.fecha)}</TableCell>
                   <TableCell className="max-w-[260px]" title={d.client}>
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate">{d.client}</span>
-                      <CadenaBadge cadena={d.cadena} />
-                    </div>
+                    {d.cadena ? (
+                      // Venta de una ferretería de la cadena: figura como la cadena
+                      // y la ferretería va abajo, como referencia.
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-semibold truncate">{d.cadena}</span>
+                        <span className="text-[11px] text-slate-500 truncate">{d.client}</span>
+                      </div>
+                    ) : (
+                      <span className="truncate block">{d.client}</span>
+                    )}
                   </TableCell>
                   <TableCell className={`text-right tabular-nums whitespace-nowrap ${d.revenue < 0 ? "text-rose-600 font-medium" : ""}`}>{formatCLP(d.revenue)}</TableCell>
                   <TableCell className="text-right tabular-nums whitespace-nowrap text-slate-500">{formatCLP(d.cost)}</TableCell>
