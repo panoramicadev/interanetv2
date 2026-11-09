@@ -9,6 +9,7 @@
  *     registra acá; laboratorio y logística ("Muestras: preparar y conversar")
  *     la preparan. Todos conversan en el hilo con el vendedor y el supervisor.
  *  3. cerrada — Franco la cierra cuando la muestra se entregó. Necesita la NVV.
+ *     El admin puede reabrirla: vuelve a en_curso conservando la NVV (nov-2026).
  *
  * Quién ve qué:
  *  - quien pide ve las suyas; su supervisor, las de su equipo;
@@ -221,6 +222,14 @@ function puedeAprobar(usuario: any, s: SolicitudMuestra): boolean {
   return usuario.role === 'supervisor';
 }
 
+/**
+ * El admin devuelve a "en curso" una muestra que se cerró (entregada) por error
+ * o antes de tiempo (pedido del usuario, nov-2026). La NVV se conserva; se
+ * borra solo el cierre. Las rechazadas no se reabren por aquí.
+ */
+const puedeReabrir = (usuario: any, s: SolicitudMuestra) =>
+  s.estado === 'cerrada' && usuario?.role === 'admin' && !fueraDeMuestras(usuario);
+
 /** Cómo aparece el autor en el hilo, según su papel en ESTA solicitud. */
 async function rolEnHilo(usuario: any, s: SolicitudMuestra): Promise<string> {
   if (s.solicitanteId === usuario.id) return 'Solicitante';
@@ -319,6 +328,7 @@ export function registerSolicitudesMuestraRoutes(app: Express) {
         puedeAprobar: puedeAprobar(req.user, s),
         puedeEditar: puedeEditar(req.user, s),
         puedeGestionar: s.estado === 'en_curso' && (await gestiona(req.user)),
+        puedeReabrir: puedeReabrir(req.user, s),
       });
     } catch (error: any) {
       console.error('[muestras] no se pudo leer la solicitud:', error.message);
@@ -585,6 +595,32 @@ export function registerSolicitudesMuestraRoutes(app: Express) {
       }
     },
   );
+
+  // ── Admin: revertir una muestra cerrada a "en curso" ─────────────────────
+  app.post('/api/solicitudes-muestra/:id/reabrir', requireAuth, async (req: any, res) => {
+    try {
+      const motivo = String(req.body?.motivo ?? '').trim().slice(0, 4000);
+      const s = await buscar(req.user, req.params.id);
+      if (!s) return res.status(404).json({ message: 'Solicitud no encontrada' });
+      if (!puedeReabrir(req.user, s)) {
+        return res.status(s.estado === 'cerrada' ? 403 : 409).json({
+          message: s.estado === 'cerrada' ? 'Solo un administrador puede reabrir una muestra.' : 'Solo se reabre una muestra entregada.',
+        });
+      }
+
+      const [actualizada] = await db
+        .update(solicitudesMuestra)
+        .set({ estado: 'en_curso', cerradaPorId: null, cerradaPorNombre: null, cerradaAt: null })
+        .where(and(eq(solicitudesMuestra.id, s.id), eq(solicitudesMuestra.estado, 'cerrada')))
+        .returning();
+      if (!actualizada) return res.status(409).json({ message: 'Solo se reabre una muestra entregada.' });
+      await registrarEvento(actualizada, req.user, 'reabierta', motivo || null);
+      res.json(actualizada);
+    } catch (error: any) {
+      console.error('[muestras] no se pudo reabrir:', error.message);
+      res.status(500).json({ message: 'No se pudo reabrir la solicitud' });
+    }
+  });
 
   // ── Conversación ─────────────────────────────────────────────────────────
   app.post('/api/solicitudes-muestra/:id/mensajes', requireAuth, async (req: any, res) => {
