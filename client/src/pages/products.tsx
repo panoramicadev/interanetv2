@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
@@ -25,6 +25,9 @@ import GroupedCatalog from "@/components/grouped-catalog";
 import { InventarioContent } from "@/pages/inventario";
 import ListaPrecios from "@/pages/lista-precios";
 import BulkImageUpload from "@/components/products/bulk-image-upload";
+import { ColorSwatch, ACABADOS, type Acabado, type ProductSwatch } from "@/components/shared/ColorSwatch";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { imagenLiviana } from "@/lib/imagen-liviana";
 
 // Fletes (Shipping rates) component
 function FletesContent() {
@@ -1714,6 +1717,414 @@ interface ImportResult {
   errors: string[];
 }
 
+// Pantonera + brillo: el color del círculo de este producto en la tienda.
+// Se elige de la paleta de colores (o uno a mano) y se guarda con su propio botón.
+function sugerirAcabado(producto: string): Acabado {
+  const p = producto.toUpperCase();
+  if (p.includes('SEMI')) return 'semibrillo';
+  if (p.includes('MATE') || p.includes('LATEX') || p.includes('LÁTEX')) return 'mate';
+  if (p.includes('BRILL') || p.includes('ESMALTE') || p.includes('OLEO') || p.includes('ÓLEO')) return 'brillante';
+  return 'semibrillo';
+}
+
+function ColorSwatchField({ codigo, producto }: { codigo: string; producto: string }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [hex, setHex] = useState<string | null>(null);
+  const [nombreColor, setNombreColor] = useState<string | null>(null);
+  const [acabado, setAcabado] = useState<Acabado>(() => sugerirAcabado(producto));
+  const [search, setSearch] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  const { data: paletteData } = useQuery<{ palette: { nombreColor: string; hex: string | null }[] }>({
+    queryKey: ['/api/color-palette'],
+    queryFn: async () => {
+      const res = await fetch('/api/color-palette', { credentials: 'include' });
+      if (!res.ok) return { palette: [] };
+      return res.json();
+    },
+  });
+  const pantonera = useMemo(
+    () => (paletteData?.palette || []).filter((p): p is { nombreColor: string; hex: string } => !!p.hex),
+    [paletteData]
+  );
+
+  const { data: saved, isLoading } = useQuery<ProductSwatch | null>({
+    queryKey: ['/api/ecommerce/product-swatches', codigo],
+    queryFn: async () => {
+      const res = await fetch(`/api/ecommerce/product-swatches/${encodeURIComponent(codigo)}`, { credentials: 'include' });
+      if (!res.ok) return null;
+      return (await res.json()).swatch || null;
+    },
+  });
+
+  // Al abrir: lo guardado; si no hay, se sugiere el color de la paleta cuyo nombre aparece en el producto.
+  useEffect(() => {
+    if (loaded || isLoading || !paletteData) return;
+    if (saved) {
+      setHex(saved.hex);
+      setNombreColor(saved.nombreColor || null);
+      setAcabado(saved.acabado);
+    } else {
+      const nombre = producto.toUpperCase();
+      const match = [...pantonera]
+        .sort((a, b) => b.nombreColor.length - a.nombreColor.length)
+        .find(p => nombre.includes(p.nombreColor.toUpperCase()));
+      if (match) { setHex(match.hex); setNombreColor(match.nombreColor); }
+    }
+    setLoaded(true);
+  }, [loaded, isLoading, paletteData, saved, pantonera, producto]);
+
+  const filtrados = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    return s ? pantonera.filter(p => p.nombreColor.toLowerCase().includes(s)) : pantonera;
+  }, [pantonera, search]);
+
+  const changed = !!hex && (!saved || saved.hex !== hex.toLowerCase() || saved.acabado !== acabado);
+
+  const guardar = async () => {
+    if (!hex) return;
+    setSaving(true);
+    try {
+      const res = await apiRequest(`/api/ecommerce/product-swatches/${encodeURIComponent(codigo)}`, {
+        method: 'PUT',
+        data: { hex, acabado, nombreColor },
+      });
+      const json = await res.json();
+      queryClient.setQueryData(['/api/ecommerce/product-swatches', codigo], json.swatch);
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/product-colors'] });
+      toast({ title: 'Color guardado', description: `${codigo} ya se ve con este color en la tienda.` });
+    } catch (e: any) {
+      toast({ title: 'No se pudo guardar el color', description: e?.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-gray-200 p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-xs font-semibold flex items-center gap-1.5">
+          <Palette className="h-3.5 w-3.5 text-orange-500" />
+          Color en la tienda
+        </Label>
+        {saved && !changed && <span className="text-[11px] text-emerald-600 font-medium">Guardado</span>}
+      </div>
+
+      <div className="flex items-center gap-3">
+        {hex ? (
+          <ColorSwatch hex={hex} acabado={acabado} className="w-14 h-14 flex-shrink-0 border border-gray-200" />
+        ) : (
+          <div className="w-14 h-14 rounded-full bg-gray-200 flex-shrink-0" />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold truncate">{nombreColor || (hex ? 'Color a mano' : 'Sin color elegido')}</p>
+          <p className="text-[11px] text-muted-foreground">Así se ve el círculo de este producto en la tienda.</p>
+        </div>
+      </div>
+
+      {/* Brillo */}
+      <div className="grid grid-cols-3 gap-1.5">
+        {ACABADOS.map(a => (
+          <button
+            key={a.value}
+            type="button"
+            onClick={() => setAcabado(a.value)}
+            className={`flex items-center justify-center gap-1.5 h-9 rounded-lg border text-xs font-semibold transition-colors ${
+              acabado === a.value ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-200 hover:border-gray-300 text-gray-600'
+            }`}
+          >
+            <ColorSwatch hex={hex || '#9ca3af'} acabado={a.value} className="w-4 h-4" />
+            {a.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Pantonera */}
+      <div className="space-y-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar color en la pantonera..."
+            className="h-8 pl-8 text-xs"
+          />
+        </div>
+        <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 max-h-36 overflow-y-auto pr-1">
+          {filtrados.map(p => {
+            const activo = hex?.toLowerCase() === p.hex.toLowerCase() && nombreColor === p.nombreColor;
+            return (
+              <button
+                key={p.nombreColor}
+                type="button"
+                onClick={() => { setHex(p.hex); setNombreColor(p.nombreColor); }}
+                title={p.nombreColor}
+                className={`aspect-square rounded-full p-0.5 border-2 transition-colors ${activo ? 'border-orange-500' : 'border-transparent hover:border-gray-300'}`}
+              >
+                <ColorSwatch hex={p.hex} acabado="mate" className="w-full h-full" />
+              </button>
+            );
+          })}
+          {filtrados.length === 0 && (
+            <p className="col-span-full text-[11px] text-muted-foreground py-2">
+              {pantonera.length === 0 ? 'La paleta todavía no tiene colores con código.' : 'Ningún color coincide.'}
+            </p>
+          )}
+        </div>
+        <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer w-fit">
+          <input
+            type="color"
+            value={hex || '#ffffff'}
+            onChange={e => { setHex(e.target.value); setNombreColor(null); }}
+            className="h-7 w-9 cursor-pointer rounded border border-gray-200 bg-transparent p-0"
+          />
+          Otro color (a mano)
+        </label>
+      </div>
+
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 gap-1.5 bg-orange-500 hover:bg-orange-600 text-white"
+          disabled={!changed || saving}
+          onClick={guardar}
+        >
+          <Save className="h-3.5 w-3.5" />
+          {saving ? 'Guardando…' : 'Guardar color'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Color actual de cada producto (para la columna "Color" del Catálogo SAP).
+type ProductColorInfo = {
+  swatch: ProductSwatch | null;
+  imageUrl: string | null;
+  colorName: string | null;
+  paletteHex: string | null;
+  genericName: string | null;
+  commonImage: string | null;
+};
+
+// Círculo en la tabla con el color que ve el cliente en la tienda.
+// Mismo orden que la tienda: pantonera > paleta por nombre > foto (si el color
+// no tiene código) > vacío. La foto del producto va como imagen común.
+// Al pincharlo se abre la pantonera de ese producto y su imagen común.
+function ColorCell({ item, info, loading }: { item: PriceList; info?: ProductColorInfo; loading?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const acabadoLabel = info?.swatch ? ACABADOS.find(a => a.value === info.swatch!.acabado)?.label ?? '' : '';
+  const enTienda = info?.swatch
+    ? `${info.swatch.nombreColor || 'Color a mano'} · ${acabadoLabel}`
+    : info?.paletteHex
+    ? `${info.colorName || 'Color'} de la paleta`
+    : info?.imageUrl
+    ? 'La foto de este código'
+    : null;
+  const fotoProducto = info?.commonImage || info?.imageUrl || null;
+
+  if (loading) {
+    return <span className="block w-9 h-9 rounded-full bg-gray-200 animate-pulse" aria-label="Cargando color" />;
+  }
+
+  const circle = (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+      title={enTienda ? undefined : 'Sin color: pincha para elegir'}
+      className="group relative w-9 h-9 rounded-full flex items-center justify-center hover:ring-2 hover:ring-orange-300 transition-shadow"
+      data-testid={`color-cell-${item.codigo}`}
+    >
+      {info?.swatch ? (
+        <ColorSwatch hex={info.swatch.hex} acabado={info.swatch.acabado} className="w-9 h-9 border border-gray-200" />
+      ) : info?.paletteHex ? (
+        <ColorSwatch hex={info.paletteHex} acabado="semibrillo" className="w-9 h-9 border border-gray-200" />
+      ) : info?.imageUrl ? (
+        <img src={imagenLiviana(info.imageUrl, 80)} alt={item.codigo} className="w-9 h-9 rounded-full object-cover border border-gray-200 bg-white" />
+      ) : (
+        <span className="w-9 h-9 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-300 group-hover:border-orange-400 group-hover:text-orange-400">
+          <Plus className="h-4 w-4" />
+        </span>
+      )}
+    </button>
+  );
+
+  return (
+    <>
+      {enTienda || fotoProducto ? (
+        <HoverCard openDelay={150} closeDelay={50}>
+          <HoverCardTrigger asChild>{circle}</HoverCardTrigger>
+          <HoverCardContent side="right" className="w-56 p-3 space-y-2">
+            {fotoProducto && (
+              <>
+                <img
+                  src={imagenLiviana(fotoProducto, 400)}
+                  alt={info?.genericName || item.codigo}
+                  className="w-full h-40 object-contain rounded-lg bg-gray-50 border border-gray-100"
+                />
+                <p className="text-[11px] text-muted-foreground -mt-1">
+                  {info?.commonImage ? 'Imagen común del producto' : 'Foto de este código (el producto no tiene imagen común)'}
+                </p>
+              </>
+            )}
+            {(info?.swatch || info?.paletteHex) && (
+              <div className="flex items-center gap-2">
+                <ColorSwatch
+                  hex={info?.swatch?.hex || info!.paletteHex!}
+                  acabado={info?.swatch?.acabado || 'semibrillo'}
+                  className="w-6 h-6 border border-gray-200"
+                />
+                <span className="text-xs font-semibold">{enTienda}</span>
+              </div>
+            )}
+            <p className="text-[11px] text-muted-foreground">Pincha el círculo para cambiar el color o la imagen común.</p>
+          </HoverCardContent>
+        </HoverCard>
+      ) : circle}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Palette className="h-5 w-5 text-orange-500" />
+              Color de {item.codigo}
+            </DialogTitle>
+            <DialogDescription>{item.producto}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <ColorSwatchField codigo={item.codigo} producto={item.producto || ''} />
+            <CommonImageField genericName={info?.genericName || null} commonImage={info?.commonImage || null} />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// Imagen común del producto: una sola foto para todos sus colores y formatos
+// (es la foto grande de la ficha en la tienda). Se guarda por nombre de producto,
+// igual que la que ya se elige en "Orden de productos". Se guarda apenas se sube.
+function CommonImageField({ genericName, commonImage }: { genericName: string | null; commonImage: string | null }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [current, setCurrent] = useState<string | null>(commonImage);
+  useEffect(() => { setCurrent(commonImage); }, [commonImage]);
+  const inputId = `common-image-${(genericName || 'sin-producto').replace(/\W+/g, '-')}`;
+
+  if (!genericName) {
+    return (
+      <div className="rounded-xl border border-dashed border-gray-200 p-3">
+        <Label className="text-xs font-semibold">Imagen común del producto</Label>
+        <p className="text-[11px] text-muted-foreground mt-1">
+          Este código todavía no está en la tienda, así que no tiene producto al que ponerle imagen común.
+        </p>
+      </div>
+    );
+  }
+
+  const uploadFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Ese archivo no es una imagen', description: 'Sube un JPG, PNG o WEBP.', variant: 'destructive' });
+      return;
+    }
+    setUploading(true);
+    try {
+      // 1) Subir la foto. Con un nombre que no es código de producto, la carga
+      //    solo la guarda y devuelve su dirección (no la pega a ningún código).
+      const ext = (file.name.match(/\.[a-zA-Z0-9]+$/)?.[0] || '.jpg').toLowerCase();
+      const renamed = new File([file], `imagen-comun-${Date.now()}${ext}`, { type: file.type });
+      const formData = new FormData();
+      formData.append('image', renamed);
+      const up = await fetch('/api/ecommerce/admin/upload-single-image', { method: 'POST', body: formData, credentials: 'include' });
+      const upData = await up.json().catch(() => ({}));
+      if (!up.ok || !upData.imageUrl) throw new Error(upData.message || `Error ${up.status}`);
+
+      // 2) Dejarla como imagen común del producto.
+      const res = await fetch('/api/ecommerce/product-group-images', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ genericName, imageUrl: upData.imageUrl }),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+
+      setCurrent(upData.imageUrl);
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/product-colors'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/product-group-images'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/store/products/grouped'] });
+      toast({ title: 'Imagen común guardada', description: `${genericName}: se ve en la tienda en menos de un minuto.` });
+    } catch (err) {
+      toast({
+        title: 'No se pudo subir la imagen',
+        description: err instanceof Error ? err.message : 'Intenta de nuevo.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-gray-200 p-3">
+      <Label className="text-xs font-semibold flex items-center gap-1.5">
+        <ImageIcon className="h-3.5 w-3.5 text-orange-500" />
+        Imagen común del producto
+      </Label>
+      <p className="text-[11px] text-muted-foreground mt-0.5">
+        Una sola foto para todos los colores de <span className="font-semibold text-gray-700">{genericName}</span>.
+      </p>
+      <div className="mt-2 flex items-center gap-4">
+        <label
+          htmlFor={inputId}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDragOver(false); uploadFile(e.dataTransfer.files?.[0]); }}
+          className={`relative w-20 h-20 rounded-lg border-2 border-dashed flex-shrink-0 overflow-hidden cursor-pointer flex items-center justify-center transition-colors ${
+            dragOver ? 'border-orange-500 bg-orange-50' : 'border-gray-300 bg-gray-50 hover:border-orange-400'
+          }`}
+          title="Haz clic o arrastra una imagen"
+        >
+          {current ? (
+            <img src={imagenLiviana(current, 200)} alt={genericName} className="w-full h-full object-contain bg-white" />
+          ) : (
+            <ImageIcon className="h-6 w-6 text-gray-300" />
+          )}
+          {uploading && (
+            <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
+              <RefreshCw className="h-5 w-5 text-orange-500 animate-spin" />
+            </div>
+          )}
+        </label>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <p className="text-xs text-muted-foreground">
+            {current ? 'Es la foto grande del producto en la tienda.' : 'Sin imagen común: la tienda usa la foto de uno de sus colores.'}
+          </p>
+          <Button asChild type="button" variant="outline" size="sm" className="h-8 gap-1.5" disabled={uploading}>
+            <label htmlFor={inputId} className="cursor-pointer">
+              <Upload className="h-3.5 w-3.5" />
+              {current ? 'Cambiar imagen común' : 'Subir imagen común'}
+            </label>
+          </Button>
+          <p className="text-[11px] text-muted-foreground">Se guarda apenas la subes. También puedes arrastrarla al cuadro.</p>
+        </div>
+        <input
+          id={inputId}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          disabled={uploading}
+          onChange={(e) => { uploadFile(e.target.files?.[0]); e.target.value = ''; }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterActive, setFilterActive] = useState<string>("all");
@@ -1751,6 +2162,17 @@ export default function ProductsPage() {
   // CRUD state for price list items (SAP catalog)
   const [showPriceListDialog, setShowPriceListDialog] = useState(false);
   const [editingPriceListItem, setEditingPriceListItem] = useState<PriceList | null>(null);
+
+  // Color actual de cada producto para la columna "Color" del Catálogo SAP.
+  const { data: productColors, isLoading: productColorsLoading } = useQuery<Record<string, ProductColorInfo>>({
+    queryKey: ['/api/ecommerce/product-colors'],
+    queryFn: async () => {
+      const res = await fetch('/api/ecommerce/product-colors', { credentials: 'include' });
+      if (!res.ok) return {};
+      return res.json();
+    },
+    staleTime: 30_000,
+  });
   const [plForm, setPlForm] = useState({ codigo: '', producto: '', unidad: '', lista: '', desc10: '', desc10_5: '', desc10_5_3: '', minimo: '', canalDigital: '' });
   const [deletingPriceListId, setDeletingPriceListId] = useState<string | null>(null);
 
@@ -2718,6 +3140,7 @@ export default function ProductsPage() {
                           </TableHead>
                           <TableHead className="font-semibold text-xs uppercase tracking-wider">Código</TableHead>
                           <TableHead className="font-semibold text-xs uppercase tracking-wider">Producto</TableHead>
+                          <TableHead className="font-semibold text-xs uppercase tracking-wider text-center w-16">Color</TableHead>
                           <TableHead className="font-semibold text-xs uppercase tracking-wider">Unidad</TableHead>
                           <TableHead className="text-right font-semibold text-xs uppercase tracking-wider">Lista</TableHead>
                           <TableHead className="text-right font-semibold text-xs uppercase tracking-wider">Desc. 10%</TableHead>
@@ -2749,6 +3172,11 @@ export default function ProductsPage() {
                               className="font-medium text-sm"
                               onClick={() => setLocation(`/productos/${encodeURIComponent(item.codigo)}`)}
                             >{item.producto}</TableCell>
+                            <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex justify-center">
+                                <ColorCell item={item} info={productColors?.[item.codigo?.toUpperCase()]} loading={productColorsLoading} />
+                              </div>
+                            </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs font-normal rounded-md">{item.unidad}</Badge>
                             </TableCell>
@@ -2930,7 +3358,7 @@ export default function ProductsPage() {
 
         {/* ===== ADD / EDIT Price List Dialog ===== */}
         <Dialog open={showPriceListDialog} onOpenChange={(open) => { if (!open) { setShowPriceListDialog(false); setEditingPriceListItem(null); } }}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 {editingPriceListItem ? <Edit className="h-5 w-5 text-blue-500" /> : <Plus className="h-5 w-5 text-orange-500" />}
@@ -2999,6 +3427,18 @@ export default function ProductsPage() {
                   <Input type="number" placeholder="0" value={plForm.canalDigital} onChange={(e) => setPlForm(p => ({ ...p, canalDigital: e.target.value }))} className="h-9 text-right font-mono" />
                 </div>
               </div>
+              {editingPriceListItem && (
+                <>
+                  <ColorSwatchField
+                    codigo={editingPriceListItem.codigo}
+                    producto={editingPriceListItem.producto || plForm.producto}
+                  />
+                  <CommonImageField
+                    genericName={productColors?.[editingPriceListItem.codigo?.toUpperCase()]?.genericName || null}
+                    commonImage={productColors?.[editingPriceListItem.codigo?.toUpperCase()]?.commonImage || null}
+                  />
+                </>
+              )}
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => { setShowPriceListDialog(false); setEditingPriceListItem(null); }}>Cancelar</Button>
                 <Button
