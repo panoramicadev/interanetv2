@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Check, Loader2, PaintBucket, Paperclip, Pencil, Plus, Send, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Loader2, PaintBucket, Paperclip, Pencil, Plus, RotateCcw, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,6 +39,7 @@ interface Detalle extends SolicitudMuestra {
   puedeAprobar: boolean;
   puedeEditar?: boolean;
   puedeGestionar: boolean;
+  puedeReabrir?: boolean;
 }
 
 const TIPOS: { valor: Tipo; texto: string }[] = [
@@ -67,6 +68,7 @@ const EVENTO: Record<string, string> = {
   nvv: "registró la NVV",
   editada: "la corrigió",
   cerrada: "la cerró: muestra entregada",
+  reabierta: "la reabrió: vuelve a en curso",
 };
 
 const fmtFecha = (v: string | Date | null | undefined, conHora = false) => {
@@ -922,6 +924,14 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
               />
             )}
 
+            {s.puedeReabrir && (
+              <Reabrir
+                key={s.id}
+                ocupado={accion.isPending}
+                onReabrir={(motivo) => accion.mutate({ ruta: "reabrir", datos: { motivo }, ok: "Muestra de vuelta en curso" })}
+              />
+            )}
+
             <Hilo s={s} miId={(user as any)?.id} abierta={!!abierta} onEnviado={refrescar} />
           </>
         )}
@@ -1032,6 +1042,53 @@ function Gestion({
           data-testid="button-muestra-cerrar"
         >
           <Check className="h-4 w-4 mr-1.5" /> Muestra entregada: cerrar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Solo admin: devuelve una muestra entregada a "en curso" (la NVV se conserva). */
+function Reabrir({ ocupado, onReabrir }: { ocupado: boolean; onReabrir: (motivo: string) => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  if (!abierto) {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-slate-50/60 px-3 py-2 text-xs text-slate-600 dark:border-slate-700/60 dark:bg-slate-800/40 dark:text-slate-300">
+        <span>¿Se cerró por error o antes de tiempo? Puedes devolverla a en curso.</span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 shrink-0 rounded-lg text-xs gap-1.5"
+          onClick={() => setAbierto(true)}
+          data-testid="button-muestra-reabrir"
+        >
+          <RotateCcw className="h-3.5 w-3.5" /> Revertir a en curso
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-2xl border border-sky-200 bg-sky-50/50 p-3 space-y-2 dark:border-sky-500/30 dark:bg-sky-500/10">
+      <div className="text-sm font-bold text-slate-700 dark:text-slate-200">Revertir a en curso</div>
+      <Textarea
+        value={motivo}
+        onChange={(e) => setMotivo(e.target.value)}
+        placeholder="Opcional: por qué se reabre (queda en la conversación)"
+        className="rounded-xl text-sm min-h-[56px] bg-white dark:bg-slate-900/40"
+        data-testid="input-muestra-reabrir-motivo"
+      />
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="outline" className="rounded-2xl h-9 text-sm" disabled={ocupado} onClick={() => setAbierto(false)}>
+          Cancelar
+        </Button>
+        <Button
+          className={`h-9 ${BOTON_MARCA}`}
+          disabled={ocupado}
+          onClick={() => onReabrir(motivo.trim())}
+          data-testid="button-muestra-reabrir-confirmar"
+        >
+          <RotateCcw className="h-4 w-4 mr-1.5" /> Revertir a en curso
         </Button>
       </div>
     </div>
