@@ -981,7 +981,8 @@ function galonesDelFormato(formato: string | null | undefined): string {
   return "";
 }
 
-const gramosTexto = (n: number) => n.toLocaleString("es-CL", { maximumFractionDigits: 2 });
+// Los colorantes van en milésimas de gramo (0,003 g): siempre tres decimales.
+const gramosTexto = (n: number) => n.toLocaleString("es-CL", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
 /** La fórmula en gramos con que se costea. Solo llega a laboratorio. */
 function TablaGramos({ s }: { s: Detalle }) {
