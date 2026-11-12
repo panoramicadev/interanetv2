@@ -422,7 +422,8 @@ function DocumentosDelPeriodo({
             />
           </div>
           {/* Solo esta pestaña (pedido del usuario, nov-2026): cada documento con sus
-              productos, con los filtros de arriba y lo escrito en el buscador. */}
+              productos, con los filtros de arriba y lo escrito en el buscador. El PDF
+              de Facturas va en cambio por cliente: el total facturado a cada uno. */}
           <div className="grid grid-cols-2 sm:flex gap-2">
             {(["pdf", "excel"] as const).map((formato) => (
               <Button
@@ -431,7 +432,11 @@ function DocumentosDelPeriodo({
                 className="h-10 px-3 text-sm font-semibold rounded-2xl text-slate-700 dark:text-slate-200 hover:border-orange-200 hover:text-[#fd6301]"
                 disabled={descargando !== null || isLoading || !data?.documentos?.length || filtrados.length === 0}
                 onClick={() => onDescargar(formato, busqueda.trim())}
-                title={`Descargar ${TITULO_DETALLE[categoria].toLowerCase()} en ${formato === "pdf" ? "PDF" : "Excel"}, con el detalle de cada documento`}
+                title={
+                  formato === "pdf" && categoria === "facturas"
+                    ? "Descargar en PDF el total facturado por cliente"
+                    : `Descargar ${TITULO_DETALLE[categoria].toLowerCase()} en ${formato === "pdf" ? "PDF" : "Excel"}, con el detalle de cada documento`
+                }
                 data-testid={`detalle-tabla-${formato}`}
               >
                 {descargando === `tabla-${formato}` ? (

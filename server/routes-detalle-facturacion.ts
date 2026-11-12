@@ -552,10 +552,104 @@ function generarPdf(salida: NodeJS.WritableStream, ds: Dataset, lineas: Map<Clav
     const generado = new Date().toLocaleString("es-CL", { timeZone: "America/Santiago" });
     doc.moveDown(1).fillColor(GRIS).text(`Generado el ${generado}`, izquierda, doc.y, { width: ancho });
 
-    escribirDetallePdf(doc, ds, lineas);
+    if (esFacturasPorCliente(ds)) escribirFacturasPorClientePdf(doc, ds);
+    else escribirDetallePdf(doc, ds, lineas);
 
     doc.end();
   });
+}
+
+/**
+ * El PDF de la pestaña Facturas va por cliente, no por documento (pedido del
+ * usuario, nov-2026): lo que se necesita es cuánto se le facturó a cada uno.
+ */
+const esFacturasPorCliente = (ds: Dataset) => ds.soloCategoria && ds.categorias[0]?.clave === "facturas";
+
+/** Una fila por cliente con sus documentos y el total facturado, de mayor a menor. */
+function escribirFacturasPorClientePdf(doc: PDFKit.PDFDocument, ds: Dataset) {
+  const c = ds.categorias[0];
+  if (!c?.documentos || c.documentos.length === 0) return;
+
+  const porCliente = new Map<string, { codigo: string; cliente: string; documentos: number; neto: number; bruto: number }>();
+  for (const d of c.documentos) {
+    const clave = d.codigoCliente || d.cliente;
+    const fila = porCliente.get(clave) ?? { codigo: d.codigoCliente, cliente: d.cliente, documentos: 0, neto: 0, bruto: 0 };
+    if (!fila.cliente && d.cliente) fila.cliente = d.cliente;
+    fila.documentos += 1;
+    fila.neto += d.neto;
+    fila.bruto += d.bruto;
+    porCliente.set(clave, fila);
+  }
+  const filas = Array.from(porCliente.values()).sort((a, b) => b.neto - a.neto);
+
+  const izquierda = 50;
+  const ancho = doc.page.width - 100;
+  const limite = () => doc.page.height - 60;
+  const cCodigo = izquierda + 6;
+  const cBruto = izquierda + ancho - 80;
+  const cNeto = cBruto - 84;
+  const cDocs = cNeto - 64;
+  const cCliente = cCodigo + 76;
+  const anchoCliente = cDocs - cCliente - 8;
+  const unaLinea = { lineBreak: false } as const;
+  const cabe = (t: string, w: number) => {
+    if (doc.widthOfString(t) <= w) return t;
+    let r = t;
+    while (r.length > 1 && doc.widthOfString(`${r}…`) > w) r = r.slice(0, -1);
+    return `${r.trimEnd()}…`;
+  };
+
+  let y = 50;
+  const encabezado = () => {
+    doc.rect(izquierda, y, ancho, 16).fill("#f3f4f6");
+    doc.fillColor(GRIS).font("Helvetica-Bold").fontSize(7.5);
+    doc.text("CÓDIGO", cCodigo, y + 5, unaLinea);
+    doc.text("CLIENTE", cCliente, y + 5, unaLinea);
+    doc.text("DOCUMENTOS", cDocs, y + 5, { width: 60, align: "right", ...unaLinea });
+    doc.text("NETO", cNeto, y + 5, { width: 80, align: "right", ...unaLinea });
+    doc.text("BRUTO", cBruto, y + 5, { width: 80, align: "right", ...unaLinea });
+    y += 20;
+  };
+
+  doc.addPage();
+  doc.rect(izquierda, y, 4, 22).fill(MARCA);
+  doc.fillColor(TINTA).font("Helvetica-Bold").fontSize(14).text(`${c.titulo}: total por cliente`, izquierda + 12, y + 3);
+  y += 30;
+  doc.fillColor(GRIS).font("Helvetica").fontSize(8);
+  doc.text(cabe(`${etiquetaPeriodo(ds.desde, ds.hasta)} · ${ds.filtrosTexto}`, ancho), izquierda, y, { width: ancho, ...unaLinea });
+  y += 12;
+  doc.text(`${filas.length.toLocaleString("es-CL")} clientes · montos netos y brutos de lo facturado en el período.`, izquierda, y, { width: ancho, ...unaLinea });
+  y += 18;
+  encabezado();
+
+  for (const f of filas) {
+    if (y + 16 > limite()) {
+      doc.addPage();
+      y = 50;
+      encabezado();
+    }
+    doc.fillColor(TINTA).font("Helvetica").fontSize(8.5);
+    doc.text(cabe(f.codigo || "—", 72), cCodigo, y, { width: 72, ...unaLinea });
+    doc.text(cabe(f.cliente || f.codigo || "—", anchoCliente), cCliente, y, { width: anchoCliente, ...unaLinea });
+    doc.text(f.documentos.toLocaleString("es-CL"), cDocs, y, { width: 60, align: "right", ...unaLinea });
+    doc.font("Helvetica-Bold").text(clp(f.neto), cNeto, y, { width: 80, align: "right", ...unaLinea });
+    doc.font("Helvetica").text(clp(f.bruto), cBruto, y, { width: 80, align: "right", ...unaLinea });
+    y += 12;
+    doc.moveTo(izquierda, y).lineTo(izquierda + ancho, y).strokeColor(BORDE).lineWidth(0.5).stroke();
+    y += 4;
+  }
+
+  if (y + 26 > limite()) {
+    doc.addPage();
+    y = 50;
+  }
+  y += 4;
+  doc.rect(izquierda, y, ancho, 22).fill(FONDO_TOTAL);
+  doc.fillColor(TINTA).font("Helvetica-Bold").fontSize(9);
+  doc.text("Total facturado", cCodigo, y + 7, unaLinea);
+  doc.text(c.documentos.length.toLocaleString("es-CL"), cDocs, y + 7, { width: 60, align: "right", ...unaLinea });
+  doc.fillColor(MARCA).text(clp(filas.reduce((s, f) => s + f.neto, 0)), cNeto, y + 7, { width: 80, align: "right", ...unaLinea });
+  doc.fillColor(TINTA).text(clp(filas.reduce((s, f) => s + f.bruto, 0)), cBruto, y + 7, { width: 80, align: "right", ...unaLinea });
 }
 
 /** Una página por categoría con cada documento y sus productos. */
@@ -879,7 +973,8 @@ export function registerDetalleFacturacionRoutes(app: Express) {
     conPeriodo(async (ds, res) => {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${nombreArchivo(ds, "pdf")}"`);
-      const lineas = await cargarLineasDataset(ds);
+      // Por cliente no lleva productos: no hace falta leerlos.
+      const lineas = esFacturasPorCliente(ds) ? new Map<ClaveCategoria, LineasPorDocumento>() : await cargarLineasDataset(ds);
       await generarPdf(res, ds, lineas);
     }),
   );
