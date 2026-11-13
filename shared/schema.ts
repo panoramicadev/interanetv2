@@ -9835,3 +9835,30 @@ export const juegoMemoricePartidas = pgTable("juego_memorice_partidas", {
 }));
 
 export type JuegoMemoricePartida = typeof juegoMemoricePartidas.$inferSelect;
+
+// ===== MENSAJES DESTACADOS (franja neón de la pantalla de inicio) =====
+// Ver migrations/100_mensajes_destacados.sql. audiencia = clave de rol o 'todos'.
+export const MENSAJE_COLORES = ["naranjo", "cian", "verde", "rosa", "amarillo"] as const;
+export type MensajeColor = typeof MENSAJE_COLORES[number];
+
+export const mensajesDestacados = pgTable("mensajes_destacados", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  texto: text("texto").notNull(),
+  audiencia: varchar("audiencia", { length: 40 }).notNull(),
+  segmento: varchar("segmento", { length: 40 }), // solo mensajes de supervisor: su área
+  color: varchar("color", { length: 20 }).notNull().default("naranjo"),
+  activo: boolean("activo").notNull().default(true),
+  desde: varchar("desde", { length: 10 }), // YYYY-MM-DD, hora de Chile, inclusivo
+  hasta: varchar("hasta", { length: 10 }), // YYYY-MM-DD, hora de Chile, inclusivo
+  creadoPorId: varchar("creado_por_id").notNull(),
+  creadoPorNombre: text("creado_por_nombre"),
+  creadoPorRol: varchar("creado_por_rol", { length: 40 }).notNull(),
+  archivadoAt: timestamp("archivado_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  audienciaIdx: index("IDX_mensajes_destacados_audiencia").on(table.audiencia),
+  creadorIdx: index("IDX_mensajes_destacados_creador").on(table.creadoPorId),
+}));
+
+export type MensajeDestacado = typeof mensajesDestacados.$inferSelect;

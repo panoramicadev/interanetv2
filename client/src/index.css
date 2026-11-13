@@ -385,3 +385,61 @@
   .cz-revelar.cz-visible { opacity: 1; transform: none; }
 }
 .cz-raya { width: 64px; }
+
+/* ── Franja de mensajes neón (nov-2026) ──────────────────────────────────────
+   Pedido del usuario: una zona de mensajes que "llame la atención, como neón",
+   arriba de la pantalla de inicio. Componente: components/mensajes/franja-mensajes.tsx.
+   Tira negra (#0a0a0a, la del sidebar) con un haz de luz naranjo que recorre el
+   borde, el texto corriendo de derecha a izquierda con brillo de tubo de neón y
+   un parpadeo ocasional. El color de cada mensaje lo elige quien lo escribe.
+   Con prefers-reduced-motion queda quieto y el texto se parte en líneas. */
+@property --neon-angulo {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.neon-borde {
+  padding: 1.5px;
+  background:
+    conic-gradient(from var(--neon-angulo), transparent 0deg 250deg, #fd6301 300deg, #ffd2b0 330deg, #fd6301 345deg, transparent 360deg),
+    #2a1405;
+  box-shadow: 0 0 18px -4px rgba(253, 99, 1, .55), 0 0 42px -12px rgba(253, 99, 1, .45);
+}
+.neon-icono { box-shadow: 0 0 10px rgba(253, 99, 1, .8), 0 0 22px rgba(253, 99, 1, .45); }
+.neon-ventana {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+.neon-cinta { display: flex; width: max-content; }
+.neon-tramo { display: flex; flex-shrink: 0; }
+.neon-separador { color: #fd6301; opacity: .7; text-shadow: 0 0 6px #fd6301; }
+
+.neon-texto { --neon: #fd6301; color: #fff4ec; text-shadow: 0 0 2px #fff, 0 0 6px var(--neon), 0 0 14px var(--neon), 0 0 28px var(--neon), 0 0 48px var(--neon); }
+.neon-naranjo  { --neon: #fd6301; color: #ffe6d5; }
+.neon-cian     { --neon: #22d3ee; color: #e0fbff; }
+.neon-verde    { --neon: #22c55e; color: #e3ffec; }
+.neon-rosa     { --neon: #ec4899; color: #ffe4f2; }
+.neon-amarillo { --neon: #facc15; color: #fffbe0; }
+
+@keyframes neon-girar { to { --neon-angulo: 360deg; } }
+@keyframes neon-correr { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes neon-parpadeo {
+  0%, 18%, 22%, 25%, 53%, 57%, 100% { opacity: 1; }
+  20%, 24%, 55% { opacity: .45; text-shadow: none; }
+}
+@keyframes neon-latido { 0%, 100% { box-shadow: 0 0 10px rgba(253, 99, 1, .8), 0 0 22px rgba(253, 99, 1, .45); } 50% { box-shadow: 0 0 4px rgba(253, 99, 1, .5), 0 0 10px rgba(253, 99, 1, .2); } }
+
+@media (prefers-reduced-motion: no-preference) {
+  .neon-borde { animation: neon-girar 3.5s linear infinite; }
+  .neon-icono { animation: neon-latido 2.2s ease-in-out infinite; }
+  .neon-cinta { animation: neon-correr var(--neon-dur, 30s) linear infinite; }
+  .neon-ventana:hover .neon-cinta { animation-play-state: paused; }
+  .neon-texto { animation: neon-parpadeo 7s linear infinite; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .neon-cinta { width: auto; }
+  .neon-tramo { flex-wrap: wrap; gap: .25rem 0; }
+  .neon-tramo + .neon-tramo, .neon-ventana { -webkit-mask-image: none; mask-image: none; }
+  .neon-tramo + .neon-tramo, .neon-repetido { display: none !important; }
+  .neon-texto { white-space: normal; }
+}

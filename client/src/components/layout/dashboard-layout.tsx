@@ -19,6 +19,8 @@ import { ROLE_LABELS } from "@shared/permissions";
 import ImportModal from "@/components/dashboard/import-modal";
 import ChangelogDialog from "@/components/ChangelogDialog";
 import { WoobAsistente } from "@/components/WoobAsistente";
+import { FranjaMensajes } from "@/components/mensajes/franja-mensajes";
+import { shellMuestraFranja } from "@/lib/inicio-rol";
 import logoPath from "@assets/logo_1757532115858.png";
 
 interface DashboardLayoutProps {
@@ -939,6 +941,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       <div className={`${isCollapsed ? "lg:pl-[4.25rem]" : "lg:pl-[16rem]"} min-w-0 max-w-full overflow-x-clip transition-all duration-300 ${botonMenuArriba ? "" : "pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0"}`}>
         <main>
           <div className="module-card bg-white dark:bg-slate-900 min-h-screen overflow-clip">
+            {/* Franja neón de mensajes, solo en la pantalla de inicio del rol. El
+                Dashboard la dibuja él mismo (ver lib/inicio-rol.ts). */}
+            {shellMuestraFranja(user?.role || undefined, location) && <FranjaMensajes />}
             {children}
           </div>
         </main>
