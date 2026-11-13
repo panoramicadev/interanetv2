@@ -22,7 +22,7 @@ import {
 import { FranjaMensajes, type MensajeVisible } from "@/components/mensajes/franja-mensajes";
 import { CONFIGURABLE_ROLES, ROLE_LABELS } from "@shared/permissions";
 import { ICONO_CHIP, ICONO_CHIP_ICONO } from "@/lib/icono-chip";
-import { ideasPara } from "@/lib/mensajes-ideas";
+import { ideasPara, rellenarMeta, tieneMarcasMeta, type ValoresMeta } from "@/lib/mensajes-ideas";
 
 interface Mensaje {
   id: string;
@@ -81,7 +81,15 @@ const fechaCorta = (f: string) => {
 const CAMPO = "rounded-xl bg-slate-50/60 dark:bg-slate-800/60 focus-visible:border-[#fd6301] focus-visible:ring-orange-500/20";
 const BOTON_PRIMARIO = "rounded-2xl bg-[#fd6301] hover:bg-[#e35400] text-white shadow-md shadow-[#fd6301]/25";
 
-const VACIO = { texto: "", audiencia: "todos", color: "naranjo", desde: "", hasta: "" };
+const VACIO = { audiencia: "todos", desde: "", hasta: "" };
+
+/** Un mensaje listo para publicar. `clave` es el título de la idea de la que
+ *  salió, o PROPIO si lo escribió quien publica. */
+interface Borrador { clave: string; texto: string; color: string }
+const PROPIO = "propio";
+const borradorVacio = (): Borrador => ({ clave: PROPIO, texto: "", color: "naranjo" });
+const desdeIdea = (idea: { titulo: string; texto: string; color: string }): Borrador =>
+  ({ clave: idea.titulo, texto: idea.texto.slice(0, MAX), color: idea.color });
 
 export default function MensajesConfigPage() {
   const { user } = useAuth();
@@ -91,12 +99,21 @@ export default function MensajesConfigPage() {
     (user as any)?.assignedSegment || null;
 
   const [form, setForm] = useState(() => ({ ...VACIO, audiencia: esAdmin ? "todos" : "salesperson" }));
+  // Uno o varios mensajes a publicar de una vez (mismo destino y fechas).
+  const [lista, setLista] = useState<Borrador[]>(() => [borradorVacio()]);
   const [editando, setEditando] = useState<Mensaje | null>(null);
   const [archivar, setArchivar] = useState<Mensaje | null>(null);
 
   const { data: mensajes = [], isLoading } = useQuery<Mensaje[]>({
     queryKey: ["/api/mensajes-destacados"],
   });
+
+  // Números de la meta del mes, para ver en la vista previa cómo queda "Meta del mes".
+  const { data: meta } = useQuery<{ valores: ValoresMeta | null }>({
+    queryKey: ["/api/mensajes-destacados/meta-valores"],
+    staleTime: 5 * 60 * 1000,
+  });
+  const valoresMeta = meta?.valores ?? null;
 
   const refrescar = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/mensajes-destacados"] });
@@ -117,23 +134,36 @@ export default function MensajesConfigPage() {
 
   const guardar = useMutation({
     mutationFn: async () => {
-      const body = {
-        texto: form.texto,
+      const base = {
         audiencia: esAdmin ? form.audiencia : "salesperson",
-        color: form.color,
         desde: form.desde || null,
         hasta: form.hasta || null,
       };
-      if (editando) return apiRequest("PATCH", `/api/mensajes-destacados/${editando.id}`, body);
-      return apiRequest("POST", "/api/mensajes-destacados", { ...body, activo: true });
+      if (editando) {
+        const [b] = lista;
+        return apiRequest("PATCH", `/api/mensajes-destacados/${editando.id}`, { ...base, texto: b.texto, color: b.color });
+      }
+      // La franja muestra primero el más nuevo: se publican al revés para que
+      // queden en el mismo orden en que se eligieron.
+      for (const b of [...lista].reverse()) {
+        await apiRequest("POST", "/api/mensajes-destacados", { ...base, texto: b.texto, color: b.color, activo: true });
+      }
     },
     onSuccess: () => {
-      toast({ title: editando ? "Mensaje actualizado" : "Mensaje publicado" });
+      toast({
+        title: editando ? "Mensaje actualizado"
+          : lista.length > 1 ? `${lista.length} mensajes publicados` : "Mensaje publicado",
+      });
       setEditando(null);
       setForm({ ...VACIO, audiencia: esAdmin ? "todos" : "salesperson" });
+      setLista([borradorVacio()]);
       refrescar();
     },
-    onError: errorToast,
+    onError: (e) => {
+      // Si se cortó a la mitad, los que alcanzaron a salir ya están en la lista.
+      refrescar();
+      errorToast(e);
+    },
   });
 
   const cambiarActivo = useMutation({
@@ -154,29 +184,62 @@ export default function MensajesConfigPage() {
 
   const editar = (m: Mensaje) => {
     setEditando(m);
-    setForm({ texto: m.texto, audiencia: m.audiencia, color: m.color, desde: m.desde || "", hasta: m.hasta || "" });
+    setForm({ audiencia: m.audiencia, desde: m.desde || "", hasta: m.hasta || "" });
+    setLista([{ clave: PROPIO, texto: m.texto, color: m.color }]);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const cancelarEdicion = () => {
     setEditando(null);
     setForm({ ...VACIO, audiencia: esAdmin ? "todos" : "salesperson" });
+    setLista([borradorVacio()]);
   };
 
+  const cambiar = (i: number, cambio: Partial<Borrador>) =>
+    setLista((l) => l.map((b, j) => (j === i ? { ...b, ...cambio } : b)));
+
+  const quitar = (i: number) =>
+    setLista((l) => {
+      const resto = l.filter((_, j) => j !== i);
+      return resto.length ? resto : [borradorVacio()];
+    });
+
+  // Tocar una idea la suma o la saca. Al editar un mensaje ya publicado se
+  // reemplaza el texto, porque se edita de a uno.
+  const alternarIdea = (idea: Parameters<typeof desdeIdea>[0]) =>
+    setLista((l) => {
+      if (editando) return [{ ...desdeIdea(idea) }];
+      if (l.some((b) => b.clave === idea.titulo)) {
+        const resto = l.filter((b) => b.clave !== idea.titulo);
+        return resto.length ? resto : [borradorVacio()];
+      }
+      return [...l.filter((b) => b.clave !== PROPIO || b.texto.trim()), desdeIdea(idea)];
+    });
+
   const vistaPrevia: MensajeVisible[] = useMemo(
-    () => [{
-      id: "vista-previa",
-      texto: form.texto.trim() || "Escribe tu mensaje y míralo acá como lo verá tu equipo",
-      color: form.color,
+    () => lista.map((b, i) => ({
+      id: `vista-previa-${i}`,
+      texto: (valoresMeta ? rellenarMeta(b.texto.trim(), valoresMeta) : b.texto.trim())
+        || "Escribe tu mensaje y míralo acá como lo verá tu equipo",
+      color: b.color,
       autor: null,
       updatedAt: "",
-    }],
-    [form.texto, form.color],
+    })),
+    [lista, valoresMeta],
   );
+  const conDatosMeta = lista.some((b) => tieneMarcasMeta(b.texto));
 
   const audiencias = ["todos", ...CONFIGURABLE_ROLES.filter((r) => r !== "admin")];
   const ideas = useMemo(() => ideasPara(esAdmin ? form.audiencia : "salesperson"), [esAdmin, form.audiencia]);
-  const textoValido = form.texto.trim().length >= 3;
+  const varios = lista.length > 1;
+  const todasElegidas = ideas.length > 0 && ideas.every((idea) => lista.some((b) => b.clave === idea.titulo));
+  const alternarTodas = () =>
+    setLista((l) => {
+      const propios = l.filter((b) => b.clave === PROPIO && b.texto.trim());
+      if (todasElegidas) return propios.length ? propios : [borradorVacio()];
+      return [...propios, ...ideas.map(desdeIdea)];
+    });
+  const textoValido = lista.every((b) => b.texto.trim().length >= 3);
 
   return (
     <div className="space-y-6">
@@ -207,34 +270,91 @@ export default function MensajesConfigPage() {
           )}
         </div>
 
-        <div className="space-y-1.5">
-          <Textarea
-            value={form.texto}
-            onChange={(e) => setForm((f) => ({ ...f, texto: e.target.value.slice(0, MAX) }))}
-            placeholder="Ej: ¡Este viernes cierra el mes! Ingresen sus notas de venta antes de las 13:00"
-            rows={2}
-            className={CAMPO}
-            data-testid="mensaje-texto"
-          />
-          <p className="text-xs text-gray-500 dark:text-gray-400 text-right tabular-nums">{form.texto.length}/{MAX}</p>
-        </div>
+        {varios ? (
+          // Varios a la vez: cada uno con su texto y su color.
+          <div className="space-y-2">
+            {lista.map((b, i) => (
+              <div
+                key={`${b.clave}-${i}`}
+                className="flex flex-col sm:flex-row gap-2 rounded-xl border border-slate-200/70 dark:border-slate-800 p-2"
+                data-testid={`mensaje-borrador-${i}`}
+              >
+                <Textarea
+                  value={b.texto}
+                  onChange={(e) => cambiar(i, { texto: e.target.value.slice(0, MAX) })}
+                  rows={2}
+                  className={`flex-1 ${CAMPO}`}
+                />
+                <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 sm:w-32">
+                  <div className="flex items-center gap-1.5">
+                    {COLORES.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        title={c.label}
+                        aria-label={c.label}
+                        aria-pressed={b.color === c.value}
+                        onClick={() => cambiar(i, { color: c.value })}
+                        className={`h-4 w-4 rounded-full transition-all ${b.color === c.value ? "ring-2 ring-offset-1 ring-slate-900 dark:ring-white dark:ring-offset-slate-900" : "opacity-60 hover:opacity-100"}`}
+                        style={{ backgroundColor: c.hex, boxShadow: `0 0 6px ${c.hex}` }}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400 tabular-nums">{b.texto.length}/{MAX}</span>
+                    <Button variant="ghost" size="icon" className="rounded-lg h-7 w-7" title="Quitar" onClick={() => quitar(i)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <Textarea
+              value={lista[0].texto}
+              onChange={(e) => cambiar(0, { texto: e.target.value.slice(0, MAX) })}
+              placeholder="Ej: ¡Este viernes cierra el mes! Ingresen sus notas de venta antes de las 13:00"
+              rows={2}
+              className={CAMPO}
+              data-testid="mensaje-texto"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 text-right tabular-nums">{lista[0].texto.length}/{MAX}</p>
+          </div>
+        )}
 
-        {/* Ideas para empezar: cambian según a quién va el mensaje. Tocar una
-            llena el texto y el color; después se ajusta a gusto. */}
+        {/* Ideas para empezar: cambian según a quién va el mensaje. Se puede
+            elegir una, varias o todas; cada una trae su texto y su color, y
+            después se ajusta a gusto. */}
         <div className="space-y-1.5" data-sin-brillo>
-          <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-slate-400">
-            <Sparkles className="h-3 w-3 text-[#fd6301]" /> Ideas para empezar
-          </span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-slate-400">
+              <Sparkles className="h-3 w-3 text-[#fd6301]" /> Ideas para empezar
+              {!editando && <span className="normal-case tracking-normal font-medium">· elige una o varias</span>}
+            </span>
+            {!editando && ideas.length > 1 && (
+              <button
+                type="button"
+                onClick={alternarTodas}
+                className="text-xs font-medium text-[#fd6301] hover:underline"
+                data-testid="mensaje-ideas-todas"
+              >
+                {todasElegidas ? "Quitar todas" : "Elegir todas"}
+              </button>
+            )}
+          </div>
           <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {ideas.map((idea) => {
               const hex = COLORES.find((c) => c.value === idea.color)?.hex || "#fd6301";
-              const elegida = form.texto === idea.texto;
+              const elegida = lista.some((b) => b.clave === idea.titulo);
               return (
                 <button
                   key={idea.titulo}
                   type="button"
                   title={idea.texto}
-                  onClick={() => setForm((f) => ({ ...f, texto: idea.texto.slice(0, MAX), color: idea.color }))}
+                  aria-pressed={elegida}
+                  onClick={() => alternarIdea(idea)}
                   className={`shrink-0 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${elegida
                     ? "border-[#fd6301] bg-orange-50 text-[#fd6301] dark:bg-orange-500/10"
                     : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-orange-200 hover:text-[#fd6301]"}`}
@@ -276,6 +396,9 @@ export default function MensajesConfigPage() {
           </div>
           <div className="space-y-1.5">
             <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Color del neón</span>
+            {varios ? (
+              <p className="h-10 flex items-center text-xs text-gray-500 dark:text-gray-400">Cada mensaje lleva su propio color</p>
+            ) : (
             <div className="flex items-center gap-2 h-10">
               {COLORES.map((c) => (
                 <button
@@ -283,15 +406,24 @@ export default function MensajesConfigPage() {
                   type="button"
                   title={c.label}
                   aria-label={c.label}
-                  aria-pressed={form.color === c.value}
-                  onClick={() => setForm((f) => ({ ...f, color: c.value }))}
-                  className={`h-7 w-7 rounded-full transition-all ${form.color === c.value ? "ring-2 ring-offset-2 ring-slate-900 dark:ring-white dark:ring-offset-slate-900 scale-110" : "opacity-70 hover:opacity-100"}`}
+                  aria-pressed={lista[0].color === c.value}
+                  onClick={() => cambiar(0, { color: c.value })}
+                  className={`h-7 w-7 rounded-full transition-all ${lista[0].color === c.value ? "ring-2 ring-offset-2 ring-slate-900 dark:ring-white dark:ring-offset-slate-900 scale-110" : "opacity-70 hover:opacity-100"}`}
                   style={{ backgroundColor: c.hex, boxShadow: `0 0 10px ${c.hex}` }}
                 />
               ))}
             </div>
+            )}
           </div>
         </div>
+
+        {conDatosMeta && (
+          <p className="rounded-xl bg-orange-50 dark:bg-orange-500/10 px-3 py-2 text-xs text-slate-700 dark:text-slate-300" data-testid="mensaje-aviso-meta">
+            {valoresMeta
+              ? <>Lo que va entre llaves (<b>{"{meta}"}</b>, <b>{"{llevamos}"}</b>, <b>{"{avance}"}</b>, <b>{"{falta}"}</b>, <b>{"{mes}"}</b>) se cambia solo por los números del mes: facturado + notas de venta + guías pendientes. Se actualiza cada vez que alguien abre su inicio.</>
+              : <>Este mes no tiene meta global cargada: el mensaje no se va a mostrar hasta que se cargue en Gestión de Metas.</>}
+          </p>
+        )}
 
         <div className="space-y-1.5">
           <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Vista previa</span>
@@ -306,7 +438,7 @@ export default function MensajesConfigPage() {
             data-testid="mensaje-guardar"
           >
             <Send className="h-4 w-4 mr-2" />
-            {guardar.isPending ? "Guardando…" : editando ? "Guardar cambios" : "Publicar mensaje"}
+            {guardar.isPending ? "Guardando…" : editando ? "Guardar cambios" : varios ? `Publicar ${lista.length} mensajes` : "Publicar mensaje"}
           </Button>
         </div>
       </div>

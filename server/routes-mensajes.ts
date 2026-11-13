@@ -6,6 +6,13 @@
  * - POST /api/mensajes-destacados                crea uno
  * - PATCH /api/mensajes-destacados/:id           edita / pausa / reactiva
  * - POST /api/mensajes-destacados/:id/archivar   lo saca de la lista (no se borra)
+ * - GET  /api/mensajes-destacados/meta-valores   los números de la meta, para la vista previa
+ *
+ * Datos que se rellenan solos: un mensaje puede llevar {mes}, {meta},
+ * {llevamos}, {avance} y {falta}. Al mostrarlo se cambian por la meta global
+ * del mes en curso y lo vendido hasta ahora, igual que la tarjeta "Meta
+ * Global" del dashboard en modo combinado: facturado + NVV + GDV pendientes.
+ * Si el mes no tiene meta global, esos mensajes no se muestran.
  *
  * Quién escribe a quién:
  * - admin: a cualquier rol o a todos ('todos').
@@ -27,6 +34,7 @@ import {
 import { CONFIGURABLE_ROLES } from '@shared/permissions';
 import { requireAuth, requireRoles } from './auth';
 import { normalizePanelSegmento } from './panel-changes';
+import { storage } from './storage';
 
 const AUDIENCIA_TODOS = 'todos';
 const AUDIENCIAS = [AUDIENCIA_TODOS, ...CONFIGURABLE_ROLES.filter((r) => r !== 'admin')];
@@ -58,6 +66,63 @@ const mensajeSchema = z
     message: 'La fecha "hasta" no puede ser anterior a "desde"',
     path: ['hasta'],
   });
+
+const MESES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+const MARCA = /\{(mes|meta|llevamos|avance|falta)\}/g;
+const tieneMarcas = (texto: string) => /\{(mes|meta|llevamos|avance|falta)\}/.test(texto);
+
+/** $3.252 millones (en la franja, la cifra completa no se alcanza a leer). */
+function pesos(n: number): string {
+  if (Math.abs(n) >= 1_000_000) {
+    return `$${Math.round(n / 1_000_000).toLocaleString('es-CL')} millones`;
+  }
+  return `$${Math.round(n).toLocaleString('es-CL')}`;
+}
+
+type ValoresMeta = Record<'mes' | 'meta' | 'llevamos' | 'avance' | 'falta', string>;
+
+// Se recalcula a lo más cada 10 minutos: todos los inicios piden lo mismo.
+let cacheMeta: { hasta: number; valores: ValoresMeta | null } | null = null;
+const DIEZ_MINUTOS = 10 * 60 * 1000;
+
+/** Meta global del mes en curso y lo que se lleva (facturado + NVV + GDV).
+ *  null si el mes no tiene meta global. */
+async function valoresMeta(): Promise<ValoresMeta | null> {
+  if (cacheMeta && cacheMeta.hasta > Date.now()) return cacheMeta.valores;
+
+  const hoy = hoyChile();
+  const periodo = hoy.slice(0, 7);
+  const metaGlobal = (await storage.getGoals()).find((g) => g.type === 'global' && g.period === periodo);
+
+  let valores: ValoresMeta | null = null;
+  if (metaGlobal) {
+    const meta = parseFloat(metaGlobal.amount) || 0;
+    const [facturado, nvv, gdv] = await Promise.all([
+      storage.getGlobalSalesForPeriod(periodo, []),
+      storage.getAllNvvGroupedBySalespeople({}),
+      storage.getAllGdvGroupedBySalespeople(),
+    ]);
+    const llevamos = facturado
+      + nvv.reduce((t, v) => t + (Number(v.totalAmount) || 0), 0)
+      + gdv.reduce((t, v) => t + (Number(v.totalAmount) || 0), 0);
+    const avance = meta > 0 ? (llevamos / meta) * 100 : 0;
+    valores = {
+      mes: MESES[Number(hoy.slice(5, 7)) - 1],
+      meta: pesos(meta),
+      llevamos: pesos(llevamos),
+      avance: `${avance.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`,
+      falta: pesos(Math.max(0, meta - llevamos)),
+    };
+  }
+  cacheMeta = { hasta: Date.now() + DIEZ_MINUTOS, valores };
+  return valores;
+}
+
+const rellenar = (texto: string, v: ValoresMeta) =>
+  texto.replace(MARCA, (_, clave: keyof ValoresMeta) => v[clave]);
 
 function nombreDe(u: any): string {
   const full = [u?.firstName, u?.lastName].filter(Boolean).join(' ').trim();
@@ -110,7 +175,23 @@ export function registerMensajesDestacadosRoutes(app: Express) {
         return !!m.segmento && m.segmento === areaVendedor;
       });
 
-      res.json(visibles.map((m) => ({
+      // Los datos de la meta se rellenan al mostrar. Si el cálculo falla, el
+      // mensaje sale con "…" en vez de los números; si el mes no tiene meta, no sale.
+      let conDatos = visibles;
+      if (visibles.some((m) => tieneMarcas(m.texto))) {
+        let valores: ValoresMeta | null;
+        try {
+          valores = await valoresMeta();
+        } catch (error) {
+          console.error('[mensajes-destacados] meta:', error);
+          valores = { mes: '…', meta: '…', llevamos: '…', avance: '…', falta: '…' };
+        }
+        conDatos = visibles
+          .filter((m) => valores || !tieneMarcas(m.texto))
+          .map((m) => (valores && tieneMarcas(m.texto) ? { ...m, texto: rellenar(m.texto, valores) } : m));
+      }
+
+      res.json(conDatos.map((m) => ({
         id: m.id,
         texto: m.texto,
         color: m.color,
@@ -120,6 +201,16 @@ export function registerMensajesDestacadosRoutes(app: Express) {
     } catch (error: any) {
       console.error('[mensajes-destacados] mios:', error);
       res.status(500).json({ message: 'No se pudieron cargar los mensajes' });
+    }
+  });
+
+  // Números de la meta para la vista previa de Configuración → Mensajes.
+  app.get('/api/mensajes-destacados/meta-valores', requireAuth, requireEditor, async (_req, res) => {
+    try {
+      res.json({ valores: await valoresMeta() });
+    } catch (error: any) {
+      console.error('[mensajes-destacados] meta-valores:', error);
+      res.status(500).json({ message: 'No se pudo calcular la meta' });
     }
   });
 

@@ -405,12 +405,13 @@
     #2a1405;
   box-shadow: 0 0 18px -4px rgba(253, 99, 1, .55), 0 0 42px -12px rgba(253, 99, 1, .45);
 }
-.neon-icono { box-shadow: 0 0 10px rgba(253, 99, 1, .8), 0 0 22px rgba(253, 99, 1, .45); }
 .neon-ventana {
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
   mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
 }
-.neon-cinta { display: flex; width: max-content; }
+/* La cinta va en su propia capa de la tarjeta de video: así avanza pareja aunque
+   la página esté ocupada cargando datos o gráficos (solo se detiene con el cursor). */
+.neon-cinta { display: flex; width: max-content; will-change: transform; backface-visibility: hidden; }
 .neon-tramo { display: flex; flex-shrink: 0; }
 .neon-separador { color: #fd6301; opacity: .7; text-shadow: 0 0 6px #fd6301; }
 
@@ -420,26 +421,26 @@
 .neon-verde    { --neon: #22c55e; color: #e3ffec; }
 .neon-rosa     { --neon: #ec4899; color: #ffe4f2; }
 .neon-amarillo { --neon: #facc15; color: #fffbe0; }
+.neon-emoji { text-shadow: none; }
 
 @keyframes neon-girar { to { --neon-angulo: 360deg; } }
-@keyframes neon-correr { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes neon-correr { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-50%, 0, 0); } }
 @keyframes neon-parpadeo {
   0%, 18%, 22%, 25%, 53%, 57%, 100% { opacity: 1; }
-  20%, 24%, 55% { opacity: .45; text-shadow: none; }
+  20%, 24%, 55% { opacity: .45; }
 }
-@keyframes neon-latido { 0%, 100% { box-shadow: 0 0 10px rgba(253, 99, 1, .8), 0 0 22px rgba(253, 99, 1, .45); } 50% { box-shadow: 0 0 4px rgba(253, 99, 1, .5), 0 0 10px rgba(253, 99, 1, .2); } }
 
 @media (prefers-reduced-motion: no-preference) {
   .neon-borde { animation: neon-girar 3.5s linear infinite; }
-  .neon-icono { animation: neon-latido 2.2s ease-in-out infinite; }
   .neon-cinta { animation: neon-correr var(--neon-dur, 30s) linear infinite; }
   .neon-ventana:hover .neon-cinta { animation-play-state: paused; }
-  .neon-texto { animation: neon-parpadeo 7s linear infinite; }
+  /* El parpadeo solo cambia la opacidad, en capa propia: no obliga a redibujar la cinta. */
+  .neon-texto { animation: neon-parpadeo 7s linear infinite; will-change: opacity; }
 }
 @media (prefers-reduced-motion: reduce) {
   .neon-cinta { width: auto; }
   .neon-tramo { flex-wrap: wrap; gap: .25rem 0; }
   .neon-tramo + .neon-tramo, .neon-ventana { -webkit-mask-image: none; mask-image: none; }
   .neon-tramo + .neon-tramo, .neon-repetido { display: none !important; }
-  .neon-texto { white-space: normal; }
+  .neon-mensaje { white-space: normal; }
 }
