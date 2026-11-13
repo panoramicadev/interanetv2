@@ -5,6 +5,10 @@
  * según a quién se le escribe, y cada una trae el color de neón que mejor le
  * calza (urgente → naranjo/amarillo, felicitación → verde, novedad → cian).
  * El mes se arma con la fecha de hoy para que "cierre de mes" no quede viejo.
+ *
+ * "Meta del mes" lleva datos que se rellenan solos al mostrarse ({mes},
+ * {meta}, {llevamos}, {avance}, {falta}): la meta global del mes en curso y
+ * lo vendido (facturado + NVV + GDV). Los rellena el servidor.
  */
 
 export interface IdeaMensaje {
@@ -12,6 +16,23 @@ export interface IdeaMensaje {
   texto: string;
   color: "naranjo" | "cian" | "verde" | "rosa" | "amarillo";
 }
+
+/** Datos que el sistema reemplaza solos al mostrar el mensaje. */
+export const MARCAS_META = ["mes", "meta", "llevamos", "avance", "falta"] as const;
+export type ValoresMeta = Record<(typeof MARCAS_META)[number], string>;
+const MARCA = /\{(mes|meta|llevamos|avance|falta)\}/g;
+
+export const tieneMarcasMeta = (texto: string) => /\{(mes|meta|llevamos|avance|falta)\}/.test(texto);
+
+/** Igual que en el servidor, para la vista previa. */
+export const rellenarMeta = (texto: string, v: ValoresMeta) =>
+  texto.replace(MARCA, (_, clave: keyof ValoresMeta) => v[clave]);
+
+const META_DEL_MES: IdeaMensaje = {
+  titulo: "Meta del mes",
+  texto: "🎯 Meta de {mes}: {meta}. Llevamos {llevamos} ({avance}) y faltan {falta}. ¡Vamos con todo!",
+  color: "amarillo",
+};
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -38,12 +59,12 @@ export function ideasPara(audiencia: string, hoy = new Date()): IdeaMensaje[] {
     { titulo: "Feriado", texto: "🗓️ Recuerden: el próximo feriado no hay atención. Planifiquen sus pendientes con tiempo", color: "cian" },
   ];
 
-  if (audiencia === "todos") return generales;
+  if (audiencia === "todos") return [...generales, META_DEL_MES];
 
   if (ROLES_COMERCIALES.has(audiencia)) {
     return [
       { titulo: "Cierre de mes", texto: `⏰ ¡Se viene el cierre de ${mes}! Ingresen sus notas de venta antes del último día hábil a las 13:00`, color: "naranjo" },
-      { titulo: "Meta del mes", texto: `🎯 Vamos por la meta de ${mes}: cada visita y cada cotización cuenta. ¡A cerrar fuerte!`, color: "amarillo" },
+      META_DEL_MES,
       { titulo: "Felicitaciones", texto: `🏆 ¡Felicitaciones al equipo por los resultados de ${mesAnterior}! Sigamos así`, color: "verde" },
       { titulo: "Lista de precios", texto: "💲 Nueva lista de precios vigente desde el lunes. Revísenla antes de cotizar", color: "cian" },
       { titulo: "Seguimiento", texto: "📋 Actualicen el seguimiento de sus clientes en el Panel de Trabajo antes del viernes", color: "naranjo" },

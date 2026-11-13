@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Megaphone, X } from "lucide-react";
+import { X } from "lucide-react";
 
 export interface MensajeVisible {
   id: string;
@@ -15,6 +15,18 @@ const CLAVE_CERRADA = "franja-mensajes-cerrada";
 /** Firma de lo que se está mostrando: si cambia un mensaje, la franja vuelve. */
 function firma(mensajes: MensajeVisible[]): string {
   return mensajes.map((m) => `${m.id}:${m.updatedAt}`).join("|");
+}
+
+// Un emoji completo: con su variante y las uniones (👩‍💻, 🗓️, 🏳️‍🌈…).
+const EMOJI = new RegExp("(\\p{Extended_Pictographic}(?:\\uFE0F|\\u200D\\p{Extended_Pictographic})*\\uFE0F?)", "u");
+
+/** Parte el texto en tramos: el texto brilla en neón, los emojis quedan con
+ *  sus colores de siempre (sin brillo ni parpadeo). */
+function tramos(texto: string): { emoji: boolean; texto: string }[] {
+  return texto
+    .split(EMOJI)
+    .filter(Boolean)
+    .map((t) => ({ emoji: EMOJI.test(t), texto: t }));
 }
 
 function leerCerrada(): string | null {
@@ -75,9 +87,6 @@ export function FranjaMensajes({
     <div className={`px-2 sm:px-4 pt-2 sm:pt-4 ${className}`} data-sin-brillo>
       <div className="neon-borde rounded-2xl" role="region" aria-label="Mensajes destacados">
         <div className="relative flex items-center gap-3 rounded-[15px] bg-[#0a0a0a] pl-3 pr-2 py-2.5 sm:py-3 overflow-hidden">
-          <div className="neon-icono flex items-center justify-center w-9 h-9 rounded-xl bg-[#fd6301] flex-shrink-0 z-10">
-            <Megaphone className="h-4 w-4 text-white" />
-          </div>
 
           {/* Lectores de pantalla: la lista quieta, una vez. */}
           <ul className="sr-only">
@@ -92,11 +101,20 @@ export function FranjaMensajes({
                 <div key={copia} className="neon-tramo">
                   {tira.map((m, i) => (
                     <span key={`${copia}-${i}-${m.id}`} className={`inline-flex items-center ${i >= mensajes.length ? "neon-repetido" : ""}`}>
-                      <span
-                        className={`neon-texto neon-${m.color} text-sm sm:text-base font-semibold tracking-wide whitespace-nowrap`}
-                        style={{ animationDelay: `${(i % 5) * 1.3}s` }}
-                      >
-                        {m.texto}
+                      <span className="neon-mensaje text-sm sm:text-base font-semibold tracking-wide whitespace-nowrap">
+                        {tramos(m.texto).map((t, k) =>
+                          t.emoji ? (
+                            <span key={k} className="neon-emoji">{t.texto}</span>
+                          ) : (
+                            <span
+                              key={k}
+                              className={`neon-texto neon-${m.color}`}
+                              style={{ animationDelay: `${(i % 5) * 1.3}s` }}
+                            >
+                              {t.texto}
+                            </span>
+                          ),
+                        )}
                       </span>
                       <span className="neon-separador mx-6 sm:mx-10">✦</span>
                     </span>
