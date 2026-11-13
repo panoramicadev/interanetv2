@@ -2500,6 +2500,16 @@ export async function ensureSolicitudesMuestraTablas(): Promise<void> {
   await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_muestra_solicitante" ON solicitudes_muestra (solicitante_id)`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_muestra_supervisor" ON solicitudes_muestra (supervisor_id)`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_solicitudes_muestra_estado" ON solicitudes_muestra (estado)`);
+  // Migración 101: dónde retirarla y cuándo quedó lista. Toda lectura del
+  // módulo selecciona estas columnas: sin ellas no carga ninguna muestra.
+  await db.execute(sql`
+      ALTER TABLE solicitudes_muestra
+        ADD COLUMN IF NOT EXISTS lista_ubicacion TEXT,
+        ADD COLUMN IF NOT EXISTS lista_fecha DATE,
+        ADD COLUMN IF NOT EXISTS lista_por_id VARCHAR,
+        ADD COLUMN IF NOT EXISTS lista_por_nombre TEXT,
+        ADD COLUMN IF NOT EXISTS lista_registrada_at TIMESTAMPTZ
+  `);
   await db.execute(sql`
       CREATE TABLE IF NOT EXISTS solicitud_muestra_mensajes (
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),

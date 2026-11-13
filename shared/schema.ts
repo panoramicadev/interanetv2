@@ -5035,6 +5035,14 @@ export const solicitudesMuestra = pgTable("solicitudes_muestra", {
   cerradaPorNombre: text("cerrada_por_nombre"),
   cerradaAt: timestamp("cerrada_at", { withTimezone: true }),
 
+  // Laboratorio la deja lista para que el vendedor la retire (nov-2026): dónde
+  // está y el día en que quedó lista (lo escribe quien la marca; por defecto, hoy).
+  listaUbicacion: text("lista_ubicacion"),
+  listaFecha: date("lista_fecha"),
+  listaPorId: varchar("lista_por_id"),
+  listaPorNombre: text("lista_por_nombre"),
+  listaRegistradaAt: timestamp("lista_registrada_at", { withTimezone: true }),
+
   ultimoMovimientoAt: timestamp("ultimo_movimiento_at", { withTimezone: true }).defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
@@ -5054,7 +5062,7 @@ export const solicitudMuestraMensajes = pgTable("solicitud_muestra_mensajes", {
   texto: text("texto"),
   adjuntoUrl: text("adjunto_url"),
   adjuntoNombre: text("adjunto_nombre"),
-  evento: varchar("evento", { length: 30 }), // null = mensaje; creada | aprobada | rechazada | nvv | cerrada
+  evento: varchar("evento", { length: 30 }), // null = mensaje; creada | aprobada | rechazada | nvv | lista | cerrada
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 }, (table) => ({
   solicitudIdx: index("IDX_solicitud_muestra_mensajes_solicitud").on(table.solicitudId),
