@@ -12,6 +12,20 @@ export interface MensajeVisible {
 
 const CLAVE_CERRADA = "franja-mensajes-cerrada";
 
+/** Emojis (con sus variantes y uniones) para dibujarlos sin el brillo del neón. */
+// Con RegExp y no literal: el proyecto compila a un destino que no acepta la bandera "u" en literales.
+const EMOJI = new RegExp(
+  "((?:\\p{Extended_Pictographic}|\\p{Regional_Indicator})(?:\\uFE0F|\\u200D(?:\\p{Extended_Pictographic}|\\p{Regional_Indicator})|\\p{Regional_Indicator}|[\\u{1F3FB}-\\u{1F3FF}])*)",
+  "u",
+);
+
+function partes(texto: string): { emoji: boolean; texto: string }[] {
+  return texto
+    .split(EMOJI)
+    .filter(Boolean)
+    .map((t) => ({ emoji: EMOJI.test(t), texto: t }));
+}
+
 /** Firma de lo que se está mostrando: si cambia un mensaje, la franja vuelve. */
 function firma(mensajes: MensajeVisible[]): string {
   return mensajes.map((m) => `${m.id}:${m.updatedAt}`).join("|");
@@ -28,8 +42,9 @@ function leerCerrada(): string | null {
 /**
  * Franja neón de la pantalla de inicio: los mensajes que el admin o el
  * supervisor dejaron para el rol de quien mira (Configuración → Mensajes).
- * El texto corre de derecha a izquierda y brilla como un letrero de neón; un
- * haz de luz recorre el borde. Se puede cerrar hasta que llegue un mensaje
+ * El texto corre de derecha a izquierda y brilla como un letrero de neón, cada
+ * mensaje en su color. Solo brilla el texto: los emojis, el ícono y la tira
+ * negra van quietos (corrección del usuario, nov-2026). Se puede cerrar hasta que llegue un mensaje
  * nuevo o se edite uno (la firma va en sessionStorage).
  */
 export function FranjaMensajes({
@@ -73,9 +88,9 @@ export function FranjaMensajes({
 
   return (
     <div className={`px-2 sm:px-4 pt-2 sm:pt-4 ${className}`} data-sin-brillo>
-      <div className="neon-borde rounded-2xl" role="region" aria-label="Mensajes destacados">
-        <div className="relative flex items-center gap-3 rounded-[15px] bg-[#0a0a0a] pl-3 pr-2 py-2.5 sm:py-3 overflow-hidden">
-          <div className="neon-icono flex items-center justify-center w-9 h-9 rounded-xl bg-[#fd6301] flex-shrink-0 z-10">
+      <div className="rounded-2xl" role="region" aria-label="Mensajes destacados">
+        <div className="relative flex items-center gap-3 rounded-2xl bg-[#0a0a0a] pl-3 pr-2 py-2.5 sm:py-3 overflow-hidden">
+          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#fd6301] flex-shrink-0 z-10">
             <Megaphone className="h-4 w-4 text-white" />
           </div>
 
@@ -92,11 +107,14 @@ export function FranjaMensajes({
                 <div key={copia} className="neon-tramo">
                   {tira.map((m, i) => (
                     <span key={`${copia}-${i}-${m.id}`} className={`inline-flex items-center ${i >= mensajes.length ? "neon-repetido" : ""}`}>
-                      <span
-                        className={`neon-texto neon-${m.color} text-sm sm:text-base font-semibold tracking-wide whitespace-nowrap`}
-                        style={{ animationDelay: `${(i % 5) * 1.3}s` }}
-                      >
-                        {m.texto}
+                      <span className={`neon-${m.color} text-sm sm:text-base font-semibold tracking-wide whitespace-nowrap`}>
+                        {partes(m.texto).map((p, j) =>
+                          p.emoji ? (
+                            <span key={j} className="neon-emoji">{p.texto}</span>
+                          ) : (
+                            <span key={j} className="neon-texto" style={{ animationDelay: `${(i % 5) * 1.3}s` }}>{p.texto}</span>
+                          ),
+                        )}
                       </span>
                       <span className="neon-separador mx-6 sm:mx-10">✦</span>
                     </span>
