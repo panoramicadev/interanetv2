@@ -27,6 +27,7 @@ import SucursalDetail from "@/pages/sucursal-detail";
 import { CadenaSucursalesCard } from "@/components/clients/cadena-sucursales-card";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import { useBotonMenuArriba } from "@/components/layout/dashboard-layout";
+import { FranjaMensajes } from "@/components/mensajes/franja-mensajes";
 import ComparativeKPICards from "@/components/dashboard/comparative-kpi-cards";
 import ResumenConsolidado from "@/components/dashboard/resumen-consolidado";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
@@ -1621,6 +1622,10 @@ export default function Dashboard() {
           </div>
         </header>
       )}
+
+      {/* Franja neón de mensajes (Configuración → Mensajes). Va después de la
+          barra del logo en celular: arriba de ella desalinearía el botón del menú. */}
+      <FranjaMensajes />
 
       {/* Desktop Header */}
       {!isMobile && (

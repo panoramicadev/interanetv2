@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Target, Database, Key, Upload, Settings, Mail, MessageCircle, Link2, ShieldCheck } from "lucide-react";
+import { Users, Target, Database, Key, Upload, Settings, Mail, MessageCircle, Link2, ShieldCheck, Megaphone } from "lucide-react";
 import UsersPage from "./users";
 import Metas from "./metas";
 import ETLMonitor from "./etl-monitor";
@@ -13,6 +13,7 @@ import NotificacionesConfigPage from "./notificaciones-config";
 import WhatsAppConfigPage from "./whatsapp-config";
 import IntegracionesPage from "./integraciones";
 import RolesPermisosPage from "./roles-permisos";
+import MensajesConfigPage from "./mensajes-config";
 
 interface ConfigTab {
   value: string;
@@ -21,6 +22,8 @@ interface ConfigTab {
   icon: any;
   /** Permiso requerido; null = solo admin (no configurable) */
   permission: string | null;
+  /** Si está, la pestaña la ven solo estos roles (en vez de mirar el permiso). */
+  roles?: string[];
   content: React.ReactNode;
 }
 
@@ -35,6 +38,8 @@ const CONFIG_TABS: ConfigTab[] = [
   { value: "correos", label: "Correos", shortLabel: "Correos", icon: Mail, permission: "config.correos", content: <NotificacionesConfigPage /> },
   { value: "whatsapp", label: "WhatsApp", shortLabel: "WhatsApp", icon: MessageCircle, permission: "config.whatsapp", content: <WhatsAppConfigPage /> },
   { value: "integraciones", label: "Integraciones", shortLabel: "Integr.", icon: Link2, permission: "config.integraciones", content: <IntegracionesPage /> },
+  // Franja neón del inicio: el admin le escribe a cualquier rol, el supervisor a sus vendedores.
+  { value: "mensajes", label: "Mensajes", shortLabel: "Mensajes", icon: Megaphone, permission: null, roles: ["admin", "supervisor"], content: <MensajesConfigPage /> },
 ];
 
 export default function ConfiguracionPage() {
@@ -46,9 +51,11 @@ export default function ConfiguracionPage() {
   const visibleTabs = useMemo(
     () =>
       CONFIG_TABS.filter((tab) =>
-        tab.permission === null ? isAdmin : can(tab.permission),
+        tab.roles
+          ? tab.roles.includes(user?.role || "")
+          : tab.permission === null ? isAdmin : can(tab.permission),
       ),
-    [isAdmin, can],
+    [isAdmin, can, user?.role],
   );
 
   const [activeTab, setActiveTab] = useState<string | null>(null);

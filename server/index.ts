@@ -7,7 +7,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations, ensureOAuthTables, ensureMarketSubUserColumns, ensureTaskCommentsAudioColumns, ensureSucursalPrefijoColumns, ensureSucursalesRedmat, ensureTintometriaTablas, ensureSolicitudesMuestraTablas, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
+import { runProductionMigrations, ensureOAuthTables, ensureMarketSubUserColumns, ensureTaskCommentsAudioColumns, ensureSucursalPrefijoColumns, ensureSucursalesRedmat, ensureTintometriaTablas, ensureSolicitudesMuestraTablas, ensureMensajesDestacadosTabla, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
 import { startDailySalesReportScheduler } from "./daily-sales-report";
 import { imputarSucursalesPorPrefijo } from "./utils/sucursal-por-prefijo";
 
@@ -112,6 +112,12 @@ app.use((req, res, next) => {
     } catch (error: any) {
       console.error('❌ Error al preparar las tablas de solicitudes de muestra:', error.message);
     }
+    // Mensajes destacados: la franja neón del inicio.
+    try {
+      await ensureMensajesDestacadosTabla();
+    } catch (error: any) {
+      console.error('❌ Error al preparar la tabla de mensajes destacados:', error.message);
+    }
     // Con las fichas listas, cada venta toma el nombre de su ferretería por el
     // prefijo de la orden de compra. Corre acá para que un despliegue lo aplique
     // sin esperar al ETL; adentro replica primero las reglas de comisión.
@@ -153,6 +159,10 @@ app.use((req, res, next) => {
   // Memorice público de la Feria Redmat (juego + ranking + leads de Ferretería)
   const { registerMemoriceRoutes } = await import('./routes-memorice');
   registerMemoriceRoutes(app);
+
+  // Mensajes destacados (franja neón del inicio + pestaña en Configuración)
+  const { registerMensajesDestacadosRoutes } = await import('./routes-mensajes');
+  registerMensajesDestacadosRoutes(app);
 
   // Register Web Push (PWA) routes
   const { registerPushRoutes } = await import('./routes-push');
