@@ -8,7 +8,10 @@
  *  2. en_curso — Franco (permiso "Muestras: NVV y cierre") crea la NVV y la
  *     registra acá; laboratorio y logística ("Muestras: preparar y conversar")
  *     la preparan. Todos conversan en el hilo con el vendedor y el supervisor.
- *  3. cerrada — Franco la cierra cuando la muestra se entregó. Necesita la NVV.
+ *     Cuando la muestra está hecha, laboratorio la marca "lista para retiro":
+ *     dónde está y el día en que quedó lista; al vendedor le llega el aviso (nov-2026).
+ *  3. cerrada — Franco o laboratorio la cierran cuando la muestra se entregó.
+ *     Necesita la NVV.
  *     El admin puede reabrirla: vuelve a en_curso conservando la NVV (nov-2026).
  *
  * Quién ve qué:
@@ -64,6 +67,14 @@ const fueraDeMuestras = (u: any) => FUERA_DE_MUESTRAS.has(String(u?.email ?? '')
 const gestiona = async (u: any) => !fueraDeMuestras(u) && (await userHasPermission(u, 'solicitud_muestra.gestion'));
 const veBandeja = async (u: any) =>
   !fueraDeMuestras(u) && ((await gestiona(u)) || (await userHasPermission(u, 'solicitud_muestra.bandeja')));
+/**
+ * Laboratorio deja la muestra lista para retiro y la cierra cuando se entregó
+ * (pedido del usuario, nov-2026), igual que Administración. Va por rol y no por
+ * un permiso nuevo: los permisos de cada rol están guardados y uno nuevo no le
+ * llegaría a nadie hasta activarlo a mano.
+ */
+const preparaMuestras = async (u: any) =>
+  !fueraDeMuestras(u) && (ROLES_LABORATORIO.includes(u?.role) || (await gestiona(u)));
 
 /** Base de los enlaces de los correos: la del despliegue o la del propio request. */
 function urlBase(req: any): string {
@@ -139,6 +150,15 @@ async function correosAdministracion(): Promise<string[]> {
 const itemsDe = (s: SolicitudMuestra): ItemSolicitudMuestra[] =>
   Array.isArray(s.items) ? (s.items as ItemSolicitudMuestra[]) : [];
 
+/** '2026-11-13' → '13-11-2026', como se leen las fechas en el resto del módulo. */
+const fechaTexto = (iso: string) => {
+  const [a, m, d] = String(iso).slice(0, 10).split('-');
+  return a && m && d ? `${d}-${m}-${a}` : String(iso);
+};
+
+/** Hoy en Chile, en 'AAAA-MM-DD'. */
+const hoyChile = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+
 function fichaHtml(s: SolicitudMuestra): string {
   const fila = (label: string, valor: unknown) =>
     valor === null || valor === undefined || valor === ''
@@ -161,6 +181,8 @@ function fichaHtml(s: SolicitudMuestra): string {
       ${fila('Motivo', s.motivo)}
       ${fila('Pedida por', s.solicitanteNombre)}
       ${fila('NVV', s.nvvNumero)}
+      ${fila('Dónde retirarla', s.listaUbicacion)}
+      ${fila('Lista el', s.listaFecha ? fechaTexto(s.listaFecha) : null)}
     </table>
     ${items ? `<ul style="margin:4px 0 12px;padding-left:18px">${items}</ul>` : ''}`;
 }
@@ -328,6 +350,7 @@ export function registerSolicitudesMuestraRoutes(app: Express) {
         puedeAprobar: puedeAprobar(req.user, s),
         puedeEditar: puedeEditar(req.user, s),
         puedeGestionar: s.estado === 'en_curso' && (await gestiona(req.user)),
+        puedePreparar: s.estado === 'en_curso' && (await preparaMuestras(req.user)),
         puedeReabrir: puedeReabrir(req.user, s),
       });
     } catch (error: any) {
@@ -557,13 +580,67 @@ export function registerSolicitudesMuestraRoutes(app: Express) {
     },
   );
 
-  // ── Administración: cerrar (la muestra se entregó) ───────────────────────
+  // ── Laboratorio: lista para retiro (dónde está y cuándo quedó lista) ─────
+  // Se puede volver a marcar para corregir el lugar o la fecha mientras siga en curso.
+  app.post('/api/solicitudes-muestra/:id/lista', requireAuth, async (req: any, res) => {
+    try {
+      if (!(await preparaMuestras(req.user))) {
+        return res.status(403).json({ message: 'Solo laboratorio o Administración marcan una muestra como lista.' });
+      }
+      const ubicacion = String(req.body?.ubicacion ?? '').trim().slice(0, 300);
+      const fecha = String(req.body?.fecha ?? '').trim();
+      if (!ubicacion) return res.status(400).json({ message: 'Indica dónde queda la muestra para que la retiren.' });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || Number.isNaN(new Date(`${fecha}T12:00:00Z`).getTime())) {
+        return res.status(400).json({ message: 'Indica la fecha en que quedó lista.' });
+      }
+      if (fecha > hoyChile()) return res.status(400).json({ message: 'La fecha en que quedó lista no puede ser futura.' });
+
+      const s = await buscar(req.user, req.params.id);
+      if (!s) return res.status(404).json({ message: 'Solicitud no encontrada' });
+      if (s.estado !== 'en_curso') return res.status(409).json({ message: 'Solo se marca lista una muestra en curso.' });
+      const correccion = !!s.listaRegistradaAt;
+
+      const [actualizada] = await db
+        .update(solicitudesMuestra)
+        .set({
+          listaUbicacion: ubicacion,
+          listaFecha: fecha,
+          listaPorId: req.user.id,
+          listaPorNombre: nombreDe(req.user),
+          listaRegistradaAt: sql`now()`,
+        })
+        .where(and(eq(solicitudesMuestra.id, s.id), eq(solicitudesMuestra.estado, 'en_curso')))
+        .returning();
+      if (!actualizada) return res.status(409).json({ message: 'Solo se marca lista una muestra en curso.' });
+      await registrarEvento(actualizada, req.user, 'lista', `Lista el ${fechaTexto(fecha)} · retirarla en: ${ubicacion}`);
+
+      enviar({
+        to: await correosDe([s.solicitanteId]),
+        cc: await correosDe([s.supervisorId]),
+        subject: asunto(actualizada, correccion ? 'Cambió dónde retirarla' : 'Lista para retiro'),
+        html: `
+          <p style="font-size:15px;color:#0f172a">La muestra #${actualizada.numero} para ${escapar(actualizada.clienteNombre)}
+            está <strong style="color:#047857">lista para retiro</strong> desde el ${escapar(fechaTexto(fecha))}.</p>
+          <p style="font-size:15px;color:#0f172a"><strong>Dónde retirarla:</strong> ${escapar(ubicacion)}</p>
+          ${fichaHtml(actualizada)}
+          ${boton(enlace(req, s.id), 'Ver la solicitud')}`,
+      });
+      res.json(actualizada);
+    } catch (error: any) {
+      console.error('[muestras] no se pudo marcar lista:', error.message);
+      res.status(500).json({ message: 'No se pudo guardar' });
+    }
+  });
+
+  // ── Administración o laboratorio: cerrar (la muestra se entregó) ─────────
   app.post(
     '/api/solicitudes-muestra/:id/cerrar',
     requireAuth,
-    requirePermission('solicitud_muestra.gestion'),
     async (req: any, res) => {
       try {
+        if (!(await preparaMuestras(req.user))) {
+          return res.status(403).json({ message: 'Solo laboratorio o Administración cierran una muestra.' });
+        }
         const comentario = String(req.body?.comentario ?? '').trim().slice(0, 4000);
         const s = await buscar(req.user, req.params.id);
         if (!s) return res.status(404).json({ message: 'Solicitud no encontrada' });

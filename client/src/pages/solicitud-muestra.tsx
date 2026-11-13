@@ -4,8 +4,9 @@
  *
  * El supervisor de quien la pide la aprueba o la rechaza. Aprobada queda "en
  * curso": Franco (Administración) crea la NVV y la registra acá, laboratorio y
- * logística la preparan, y todos conversan en el hilo de la solicitud. Franco la
- * cierra cuando la muestra se entregó.
+ * logística la preparan, y todos conversan en el hilo de la solicitud. Laboratorio
+ * la deja "lista para retiro" con dónde está y el día en que quedó lista, y Franco
+ * o laboratorio la cierran cuando la muestra se entregó (nov-2026).
  *
  * Mismo esqueleto que Solicitudes a laboratorio (tintometria-solicitudes.tsx):
  * pestañas Nueva / En curso / Cerradas y el detalle en un diálogo con el hilo.
@@ -13,7 +14,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Check, Loader2, PaintBucket, Paperclip, Pencil, Plus, RotateCcw, Send, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Loader2, MapPin, PackageCheck, PaintBucket, Paperclip, Pencil, Plus, RotateCcw, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,6 +40,7 @@ interface Detalle extends SolicitudMuestra {
   puedeAprobar: boolean;
   puedeEditar?: boolean;
   puedeGestionar: boolean;
+  puedePreparar?: boolean;
   puedeReabrir?: boolean;
 }
 
@@ -60,12 +62,19 @@ const ESTADO: Record<string, { texto: string; clase: string }> = {
   rechazada: { texto: "RECHAZADA", clase: "bg-red-100 text-red-700 border-red-200" },
 };
 const ABIERTAS = ["pendiente", "en_curso"];
+// En curso, pero laboratorio ya la dejó lista: el vendedor tiene que ir a buscarla.
+const LISTA_RETIRO = { texto: "LISTA PARA RETIRO", clase: "bg-emerald-100 text-emerald-700 border-emerald-200" };
+const estadoDe = (s: SolicitudMuestra) =>
+  s.estado === "en_curso" && s.listaRegistradaAt
+    ? LISTA_RETIRO
+    : ESTADO[s.estado] ?? { texto: s.estado.toUpperCase(), clase: "" };
 
 const EVENTO: Record<string, string> = {
   creada: "envió la solicitud",
   aprobada: "la aprobó: queda en curso",
   rechazada: "la rechazó",
   nvv: "registró la NVV",
+  lista: "la dejó lista para retiro",
   editada: "la corrigió",
   cerrada: "la cerró: muestra entregada",
   reabierta: "la reabrió: vuelve a en curso",
@@ -79,6 +88,14 @@ const fmtFecha = (v: string | Date | null | undefined, conHora = false) => {
     ? d.toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" })
     : d.toLocaleDateString("es-CL");
 };
+/** Un día guardado como '2026-11-13' → '13-11-2026'. Sin pasar por Date: corre un día por la zona horaria. */
+const fmtDia = (iso: string | null | undefined) => {
+  if (!iso) return null;
+  const [a, m, d] = String(iso).slice(0, 10).split("-");
+  return a && m && d ? `${d}-${m}-${a}` : String(iso);
+};
+/** Hoy en Chile, en 'AAAA-MM-DD' (lo que pide un <input type="date">). */
+const hoyIso = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Santiago" });
 const itemsDe = (s: SolicitudMuestra): ItemSolicitudMuestra[] =>
   Array.isArray(s.items) ? (s.items as ItemSolicitudMuestra[]) : [];
 
@@ -135,7 +152,7 @@ export default function SolicitudMuestraPage() {
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Solicitud de Muestra</h1>
           <p className="hidden sm:block text-sm text-slate-500 dark:text-slate-400">
-            Pide una muestra para un cliente: tu supervisor la aprueba, Administración crea la NVV y la cierra cuando se entregó.
+            Pide una muestra para un cliente: tu supervisor la aprueba, Administración crea la NVV, laboratorio la deja lista para retiro y se cierra cuando se entregó.
           </p>
         </div>
       </div>
@@ -203,7 +220,7 @@ function Lista({
   return (
     <div className="space-y-2">
       {filas.map((s) => {
-        const estado = ESTADO[s.estado] ?? { texto: s.estado.toUpperCase(), clase: "" };
+        const estado = estadoDe(s);
         const items = itemsDe(s);
         return (
           <button
@@ -225,6 +242,7 @@ function Lista({
               <div className="truncate text-[11px] text-slate-400">
                 {s.solicitanteNombre ?? "—"} · {fmtFecha(s.createdAt)}
                 {s.nvvNumero ? ` · NVV ${s.nvvNumero}` : ""}
+                {s.estado === "en_curso" && s.listaUbicacion ? ` · Retirar en: ${s.listaUbicacion}` : ""}
                 {s.mensajes > 0 ? ` · ${s.mensajes} ${s.mensajes === 1 ? "mensaje" : "mensajes"}` : ""}
               </div>
             </div>
@@ -810,7 +828,7 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
     onError: (error: any) => toast({ title: "No se pudo guardar", description: error?.message, variant: "destructive" }),
   });
 
-  const estado = s ? ESTADO[s.estado] ?? { texto: s.estado.toUpperCase(), clase: "" } : null;
+  const estado = s ? estadoDe(s) : null;
   const abierta = s && ABIERTAS.includes(s.estado);
 
   return (
@@ -861,6 +879,8 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
               <Dato titulo={lugarDe(s.tipo)} valor={s.obra} />
               <Dato titulo="Aprobada por" valor={s.estado !== "rechazada" ? s.aprobadaPorNombre : null} />
               <Dato titulo="NVV" valor={s.nvvNumero} />
+              <Dato titulo="Lista el" valor={fmtDia(s.listaFecha)} />
+              <Dato titulo="Dónde retirarla" valor={s.listaUbicacion} completo />
               <Dato titulo="Entregada" valor={s.cerradaAt ? fmtFecha(s.cerradaAt) : null} />
             </dl>
 
@@ -924,6 +944,23 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
               />
             )}
 
+            {s.puedePreparar && (
+              <ListaRetiro
+                key={s.id}
+                s={s}
+                ocupado={accion.isPending}
+                onLista={(ubicacion, fecha) =>
+                  accion.mutate({ ruta: "lista", datos: { ubicacion, fecha }, ok: "Muestra lista para retiro" })
+                }
+                // Administración ya tiene su botón de cierre en su recuadro.
+                onCerrar={
+                  s.puedeGestionar
+                    ? undefined
+                    : (comentario) => accion.mutate({ ruta: "cerrar", datos: { comentario }, ok: "Muestra cerrada" })
+                }
+              />
+            )}
+
             {s.puedeReabrir && (
               <Reabrir
                 key={s.id}
@@ -940,12 +977,13 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
   );
 }
 
-function Dato({ titulo, valor }: { titulo: string; valor: string | null | undefined }) {
+function Dato({ titulo, valor, completo }: { titulo: string; valor: string | null | undefined; completo?: boolean }) {
   if (!valor) return null;
+  // `completo`: a todo el ancho y sin cortar (el lugar de retiro tiene que leerse entero).
   return (
-    <div className="min-w-0">
+    <div className={completo ? "min-w-0 col-span-full" : "min-w-0"}>
       <dt className="text-[10px] uppercase tracking-wider font-bold text-slate-400">{titulo}</dt>
-      <dd className="truncate text-slate-800 dark:text-slate-100">{valor}</dd>
+      <dd className={`${completo ? "break-words" : "truncate"} text-slate-800 dark:text-slate-100`}>{valor}</dd>
     </div>
   );
 }
@@ -1044,6 +1082,110 @@ function Gestion({
           <Check className="h-4 w-4 mr-1.5" /> Muestra entregada: cerrar
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Laboratorio: deja la muestra lista para retiro (dónde está y el día en que
+ * quedó lista) y la cierra cuando el vendedor se la llevó. Administración ve
+ * solo la primera parte: su cierre está en su propio recuadro.
+ */
+function ListaRetiro({
+  s,
+  ocupado,
+  onLista,
+  onCerrar,
+}: {
+  s: Detalle;
+  ocupado: boolean;
+  onLista: (ubicacion: string, fecha: string) => void;
+  onCerrar?: (comentario: string) => void;
+}) {
+  const hoy = hoyIso();
+  const [ubicacion, setUbicacion] = useState(s.listaUbicacion ?? "");
+  const [fecha, setFecha] = useState(s.listaFecha ?? hoy);
+  const [comentario, setComentario] = useState("");
+  useEffect(() => setUbicacion(s.listaUbicacion ?? ""), [s.listaUbicacion]);
+  useEffect(() => setFecha(s.listaFecha ?? hoyIso()), [s.listaFecha]);
+
+  const marcada = !!s.listaRegistradaAt;
+  const sinCambios = marcada && ubicacion.trim() === (s.listaUbicacion ?? "") && fecha === s.listaFecha;
+  const fechaValida = !!fecha && fecha <= hoy;
+
+  return (
+    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 p-3 space-y-3">
+      <div className="text-sm font-bold text-slate-700 dark:text-slate-200">Laboratorio</div>
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+        <div>
+          <div className={ETIQUETA}>Dónde retirarla</div>
+          <div className="relative">
+            <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#fd6301]" />
+            <Input
+              value={ubicacion}
+              onChange={(e) => setUbicacion(e.target.value)}
+              maxLength={300}
+              className={`${CAMPO} pl-9`}
+              placeholder="Ej.: Recepción de planta, estante 2"
+              data-testid="input-muestra-ubicacion"
+            />
+          </div>
+        </div>
+        <div>
+          <div className={ETIQUETA}>Quedó lista el</div>
+          <Input
+            type="date"
+            value={fecha}
+            max={hoy}
+            onChange={(e) => setFecha(e.target.value)}
+            className={`${CAMPO} sm:w-44`}
+            data-testid="input-muestra-fecha-lista"
+          />
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {!fechaValida && <span className="text-xs text-red-600">La fecha no puede ser futura.</span>}
+        <Button
+          variant={marcada ? "outline" : "default"}
+          className={marcada ? "rounded-2xl h-9 text-sm" : `h-9 ${BOTON_MARCA}`}
+          disabled={ocupado || !ubicacion.trim() || !fechaValida || sinCambios}
+          onClick={() => onLista(ubicacion.trim(), fecha)}
+          data-testid="button-muestra-lista"
+        >
+          <PackageCheck className="h-4 w-4 mr-1.5" /> {marcada ? "Guardar cambios" : "Muestra lista para retiro"}
+        </Button>
+      </div>
+      {marcada && (
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Marcada lista por {s.listaPorNombre ?? "—"}. Al vendedor ya le llegó el aviso con el lugar.
+        </p>
+      )}
+
+      {onCerrar && (
+        <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
+          <div>
+            <div className={ETIQUETA}>Comentario de cierre</div>
+            <Textarea
+              value={comentario}
+              onChange={(e) => setComentario(e.target.value)}
+              className="rounded-xl text-sm min-h-[56px] bg-slate-50/60"
+              placeholder="Opcional: quién la retiró y cuándo"
+            />
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {!s.nvvNumero && <span className="text-xs text-slate-500">Administración tiene que registrar la NVV antes de cerrarla.</span>}
+            <Button
+              className={`h-9 ${marcada ? BOTON_MARCA : "rounded-2xl"}`}
+              variant={marcada ? "default" : "outline"}
+              disabled={ocupado || !s.nvvNumero}
+              onClick={() => onCerrar(comentario.trim())}
+              data-testid="button-muestra-cerrar-lab"
+            >
+              <Check className="h-4 w-4 mr-1.5" /> Muestra entregada: cerrar
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
