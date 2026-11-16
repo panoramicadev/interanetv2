@@ -28,6 +28,7 @@ import { requireAuth } from './auth';
 import { requirePermission, userHasPermission } from './permissions';
 import { emailService } from './services/email';
 import {
+  emailLogs,
   emailNotificationSettings,
   insertSolicitudMuestraSchema,
   salespeopleUsers,
@@ -192,18 +193,47 @@ const boton = (url: string, texto: string) =>
     ? `<p style="margin:16px 0"><a href="${url}" style="background:#fd6301;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px">${texto}</a></p>`
     : '';
 
-/** Manda un correo sin frenar nada: si falla, queda en el log. */
+/**
+ * Deja el aviso en email_logs (tipo 'solicitud_muestra'), como los correos de
+ * cotizaciones: así se ve si salió, si falló y por qué. Antes de nov-2026 los
+ * avisos de muestras no se anotaban y no había cómo saber si habían salido.
+ * Si la anotación falla, el aviso no se entera.
+ */
+async function anotarCorreo(fila: { to: string[]; cc: string[]; subject: string; ok: boolean; error?: string }) {
+  try {
+    const recipient = [fila.to.join(', ') || '(nadie)', fila.cc.join(', ')].filter(Boolean).join(' | ');
+    await db.insert(emailLogs).values({
+      recipient,
+      subject: fila.subject.slice(0, 250),
+      notificationType: 'solicitud_muestra',
+      status: fila.ok ? 'sent' : 'failed',
+      errorMessage: fila.ok ? null : (fila.error || 'No se pudo enviar').slice(0, 1000),
+      sentAt: fila.ok ? new Date() : null,
+    });
+  } catch (error: any) {
+    console.error('[muestras] no se pudo anotar el aviso:', error?.message);
+  }
+}
+
+/** Manda un correo sin frenar nada: si falla, queda en el log y en email_logs. */
 function enviar(opciones: { to: string[]; cc?: string[]; excluir?: string[]; subject: string; html: string }) {
   const fuera = new Set((opciones.excluir ?? []).map((e) => e.toLowerCase()));
   const to = Array.from(new Set(opciones.to)).filter((e) => !fuera.has(e.toLowerCase()));
   const cc = Array.from(new Set(opciones.cc ?? [])).filter((e) => !to.includes(e) && !fuera.has(e.toLowerCase()));
   if (to.length === 0) {
     console.warn('[muestras] aviso sin destinatarios:', opciones.subject);
+    void anotarCorreo({ to, cc, subject: opciones.subject, ok: false, error: 'Sin destinatarios: nadie con correo a quien avisar' });
     return;
   }
   emailService
     .sendEmail({ to: to.join(', '), cc: cc.length ? cc.join(', ') : undefined, subject: opciones.subject, html: opciones.html })
-    .catch((error: any) => console.error('[muestras] no se pudo enviar el aviso:', error?.message));
+    .then((ok) =>
+      anotarCorreo({ to, cc, subject: opciones.subject, ok: ok !== false, error: 'El servicio de correo no lo aceptó' }),
+    )
+    .catch((error: any) => {
+      console.error('[muestras] no se pudo enviar el aviso:', error?.message);
+      return anotarCorreo({ to, cc, subject: opciones.subject, ok: false, error: error?.message });
+    });
 }
 
 const asunto = (s: SolicitudMuestra, que: string) => `${que} · muestra #${s.numero} · ${s.clienteNombre}`;
