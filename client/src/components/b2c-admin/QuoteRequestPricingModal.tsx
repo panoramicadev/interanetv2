@@ -57,7 +57,18 @@ interface Props {
   request: QuoteRequest | null;
   onClose: () => void;
   onSuccess: () => void;
+  /**
+   * Gestor de un segmento que trabaja con una empresa externa (Pablo Rossi):
+   * en vez de las listas de precios de Panorámica ve su último costo de compra
+   * por producto y el margen del precio que escribe (simulador). Sin notas.
+   */
+  modoCosto?: boolean;
 }
+
+type CostosCompra = Record<string, { price: number; date: string | null }>;
+
+const fechaCorta = (f: string | null | undefined) =>
+  f ? new Date(f + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 
 const TAX_RATE = 0.19;
 
@@ -77,7 +88,8 @@ interface ShippingLine {
   unitPrice: string;
 }
 
-export default function QuoteRequestPricingModal({ open, request, onClose, onSuccess }: Props) {
+export default function QuoteRequestPricingModal({ open, request, onClose, onSuccess, modoCosto = false }: Props) {
+  const [costos, setCostos] = useState<CostosCompra>({});
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [itemLists, setItemLists] = useState<Record<string, string>>({});
   const [rowApplying, setRowApplying] = useState<Record<string, boolean>>({});
@@ -92,9 +104,28 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
   const [applyingList, setApplyingList] = useState(false);
   const [listMessage, setListMessage] = useState<string | null>(null);
 
+  // Modo costo: su último costo de compra por SKU, en vez de las listas de Panorámica.
+  useEffect(() => {
+    if (!open || !modoCosto) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/empresa-externa/costos-compra', { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data && typeof data === 'object') setCostos(data);
+      } catch {
+        /* silent — sin costo de referencia igual se puede cotizar */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, modoCosto]);
+
   // Load available price lists once the modal opens
   useEffect(() => {
-    if (!open) return;
+    if (!open || modoCosto) return;
     let cancelled = false;
     (async () => {
       try {
@@ -111,7 +142,7 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, modoCosto]);
 
   // Initialize from request
   useEffect(() => {
@@ -316,7 +347,7 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
           color: it.color,
           format: it.format,
           unitPrice: parseFloat(prices[`${idx}`] || '0') || 0,
-          priceListCode: itemLists[`${idx}`] || undefined,
+          priceListCode: modoCosto ? undefined : itemLists[`${idx}`] || undefined,
         })),
         shippingItems: shippingLines.map(s => ({
           sku: 'DESPACHO',
@@ -324,7 +355,7 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
           quantity: parseFloat(s.quantity) || 0,
           unitPrice: parseFloat(s.unitPrice) || 0,
         })),
-        internalNotes: notes,
+        ...(modoCosto ? {} : { internalNotes: notes }),
         validDays,
       };
       const res = await fetch(
@@ -551,6 +582,24 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
                           </div>
                         )}
 
+                        {/* Modo costo: último costo de compra + margen del precio escrito */}
+                        {modoCosto && !isCustom && (() => {
+                          const c = costos[(item.sku || '').toUpperCase()];
+                          const margen = c?.price && priceNum > 0 ? ((priceNum - c.price) / priceNum) * 100 : null;
+                          return (
+                            <div className="shrink-0 w-32 text-right">
+                              <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">Último costo</p>
+                              <p className="text-sm font-semibold text-amber-700">{c?.price ? fmtCLP(c.price) : '—'}</p>
+                              {c?.date && <p className="text-[10px] text-slate-400">{fechaCorta(c.date)}</p>}
+                              {margen !== null && (
+                                <p className={`text-[11px] font-bold ${margen >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                  {margen >= 0 ? '+' : ''}{margen.toFixed(1).replace('.', ',')}% margen
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()}
+
                         {/* Unit price input */}
                         <div className="shrink-0 w-32">
                           <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">
@@ -692,6 +741,7 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
               <div className="grid md:grid-cols-2 gap-4">
                 {/* Options */}
                 <div className="space-y-3">
+                  {!modoCosto && (
                   <div>
                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">
                       Observaciones internas (aparecen en el PDF)
@@ -704,6 +754,7 @@ export default function QuoteRequestPricingModal({ open, request, onClose, onSuc
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 resize-none"
                     />
                   </div>
+                  )}
                   <div>
                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">
                       Validez (días)

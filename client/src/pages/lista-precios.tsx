@@ -15,6 +15,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { DollarSign, Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, List, TrendingUp, TrendingDown, Percent, Check, Tag } from "lucide-react";
 import { PriceList } from "@shared/schema";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useEmpresaExterna } from "@/hooks/use-empresa-externa";
 import { MobilePriceField } from "@/components/precios/mobile-price-field";
 import ListaPreciosMix from "./lista-precios-mix";
 import ListaPreciosOfertas from "./lista-precios-ofertas";
@@ -36,6 +37,12 @@ interface PriceListResponse {
 export default function ListaPrecios({ vendorView: vendorViewProp = false }: { vendorView?: boolean }) {
   const { can } = usePermissions();
   const vendorView = vendorViewProp || !can("precios.editar");
+  // Empresa externa (Pinturería del Sur): solo su costo (el último precio que le
+  // pagó a Panorámica) y el simulador. No ve precio de lista, descuentos, mínimo,
+  // Lista Mix, ofertas ni el costo de producción de Panorámica.
+  const { empresa, consulta: consultaEmpresa } = useEmpresaExterna();
+  const soloLista = !!empresa;
+  const costoPropio = (item: any) => (soloLista ? null : item.costoProduccion);
   const [search, setSearch] = useState("");
   const [selectedUnidad, setSelectedUnidad] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState<string>("");
@@ -96,7 +103,9 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
 
   // Vendedor: de las listas personalizadas solo ve Lista Mix. MCT y Panoramica
   // Store son internas y no deben aparecerle como pestaña.
-  const visiblePriceLists = vendorView
+  const visiblePriceLists = soloLista
+    ? []
+    : vendorView
     ? customPriceLists.filter(l => l.code === 'LP02' || /mix/i.test(l.name))
     : customPriceLists;
 
@@ -151,7 +160,7 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
       return map;
     },
     staleTime: 5 * 60 * 1000,
-    enabled: vendorView,
+    enabled: vendorView && !soloLista,
   });
 
   // Ofertas: mapa codigo→precio oferta para mostrar como columna en la vista de vendedor.
@@ -177,14 +186,18 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
       return map;
     },
     staleTime: 5 * 60 * 1000,
-    enabled: vendorView,
+    enabled: vendorView && !soloLista,
   });
 
-  // Query para obtener precios GRI (costo producción desde SQL Server)
+  // Query para obtener precios GRI (costo producción desde SQL Server).
+  // Para una empresa externa, el mismo mapa trae su último precio de compra a Panorámica.
   const { data: griPrices } = useQuery<Record<string, { price: number; date: string | null }>>({
-    queryKey: ['/api/inventory/gri-prices'],
+    queryKey: soloLista ? ['empresa-externa', 'costos-compra', consultaEmpresa] : ['/api/inventory/gri-prices'],
     queryFn: async () => {
-      const response = await fetch('/api/inventory/gri-prices', { credentials: 'include' });
+      const url = soloLista
+        ? `/api/empresa-externa/costos-compra${consultaEmpresa ? `?${consultaEmpresa}` : ''}`
+        : '/api/inventory/gri-prices';
+      const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) return {};
       return response.json();
     },
@@ -725,18 +738,23 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
                     <TableHead className="text-xs">Código</TableHead>
                     <TableHead className="text-xs">Producto</TableHead>
                     <TableHead className="text-xs">Formato</TableHead>
-                    <TableHead className="text-right text-xs">Lista</TableHead>
-                    <TableHead className="text-right text-xs">Desc10</TableHead>
-                    <TableHead className="text-right text-xs">Desc10+5</TableHead>
-                    <TableHead className="text-right text-xs">Mínimo</TableHead>
-                    {vendorView && (
+                    {!soloLista && <TableHead className="text-right text-xs">Lista</TableHead>}
+                    {!soloLista && <TableHead className="text-right text-xs">Desc10</TableHead>}
+                    {!soloLista && <TableHead className="text-right text-xs">Desc10+5</TableHead>}
+                    {!soloLista && <TableHead className="text-right text-xs">Mínimo</TableHead>}
+                    {vendorView && !soloLista && (
                       <TableHead className="text-right text-xs text-red-600 dark:text-red-400 font-semibold">Lista Mix</TableHead>
                     )}
-                    {vendorView && (
+                    {vendorView && !soloLista && (
                       <TableHead className="text-right text-xs text-emerald-600 dark:text-emerald-400 font-semibold"><span className="flex items-center justify-end gap-1"><Tag className="h-3 w-3" />Ofertas</span></TableHead>
                     )}
-                    <TableHead className="text-right text-xs text-amber-700 dark:text-amber-400">Costo</TableHead>
-                    <TableHead className="text-right text-xs">Margen</TableHead>
+                    <TableHead
+                      className="text-right text-xs text-amber-700 dark:text-amber-400"
+                      title={soloLista ? "Último precio de compra a Panorámica, neto por envase" : undefined}
+                    >
+                      {soloLista ? "Costo (última compra)" : "Costo"}
+                    </TableHead>
+                    {!soloLista && <TableHead className="text-right text-xs">Margen</TableHead>}
                     <TableHead className="text-right text-xs text-blue-600 dark:text-blue-400"><span className="flex items-center justify-end gap-1"><Calculator className="h-3 w-3" />Simulador</span></TableHead>
                     {!vendorView && (
                       <TableHead className="w-16 text-xs">Acc.</TableHead>
@@ -767,7 +785,7 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
                       {(() => {
                         const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
                         const costoGri = griEntry?.price ?? null;
-                        const costo = costoGri || (item as any).costoProduccion;
+                        const costo = costoGri || costoPropio(item);
                         const costoNum = typeof costo === 'string' ? parseFloat(costo) : costo;
 
                         const calcMargin = (price: number | string | null) => {
@@ -791,38 +809,46 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
 
                         return (
                           <>
+                            {!soloLista && (
                             <TableCell className="text-right py-2" data-testid={`text-lista-${item.id}`}>
                               <div className="text-xs">
                                 {formatCurrency(item.lista)}
                                 {marginBadge(calcMargin(item.lista))}
                               </div>
                             </TableCell>
+                            )}
+                            {!soloLista && (
                             <TableCell className="text-right py-2" data-testid={`text-desc10-${item.id}`}>
                               <div className="text-xs">
                                 {formatCurrency(item.desc10)}
                                 {marginBadge(calcMargin(item.desc10))}
                               </div>
                             </TableCell>
+                            )}
+                            {!soloLista && (
                             <TableCell className="text-right py-2" data-testid={`text-desc10-5-${item.id}`}>
                               <div className="text-xs">
                                 {formatCurrency(item.desc10_5)}
                                 {marginBadge(calcMargin(item.desc10_5))}
                               </div>
                             </TableCell>
+                            )}
+                            {!soloLista && (
                             <TableCell className="text-right py-2" data-testid={`text-minimo-${item.id}`}>
                               <div className="text-xs">
                                 {formatCurrency(item.minimo)}
                                 {marginBadge(calcMargin(item.minimo))}
                               </div>
                             </TableCell>
-                            {vendorView && (
+                            )}
+                            {vendorView && !soloLista && (
                               <TableCell className="text-right py-2 text-red-600 dark:text-red-400 font-semibold" data-testid={`text-mix-${item.id}`}>
                                 <div className="text-xs">
                                   {formatCurrency(item.codigo ? (mixPricesByCode?.[item.codigo.toUpperCase()] ?? null) : null)}
                                 </div>
                               </TableCell>
                             )}
-                            {vendorView && (() => {
+                            {vendorView && !soloLista && (() => {
                               const oferta = item.codigo ? (offerPricesByCode?.[item.codigo.toUpperCase()] ?? null) : null;
                               return (
                                 <TableCell className="text-right py-2 text-emerald-600 dark:text-emerald-400 font-semibold" data-testid={`text-oferta-${item.id}`}>
@@ -836,7 +862,7 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
                       <TableCell className="text-right text-xs py-2 font-semibold text-amber-700 dark:text-amber-400" data-testid={`text-costo-${item.id}`}>
                         {(() => {
                           const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
-                          const costoValue = griEntry?.price ?? (item as any).costoProduccion;
+                          const costoValue = griEntry?.price ?? costoPropio(item);
                           const costoDate = griEntry?.date ?? null;
                           if (!costoValue) return '-';
                           return (
@@ -851,10 +877,11 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
                           );
                         })()}
                       </TableCell>
+                      {!soloLista && (
                       <TableCell className="text-right text-xs py-2 font-semibold" data-testid={`text-margen-${item.id}`}>
                         {(() => {
                           const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
-                          const costo = griEntry?.price ?? (item as any).costoProduccion;
+                          const costo = griEntry?.price ?? costoPropio(item);
                           const minimo = typeof item.minimo === 'string' ? parseFloat(item.minimo) : item.minimo;
                           if (!costo || !minimo || costo === 0) return '-';
                           const margen = ((minimo - costo) / minimo) * 100;
@@ -862,10 +889,11 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
                           return <span className={color}>{margen.toFixed(1)}%</span>;
                         })()}
                       </TableCell>
+                      )}
                       <TableCell className="py-2" data-testid={`text-simulador-${item.id}`}>
                         {(() => {
                           const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
-                          const costo = griEntry?.price ?? (item as any).costoProduccion;
+                          const costo = griEntry?.price ?? costoPropio(item);
                           const costoNum = typeof costo === 'string' ? parseFloat(costo) : costo;
                           const simPrice = simulatorPrices[item.id];
                           const simNum = simPrice ? parseFloat(simPrice) : null;
@@ -918,7 +946,7 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
               <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
                 {data.items.map((item) => {
                   const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
-                  const costoValue = griEntry?.price ?? (item as any).costoProduccion;
+                  const costoValue = griEntry?.price ?? costoPropio(item);
                   const costoDate = griEntry?.date ?? null;
                   const costoNum = typeof costoValue === 'string' ? parseFloat(costoValue) : costoValue;
                   const minimoNum = typeof item.minimo === 'string' ? parseFloat(item.minimo) : item.minimo;
@@ -950,27 +978,29 @@ export default function ListaPrecios({ vendorView: vendorViewProp = false }: { v
                         )}
                       </div>
                       <div className="grid grid-cols-2 gap-x-3 gap-y-2 mt-3">
-                        <MobilePriceField label="Lista" value={formatCurrency(item.lista)} />
-                        <MobilePriceField label="Desc10" value={formatCurrency(item.desc10)} />
-                        <MobilePriceField label="Desc10+5" value={formatCurrency(item.desc10_5)} />
-                        <MobilePriceField label="Mínimo" value={formatCurrency(item.minimo)} />
-                        {vendorView && (
+                        {!soloLista && <MobilePriceField label="Lista" value={formatCurrency(item.lista)} />}
+                        {!soloLista && <MobilePriceField label="Desc10" value={formatCurrency(item.desc10)} />}
+                        {!soloLista && <MobilePriceField label="Desc10+5" value={formatCurrency(item.desc10_5)} />}
+                        {!soloLista && <MobilePriceField label="Mínimo" value={formatCurrency(item.minimo)} />}
+                        {vendorView && !soloLista && (
                           <MobilePriceField label="Lista Mix" value={formatCurrency(mix)} className="text-red-600 dark:text-red-400" />
                         )}
-                        {vendorView && (
+                        {vendorView && !soloLista && (
                           <MobilePriceField label="Ofertas" value={oferta != null ? formatCurrency(oferta) : '—'} className="text-emerald-600 dark:text-emerald-400" />
                         )}
                         <MobilePriceField
-                          label="Costo"
+                          label={soloLista ? "Costo (última compra)" : "Costo"}
                           value={costoValue ? formatCurrency(costoValue) : '-'}
                           className="text-amber-700 dark:text-amber-400"
                           sub={costoDate ? new Date(costoDate + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' }) : undefined}
                         />
+                        {!soloLista && (
                         <MobilePriceField
                           label="Margen"
                           value={margenMin != null ? `${margenMin.toFixed(1)}%` : '-'}
                           className={margenMin != null && margenMin < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}
                         />
+                        )}
                       </div>
                       {/* Simulador: calculadora local de margen, no persiste nada */}
                       {(() => {

@@ -19,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
+import { pedirEmpresaExterna, useEmpresaExterna } from "@/hooks/use-empresa-externa";
 import CustomColorButton from "@/components/shared/CustomColorButton";
 //import panoramicaLogoPath from "@assets/Diseño sin título (27)_1757959070748.png"; // Commented due to special chars in filename"
 import QuotesList from "@/components/order-taker/quotes-list";
@@ -1181,6 +1182,15 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
   const [customPriceInput, setCustomPriceInput] = useState("");
   const [customDiscountInput, setCustomDiscountInput] = useState("");
   const [priceInputMode, setPriceInputMode] = useState<"price" | "discount">("price");
+  // Empresa externa (Pinturería del Sur): al poner el precio de un producto ve su
+  // último costo de compra a Panorámica y el margen del precio que escribe.
+  const { empresa: empresaExterna, consulta: consultaEmpresa } = useEmpresaExterna();
+  const { data: costosCompra } = useQuery<Record<string, { price: number; date: string | null }>>({
+    queryKey: ["empresa-externa", "costos-compra", consultaEmpresa],
+    queryFn: () => pedirEmpresaExterna("costos-compra", {}, consultaEmpresa),
+    enabled: !!empresaExterna,
+    staleTime: 5 * 60_000,
+  });
   const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null); // Track if current quote is saved
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false); // Track if quote has been edited
   const [defaultMobileTab, setDefaultMobileTab] = useState<"client" | "products" | "cart">("client"); // Default tab for mobile
@@ -6534,6 +6544,38 @@ export default function TomadorPedidos({ variant = "v1", builderOnly = false, in
                 })()}
               </div>
             )}
+
+            {/* Empresa externa: último costo de compra y margen del precio (simulador) */}
+            {empresaExterna && editingPriceItem && (() => {
+              const item = cart.find(i => i.id === editingPriceItem);
+              const codigo = (item?.productCode || "").toUpperCase();
+              const costo = codigo ? costosCompra?.[codigo] : undefined;
+              const precio = priceInputMode === "price"
+                ? parseFloat(customPriceInput)
+                : item ? item.unitPrice * (1 - (parseFloat(customDiscountInput) || 0) / 100) : NaN;
+              const margen = costo?.price && precio > 0 ? ((precio - costo.price) / precio) * 100 : null;
+              return (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-900 p-3 flex items-start justify-between gap-3" data-testid="box-ultimo-costo">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-bold text-amber-800/70 dark:text-amber-300/70">Último costo</p>
+                    <p className="text-base font-semibold text-amber-800 dark:text-amber-300">
+                      {costo?.price ? formatCurrency(costo.price) : "Sin compras registradas"}
+                    </p>
+                    {costo?.date && (
+                      <p className="text-[11px] text-muted-foreground">
+                        {new Date(costo.date + "T00:00:00").toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "2-digit" })}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Margen</p>
+                    <p className={`text-base font-bold ${margen === null ? "text-muted-foreground" : margen >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                      {margen === null ? "—" : `${margen >= 0 ? "+" : ""}${margen.toFixed(1).replace(".", ",")}%`}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Action Buttons */}
             <div className="flex justify-end gap-2 pt-4">

@@ -24,6 +24,7 @@ import { rutContainsCondition } from "./utils/rut-sql";
 import { invalidateSessionUser } from "./auth";
 import { setupAuth, requireAuth, requireAdminOrSupervisor, requireMailingAccess, requireCommercialAccess, requireSalesViewAccess, requireMarketingAccess, requireMarketingEdit, requirePlantOperationsAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
+import { bloquearDatosPanoramicaAEmpresasExternas, registerEmpresaExternaRoutes } from "./routes-empresa-externa";
 import multer from "multer";
 import Papa from "papaparse";
 import { nanoid } from "nanoid";
@@ -611,6 +612,12 @@ async function persistCreditLimitOverride(clientId: string, monto: unknown) {
 export function registerRoutes(app: Express): Server {
   // Setup email/password auth system (primary)
   setupAuth(app);
+
+  // Empresas externas (Pinturería del Sur, empresa 02 de Random): sus usuarios
+  // ven sus propios datos leídos desde Random y no pueden pedir los resúmenes
+  // de ventas de Panorámica. El bloqueo va antes de todas las rutas de la API.
+  app.use(bloquearDatosPanoramicaAEmpresasExternas);
+  registerEmpresaExternaRoutes(app);
 
   // Sistema de Roles y Permisos (permisos efectivos del usuario + administración)
   registerPermissionRoutes(app);

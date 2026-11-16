@@ -21,6 +21,8 @@ import ChangelogDialog from "@/components/ChangelogDialog";
 import { WoobAsistente } from "@/components/WoobAsistente";
 import { FranjaMensajes } from "@/components/mensajes/franja-mensajes";
 import { shellMuestraFranja } from "@/lib/inicio-rol";
+import { useEmpresaExterna } from "@/hooks/use-empresa-externa";
+import { segmentoCotizacionWebDeGestor } from "@shared/segmentos-cotizacion-web";
 import logoPath from "@assets/logo_1757532115858.png";
 
 interface DashboardLayoutProps {
@@ -574,9 +576,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   // El segmento va aparte del rol porque el supervisor tiene un menú por área
   // (Construcción / Ferretería); para el resto de los roles se ignora.
   const assignedSegment = ((user as any)?.assignedSegment as string | null | undefined) ?? null;
+  const { empresa: empresaExterna } = useEmpresaExterna();
+  const reclamosAlFinal = !!empresaExterna;
+  const cotizacionesWeb = !!segmentoCotizacionWebDeGestor((user as any)?.email);
   const sidebarItems = useMemo(
-    () => buildSidebarItems(user?.role || undefined, can, { assignedSegment }),
-    [user?.role, assignedSegment, can, permissions],
+    () => buildSidebarItems(user?.role || undefined, can, { assignedSegment, reclamosAlFinal, cotizacionesWeb }),
+    [user?.role, assignedSegment, reclamosAlFinal, cotizacionesWeb, can, permissions],
   );
 
   const { data: unreadCount = 0 } = useQuery<number>({
