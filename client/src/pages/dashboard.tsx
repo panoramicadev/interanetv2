@@ -96,6 +96,19 @@ import { mesAnioEs } from "@/lib/fecha-es";
 // `logo panoramica ppto`, recortado para dejar solo el arco y la palabra.
 import panoramicaLogo from "@assets/logo-panoramica-negro.png";
 import { Progress } from "@/components/ui/progress";
+import DashboardEmpresaExterna from "@/components/empresa-externa/dashboard-empresa-externa";
+import { useEmpresaExterna } from "@/hooks/use-empresa-externa";
+
+/**
+ * Un usuario de una empresa externa (Pinturería del Sur) ve el Dashboard de SU
+ * empresa, leído desde Random; el resto ve el de Panorámica. Van como dos
+ * componentes separados para no alterar el orden de los hooks del de Panorámica.
+ */
+export default function Dashboard() {
+  const { empresa } = useEmpresaExterna();
+  if (empresa) return <DashboardEmpresaExterna />;
+  return <DashboardPanoramica />;
+}
 
 interface YearMonthSelection {
   years: number[];
@@ -160,7 +173,7 @@ export function CollapsibleGDVSection({ salesperson }: { salesperson: string }) 
   );
 }
 
-export default function Dashboard() {
+function DashboardPanoramica() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { isAuthenticated, isLoading, user } = useAuth();

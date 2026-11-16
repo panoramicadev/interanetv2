@@ -30,6 +30,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { ICONO_CHIP, ICONO_CHIP_ICONO } from "@/lib/icono-chip";
+import InventarioEmpresaExterna from "@/components/empresa-externa/inventario-empresa-externa";
+import { useEmpresaExterna } from "@/hooks/use-empresa-externa";
+
+/** Un usuario de empresa externa (Pinturería del Sur) ve el stock de SU bodega. */
+export default function Inventario() {
+  const { empresa } = useEmpresaExterna();
+  if (empresa) return <InventarioEmpresaExterna />;
+  return <InventarioPanoramica />;
+}
 
 // Columna "$" (añadir a Lista de Precios) oculta en la tabla de inventario.
 const MOSTRAR_AGREGAR_A_LISTA = false;
@@ -199,7 +208,7 @@ export function InventarioContent() {
   );
 }
 
-export default function Inventario() {
+function InventarioPanoramica() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");

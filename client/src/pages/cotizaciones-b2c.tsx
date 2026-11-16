@@ -75,7 +75,7 @@ interface QuoteRequest {
 
 interface QuoteRequestsResponse {
   requests: QuoteRequest[];
-  acceso: { todos: boolean; segmento?: string | null };
+  acceso: { todos: boolean; segmento?: string | null; soloAsigna?: boolean };
 }
 
 const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -269,6 +269,9 @@ export function SolicitudesWebPanel() {
   const requests: QuoteRequest[] = data?.requests || [];
   // Solo el admin elige Área: el supervisor ya recibe nada más que las de la suya.
   const verTodas = !!data?.acceso?.todos;
+  // Gestor de un segmento (Pablo Rossi en Construcción): ve, asigna a su gente y
+  // cotiza con su último costo a la vista; no cambia estado ni notas, no elimina.
+  const soloAsigna = !!data?.acceso?.soloAsigna;
 
   // El segmento acota todo lo demás (KPIs incluidos); el estado y la búsqueda, solo la lista.
   const delSegmento = requests.filter(r =>
@@ -510,6 +513,7 @@ export function SolicitudesWebPanel() {
                           )}
                         </div>
 
+                        {!soloAsigna && (<>
                         <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
                           <p className={cn(MICRO_LABEL, 'mb-2')}>Cambiar estado</p>
                           <div className="flex gap-2 flex-wrap">
@@ -582,6 +586,7 @@ export function SolicitudesWebPanel() {
                             );
                           })()}
                         </div>
+                        </>)}
                       </div>
 
                       {/* Derecha: productos y precios */}
@@ -702,6 +707,7 @@ export function SolicitudesWebPanel() {
                         Recibida: {formatDate(request.createdAt)}
                         {request.updatedAt !== request.createdAt && <> · Actualizada: {formatDate(request.updatedAt)}</>}
                       </span>
+                      {!soloAsigna && (
                       <button
                         type="button"
                         disabled={deleteMutation.isPending}
@@ -715,6 +721,7 @@ export function SolicitudesWebPanel() {
                         <Trash2 className="w-3.5 h-3.5" />
                         Eliminar
                       </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -732,6 +739,7 @@ export function SolicitudesWebPanel() {
           invalidar();
           toast({ title: 'Cotización guardada', description: 'Los precios fueron asignados correctamente.' });
         }}
+        modoCosto={soloAsigna}
       />
     </div>
   );

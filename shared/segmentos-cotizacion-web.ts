@@ -39,6 +39,15 @@ export interface SegmentoCotizacionWeb {
    */
   asignaSupervisor?: boolean;
   /**
+   * Correos (en minúsculas) de usuarios que, sin ser admin ni supervisor, ven
+   * las cotizaciones web de ESTE segmento, les asignan vendedor y las cotizan
+   * con sus propios precios (viendo su último costo). No cambian estado ni
+   * notas, no eliminan. Asignan solo a su gente: si trabajan con una empresa
+   * externa, a los vendedores de esa empresa en Random; además, a quienes los
+   * tienen como supervisor.
+   */
+  gestores?: string[];
+  /**
    * Vendedores a los que se le pueden asignar las cotizaciones del segmento, en
    * este orden y con este nombre visible (`id` = salespeople_users.id). Sin lista,
    * se ofrecen los del área y los equipos de sus supervisores.
@@ -59,6 +68,8 @@ export const SEGMENTOS_COTIZACION_WEB: SegmentoCotizacionWeb[] = [
     crmSegmento: 'Construcción',
     assignedSegmentLike: ['%construc%'],
     notificacionEmails: ['prossi@pintureriadelsur.com'],
+    // Pablo Rossi (Pinturería del Sur) ve y reparte las de Construcción (nov-2026).
+    gestores: ['prossi@pintureriadelsur.com'],
   },
   {
     value: 'ferreteria',
@@ -90,6 +101,13 @@ export const SEGMENTO_COTIZACION_WEB_VALUES = SEGMENTOS_COTIZACION_WEB.map(s => 
 
 /** Etiqueta con la que caen al CRM todas las solicitudes del cotizador público. */
 export const ETIQUETA_COTIZACION_WEB = 'COTIZACIÓN WEB';
+
+/** Segmento cuyas cotizaciones web gestiona este correo (ver `gestores`), o null. */
+export function segmentoCotizacionWebDeGestor(email?: string | null): SegmentoCotizacionWeb | null {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e) return null;
+  return SEGMENTOS_COTIZACION_WEB.find(s => s.gestores?.includes(e)) || null;
+}
 
 export function getSegmentoCotizacionWeb(value?: string | null): SegmentoCotizacionWeb | null {
   if (!value) return null;

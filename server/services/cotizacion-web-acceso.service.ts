@@ -26,18 +26,30 @@ import {
   getSegmentoCotizacionWeb,
   nombreVendedorCotizacionWeb,
   segmentoCotizacionWebDeArea,
+  segmentoCotizacionWebDeGestor,
   type SegmentoCotizacionWeb,
 } from '@shared/segmentos-cotizacion-web';
 import { logPanelChange, normalizePanelSegmento } from '../panel-changes';
+import { EMPRESAS_EXTERNAS, empresaExternaDe } from '@shared/empresas-externas';
 
 export type AccesoCotizacionesWeb =
   | { todos: true }
-  | { todos: false; segmento: SegmentoCotizacionWeb | null };
+  | {
+      todos: false;
+      segmento: SegmentoCotizacionWeb | null;
+      /**
+       * Gestor del segmento (ver `gestores` en shared/segmentos-cotizacion-web.ts):
+       * ve, asigna vendedor y cotiza (pone precios). Sin estado, notas ni eliminar.
+       */
+      soloAsigna?: boolean;
+    };
 
 /** Qué cotizaciones web puede ver el usuario. null = ninguna (rol sin acceso). */
 export async function getAccesoCotizacionesWeb(user: any): Promise<AccesoCotizacionesWeb | null> {
   if (!user) return null;
   if (user.role === 'admin') return { todos: true };
+  const gestionado = segmentoCotizacionWebDeGestor(user.email);
+  if (gestionado) return { todos: false, segmento: gestionado, soloAsigna: true };
   if (user.role !== 'supervisor' || !user.email) return null;
 
   const [sp] = await db
@@ -56,7 +68,12 @@ export function puedeVerCotizacionWeb(acceso: AccesoCotizacionesWeb, segmentoVal
 
 export function puedeAsignarCotizacionWeb(acceso: AccesoCotizacionesWeb, segmentoValue?: string | null): boolean {
   if (acceso.todos) return true;
-  return puedeVerCotizacionWeb(acceso, segmentoValue) && !!acceso.segmento?.asignaSupervisor;
+  return puedeVerCotizacionWeb(acceso, segmentoValue) && (!!acceso.soloAsigna || !!acceso.segmento?.asignaSupervisor);
+}
+
+/** Estado, notas y eliminar: todos menos el gestor del segmento. */
+export function puedeEditarCotizacionWeb(acceso: AccesoCotizacionesWeb): boolean {
+  return acceso.todos || !acceso.soloAsigna;
 }
 
 /** Filtra un listado según el acceso del usuario. */
@@ -77,6 +94,15 @@ const activo = or(eq(salespeopleUsers.isActive, true), isNull(salespeopleUsers.i
  */
 export async function vendedoresParaSegmento(segmentoValue?: string | null) {
   const filas = await vendedoresParaSegmentoSinNombre(segmentoValue);
+  // Los gestores del segmento también pueden quedarse con una cotización.
+  const gestores = getSegmentoCotizacionWeb(segmentoValue)?.gestores ?? [];
+  if (gestores.length > 0) {
+    const extra = await db
+      .select({ id: salespeopleUsers.id, nombre: salespeopleUsers.salespersonName, email: salespeopleUsers.email, role: salespeopleUsers.role })
+      .from(salespeopleUsers)
+      .where(and(activo, inArray(salespeopleUsers.email, gestores)));
+    for (const g of extra) if (!filas.some(f => f.id === g.id)) filas.push(g);
+  }
   // `nombre` es el visible (lista del segmento o capitalizado); `nombreSistema`
   // el de salespeople_users, que es el que se escribe en el CRM.
   return filas.map(v => ({ ...v, nombreSistema: v.nombre, nombre: nombreVendedorCotizacionWeb(v.id, v.nombre) }));
@@ -121,15 +147,120 @@ async function vendedoresParaSegmentoSinNombre(segmentoValue?: string | null) {
     .orderBy(salespeopleUsers.salespersonName);
 }
 
+/**
+ * Vendedor de una empresa externa que no tiene cuenta en la intranet: se guarda
+ * en `assigned_to_user_id` como "erp:<empresa>:<código Random>" (ej. "erp:02:FHP").
+ * Esa columna es una referencia blanda y nada más la lee como usuario.
+ */
+const PREFIJO_ERP = 'erp:';
+const idVendedorErp = (empresa: string, codigo: string) => `${PREFIJO_ERP}${empresa}:${codigo}`;
+function leerVendedorErp(id?: string | null): { empresa: string; codigo: string } | null {
+  if (!id || !id.startsWith(PREFIJO_ERP)) return null;
+  const [empresa, ...resto] = id.slice(PREFIJO_ERP.length).split(':');
+  const codigo = resto.join(':');
+  return empresa && codigo ? { empresa, codigo } : null;
+}
+export const esVendedorErp = (id?: string | null) => !!leerVendedorErp(id);
+
+/** "FERNANDO HERRERA PINTO" → "Fernando Herrera Pinto". */
+const nombrePropio = (s: string) =>
+  s.toLowerCase().split(/\s+/).filter(Boolean).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+
+async function vendedoresErpDe(empresa: string) {
+  const emp = EMPRESAS_EXTERNAS.find(e => e.codigo === empresa);
+  if (!emp) return [];
+  const { vendedoresEmpresaExterna } = await import('../routes-empresa-externa');
+  return vendedoresEmpresaExterna(emp);
+}
+
+/**
+ * Vendedores a los que el gestor de un segmento (Pablo Rossi) puede asignar.
+ * Si trabaja con una empresa externa: los vendedores de esa empresa en Random
+ * (sin cuenta en la intranet, elegidos por nombre). Además, los usuarios activos
+ * que lo tienen como supervisor (salespeople_users.supervisor_id). Nunca los
+ * vendedores de Panorámica.
+ */
+export async function vendedoresDelGestor(email?: string | null) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e) return [];
+  const cols = {
+    id: salespeopleUsers.id,
+    nombre: salespeopleUsers.salespersonName,
+    email: salespeopleUsers.email,
+    role: salespeopleUsers.role,
+  };
+  const [gestor] = await db.select(cols).from(salespeopleUsers)
+    .where(and(activo, eq(salespeopleUsers.email, e)))
+    .limit(1);
+  if (!gestor) return [];
+  const equipo = (await db.select(cols).from(salespeopleUsers)
+    .where(and(activo, eq(salespeopleUsers.supervisorId, gestor.id)))
+    .orderBy(salespeopleUsers.salespersonName))
+    .map(v => ({ ...v, nombreSistema: v.nombre, nombre: nombreVendedorCotizacionWeb(v.id, v.nombre) }));
+
+  const empresa = empresaExternaDe(e);
+  if (!empresa) {
+    return [{ ...gestor, nombreSistema: gestor.nombre, nombre: nombreVendedorCotizacionWeb(gestor.id, gestor.nombre) }, ...equipo];
+  }
+  // La cuenta del gestor no va en la lista: su nombre es el de la empresa
+  // ("PINTURERIA DEL SUR LIMITADA"); él mismo aparece como vendedor de Random.
+  const delErp = (await vendedoresErpDe(empresa.codigo)).map(v => ({
+    id: idVendedorErp(empresa.codigo, v.codigo),
+    nombre: nombrePropio(v.nombre),
+    nombreSistema: v.nombre,
+    email: null as string | null,
+    role: null as string | null,
+  }));
+  return [...delErp, ...equipo];
+}
+
+/**
+ * Datos de pago y marca del PDF: si la cotización la cotizó (puso precios) un
+ * usuario de una empresa externa, los de esa empresa; si no, ambos undefined =
+ * los de Panorámica de siempre.
+ */
+export async function estiloPdfDeCotizacion(request: { pricedByUserId?: string | null }) {
+  if (!request.pricedByUserId) return { pago: undefined, marca: undefined };
+  const [quien] = await db.select({ email: salespeopleUsers.email })
+    .from(salespeopleUsers)
+    .where(eq(salespeopleUsers.id, request.pricedByUserId))
+    .limit(1);
+  const empresa = empresaExternaDe(quien?.email);
+  return { pago: empresa?.datosPago, marca: empresa?.marcaCotizacion };
+}
+
 /** Nombres de los vendedores asignados, para mostrarlos en el listado. */
 export async function nombresVendedores(ids: string[]): Promise<Map<string, string>> {
   const unicos = Array.from(new Set(ids.filter(Boolean)));
   if (unicos.length === 0) return new Map();
-  const rows = await db
-    .select({ id: salespeopleUsers.id, nombre: salespeopleUsers.salespersonName })
-    .from(salespeopleUsers)
-    .where(inArray(salespeopleUsers.id, unicos));
-  return new Map(rows.map(r => [r.id, nombreVendedorCotizacionWeb(r.id, r.nombre)]));
+  const nombres = new Map<string, string>();
+
+  // Vendedores de una empresa externa (sin cuenta): el nombre sale de Random.
+  const deErp = unicos.filter(esVendedorErp);
+  for (const empresa of Array.from(new Set(deErp.map(id => leerVendedorErp(id)!.empresa)))) {
+    try {
+      const lista = await vendedoresErpDe(empresa);
+      for (const id of deErp) {
+        const ref = leerVendedorErp(id)!;
+        if (ref.empresa !== empresa) continue;
+        const v = lista.find(x => x.codigo === ref.codigo);
+        nombres.set(id, v ? nombrePropio(v.nombre) : ref.codigo);
+      }
+    } catch {
+      // Random no respondió: se muestra el código antes que tumbar el listado.
+      for (const id of deErp) nombres.set(id, leerVendedorErp(id)!.codigo);
+    }
+  }
+
+  const deCuenta = unicos.filter(id => !esVendedorErp(id));
+  if (deCuenta.length > 0) {
+    const rows = await db
+      .select({ id: salespeopleUsers.id, nombre: salespeopleUsers.salespersonName })
+      .from(salespeopleUsers)
+      .where(inArray(salespeopleUsers.id, deCuenta));
+    for (const r of rows) nombres.set(r.id, nombreVendedorCotizacionWeb(r.id, r.nombre));
+  }
+  return nombres;
 }
 
 function nombreUsuario(user: any): string {
@@ -156,14 +287,19 @@ export async function asignarVendedorCotizacionWeb(
     .returning();
 
   // El lead del CRM pasa al vendedor. Nunca tumba la asignación.
+  // Un vendedor de empresa externa no tiene cuenta: el lead queda a nombre de
+  // quien asignó (el gestor, p. ej. Pablo Rossi) y el hito dice a quién se le dio.
+  const sinCuenta = esVendedorErp(vendedor.id);
+  const crmVendedorId = sinCuenta ? String(user?.id || vendedor.id) : vendedor.id;
+  const crmVendedorNombre = sinCuenta ? (user?.salespersonName || vendedor.nombreSistema) : vendedor.nombreSistema;
   if (request.crmSeguimientoId) {
     try {
       const [lead] = await db.select().from(crmSeguimientoClientes)
         .where(eq(crmSeguimientoClientes.id, request.crmSeguimientoId)).limit(1);
-      if (lead && lead.vendedorId !== vendedor.id) {
+      if (lead && (lead.vendedorId !== crmVendedorId || sinCuenta)) {
         await db.update(crmSeguimientoClientes)
           // En el CRM va el nombre del sistema, igual que en el resto de sus leads.
-          .set({ vendedorId: vendedor.id, vendedorNombre: vendedor.nombreSistema, updatedAt: new Date() })
+          .set({ vendedorId: crmVendedorId, vendedorNombre: crmVendedorNombre, updatedAt: new Date() })
           .where(eq(crmSeguimientoClientes.id, lead.id));
         await db.insert(crmSeguimientoHitos).values({
           seguimientoId: lead.id,

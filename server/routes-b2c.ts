@@ -24,13 +24,16 @@ import {
   getVariantsForClient,
 } from './services/custom-color.service';
 import { insertQuoteRequestSchema, storeBanners, storeConfig, type QuoteRequestItem } from '@shared/schema';
-import { segmentoCotizacionWebLabel, destinatariosNotificacionCotizacionWeb, ESTADOS_COTIZACION_WEB } from '@shared/segmentos-cotizacion-web';
+import { segmentoCotizacionWebLabel, destinatariosNotificacionCotizacionWeb, ESTADOS_COTIZACION_WEB, segmentoCotizacionWebDeGestor } from '@shared/segmentos-cotizacion-web';
 import {
   getAccesoCotizacionesWeb,
   puedeVerCotizacionWeb,
   puedeAsignarCotizacionWeb,
+  puedeEditarCotizacionWeb,
   filtrarCotizacionesWeb,
   vendedoresParaSegmento,
+  vendedoresDelGestor,
+  estiloPdfDeCotizacion,
   nombresVendedores,
   asignarVendedorCotizacionWeb,
 } from './services/cotizacion-web-acceso.service';
@@ -40,8 +43,29 @@ import { requireAuth, requireAdminOrSupervisor, requireRoles } from './auth';
 
 const requireAdminSupervisorOrReception = requireRoles(['admin', 'supervisor', 'encargado_area', 'reception']);
 
-// Cotizaciones Web: solo admin (todas) y supervisor (las de su segmento).
-const requireAdminOrSupervisorCotWeb = requireRoles(['admin', 'supervisor']);
+// Cotizaciones Web: admin (todas), supervisor (las de su segmento) y el gestor
+// de un segmento (`gestores` en shared/segmentos-cotizacion-web.ts), que solo
+// ve y asigna las de ese segmento.
+const requireSoloAdminOrSupervisor = requireRoles(['admin', 'supervisor']);
+const requireAdminOrSupervisorCotWeb = (req: any, res: any, next: any) => {
+  if (segmentoCotizacionWebDeGestor(req.user?.email)) return next();
+  return requireSoloAdminOrSupervisor(req, res, next);
+};
+
+/**
+ * A quién puede asignar el usuario: el gestor de un segmento, solo a sí mismo y
+ * a su equipo; admin y supervisor, a los vendedores del segmento.
+ */
+function vendedoresAsignables(acceso: any, user: any, segmento?: string | null) {
+  return acceso?.soloAsigna ? vendedoresDelGestor(user?.email) : vendedoresParaSegmento(segmento);
+}
+
+/** Corta estado, notas y eliminar al gestor del segmento (sí asigna y cotiza). */
+function rechazarSiSoloAsigna(acceso: any, res: any): boolean {
+  if (puedeEditarCotizacionWeb(acceso)) return false;
+  res.status(403).json({ message: 'Solo puedes ver y asignar vendedor en estas cotizaciones' });
+  return true;
+}
 
 /**
  * Carga la cotización :id y verifica que el usuario la pueda ver. Responde el
@@ -304,7 +328,9 @@ export function registerB2CRoutes(app: Express) {
       res.json({
         requests,
         // Para la pantalla: el admin ve el filtro por segmento; el supervisor, el suyo fijo.
-        acceso: acceso.todos ? { todos: true } : { todos: false, segmento: acceso.segmento?.value ?? null },
+        acceso: acceso.todos
+          ? { todos: true }
+          : { todos: false, segmento: acceso.segmento?.value ?? null, soloAsigna: !!acceso.soloAsigna },
       });
     } catch (error) {
       console.error('[B2C] Error fetching quote requests:', error);
@@ -320,7 +346,8 @@ export function registerB2CRoutes(app: Express) {
       const { id } = req.params;
       const { status, internalNotes } = req.body;
 
-      if (!(await cargarCotizacionVisible(req, res))) return;
+      const cargada = await cargarCotizacionVisible(req, res);
+      if (!cargada || rechazarSiSoloAsigna(cargada.acceso, res)) return;
 
       if (status !== undefined && !(ESTADOS_COTIZACION_WEB as readonly string[]).includes(status)) {
         return res.status(400).json({ message: 'Estado inválido' });
@@ -347,7 +374,8 @@ export function registerB2CRoutes(app: Express) {
   app.delete('/api/b2c/quote-requests/:id', requireAuth, requireAdminOrSupervisorCotWeb, async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      if (!(await cargarCotizacionVisible(req, res))) return;
+      const cargada = await cargarCotizacionVisible(req, res);
+      if (!cargada || rechazarSiSoloAsigna(cargada.acceso, res)) return;
       const deleted = await deleteQuoteRequest(id);
       if (!deleted) {
         return res.status(404).json({ message: 'Solicitud no encontrada' });
@@ -365,8 +393,12 @@ export function registerB2CRoutes(app: Express) {
   app.patch('/api/b2c/quote-requests/:id/pricing', requireAuth, requireAdminOrSupervisorCotWeb, async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      if (!(await cargarCotizacionVisible(req, res))) return;
-      const { items, internalNotes, validDays, shippingItems } = req.body;
+      // El gestor del segmento (Pablo Rossi) también cotiza, con sus propios
+      // precios; no cambia notas internas desde acá.
+      const cargada = await cargarCotizacionVisible(req, res);
+      if (!cargada) return;
+      const { items, validDays, shippingItems } = req.body;
+      const internalNotes = puedeEditarCotizacionWeb(cargada.acceso) ? req.body.internalNotes : undefined;
 
       if (!Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: 'Debe incluir al menos un item con precio' });
@@ -430,7 +462,7 @@ export function registerB2CRoutes(app: Express) {
       if (!puedeAsignarCotizacionWeb(cargada.acceso, cargada.request.segmento)) {
         return res.status(403).json({ message: 'Solo el administrador asigna vendedor en este segmento' });
       }
-      const vendedores = await vendedoresParaSegmento(cargada.request.segmento);
+      const vendedores = await vendedoresAsignables(cargada.acceso, req.user, cargada.request.segmento);
       res.json({ vendedores: vendedores.map(v => ({ id: v.id, nombre: v.nombre, role: v.role })) });
     } catch (error: any) {
       console.error('[B2C] Error listing salespeople for quote:', error);
@@ -452,7 +484,7 @@ export function registerB2CRoutes(app: Express) {
         return res.status(403).json({ message: 'Solo el administrador asigna vendedor en este segmento' });
       }
       const vendedorId = String(req.body?.vendedorId || '');
-      const vendedor = (await vendedoresParaSegmento(request.segmento)).find(v => v.id === vendedorId);
+      const vendedor = (await vendedoresAsignables(acceso, req.user, request.segmento)).find(v => v.id === vendedorId);
       if (!vendedor) {
         return res.status(400).json({ message: 'El vendedor no corresponde al segmento de la cotización' });
       }
@@ -483,8 +515,11 @@ export function registerB2CRoutes(app: Express) {
 
       const [config] = await db.select().from(storeConfig).limit(1);
 
+      const { pago, marca } = await estiloPdfDeCotizacion(request);
       const html = renderQuoteRequestPdfHtml(request, {
         logoUrl: config?.logoUrl || '/panoramica-logo.png',
+        pago,
+        marca,
       });
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');

@@ -6311,7 +6311,14 @@ router.get('/solicitudes-b2c/:id/pdf', async (req: ApiAuthRequest, res) => {
     }
 
     const [config] = await db.select().from(storeConfig).limit(1);
-    const html = renderQuoteRequestPdfHtml(request, { logoUrl: config?.logoUrl || '/panoramica-logo.png' });
+    // Mismos datos de pago que el PDF de la intranet (los de la empresa externa si la cotizó ella).
+    const { estiloPdfDeCotizacion } = await import('./services/cotizacion-web-acceso.service');
+    const { pago, marca } = await estiloPdfDeCotizacion(request);
+    const html = renderQuoteRequestPdfHtml(request, {
+      logoUrl: config?.logoUrl || '/panoramica-logo.png',
+      pago,
+      marca,
+    });
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);

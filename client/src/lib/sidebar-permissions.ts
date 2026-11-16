@@ -256,6 +256,17 @@ export interface SidebarContext {
    * elegir entre el menú de Construcción y el de Ferretería.
    */
   assignedSegment?: string | null;
+  /**
+   * Reclamos al final del menú, bajo Tintometría. Lo usan los usuarios de una
+   * empresa externa (Pinturería del Sur, nov-2026); el resto mantiene el orden.
+   */
+  reclamosAlFinal?: boolean;
+  /**
+   * Gestor de las cotizaciones web de un segmento sin ser admin ni supervisor
+   * (Pablo Rossi en Construcción, nov-2026): suma "Cotizaciones Web" al menú,
+   * después del Panel de Trabajo como en el del admin.
+   */
+  cotizacionesWeb?: boolean;
 }
 
 /**
@@ -322,7 +333,17 @@ export function buildSidebarItems(
     items.push({ ...item, ...(item.children ? { children: item.children.map((c) => ({ ...c })) } : {}) });
   }
 
-  return soltarSolicitudesSueltas(filterMarketingByRole(items, role));
+  const menu = soltarSolicitudesSueltas(filterMarketingByRole(items, role));
+  if (ctx.cotizacionesWeb && !menu.some((item) => item.href === "/cotizaciones-b2c")) {
+    const tras = menu.findIndex((item) => item.href === "/tareas");
+    menu.splice(tras >= 0 ? tras + 1 : menu.length, 0, { href: "/cotizaciones-b2c", label: "Cotizaciones Web", icon: Inbox });
+  }
+  if (ctx.reclamosAlFinal) {
+    const i = menu.findIndex((item) => item.href === "/reclamos-generales" && !item.children);
+    // Baja con su separador, así queda separado de Tintometría por la misma línea.
+    if (i >= 0) menu.push(...menu.splice(i, 1));
+  }
+  return menu;
 }
 
 /**
