@@ -32,6 +32,8 @@ interface TarjetaKpiProps {
   onClick?: () => void;
   testId?: string;
   className?: string;
+  /** Centra chip, título y cifra (por defecto van a la izquierda). */
+  centrado?: boolean;
 }
 
 /**
@@ -55,20 +57,21 @@ export default function TarjetaKpi({
   onClick,
   testId,
   className = "",
+  centrado = false,
 }: TarjetaKpiProps) {
   return (
     <div
-      className={`${KPI_TARJETA} ${onClick ? "cursor-pointer" : ""} ${className}`}
+      className={`${KPI_TARJETA} ${onClick ? "cursor-pointer" : ""} ${centrado ? "text-center" : ""} ${className}`}
       onClick={onClick}
     >
-      <div className={KPI_CHIP_FILA}>
+      <div className={`${KPI_CHIP_FILA} ${centrado ? "justify-center" : ""}`}>
         <div className={ICONO_CHIP}>
           <Icono className={ICONO_CHIP_ICONO} />
         </div>
       </div>
 
       <div className="min-w-0">
-        <div className="flex items-center justify-between mb-1 sm:mb-2">
+        <div className={`flex items-center ${centrado ? "justify-center" : "justify-between"} mb-1 sm:mb-2`}>
           <p className={KPI_TITULO}>{titulo}</p>
         </div>
 

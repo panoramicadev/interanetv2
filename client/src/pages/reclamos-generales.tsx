@@ -1491,16 +1491,16 @@ export default function ReclamosGeneralesPage() {
       <div className="space-y-6">
         {muestraTarjetas && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4" data-testid="indicadores-reclamos">
-            <TarjetaKpi titulo="Total Reclamos" valor={String(reclamos.length)} icono={FileText} testId="kpi-reclamos-total"
+            <TarjetaKpi titulo="Total Reclamos" valor={String(reclamos.length)} icono={FileText} testId="kpi-reclamos-total" centrado
               onClick={() => elegirTarjeta(null)}
               className={filtroTarjeta === null && filterTab === 'todos' ? TARJETA_ACTIVA : ''} />
-            <TarjetaKpi titulo="Abiertos" valor={String(reclamos.filter(r => r.estado !== 'cerrado').length)} icono={Clock} testId="kpi-reclamos-abiertos"
+            <TarjetaKpi titulo="Abiertos" valor={String(reclamos.filter(r => r.estado !== 'cerrado').length)} icono={Clock} testId="kpi-reclamos-abiertos" centrado
               onClick={() => elegirTarjeta('abiertos')}
               className={filtroTarjeta === 'abiertos' ? TARJETA_ACTIVA : ''} />
-            <TarjetaKpi titulo="En Laboratorio" valor={String(reclamos.filter(r => r.estado === 'en_laboratorio').length)} icono={FlaskConical} testId="kpi-reclamos-laboratorio"
+            <TarjetaKpi titulo="En Laboratorio" valor={String(reclamos.filter(r => r.estado === 'en_laboratorio').length)} icono={FlaskConical} testId="kpi-reclamos-laboratorio" centrado
               onClick={() => elegirTarjeta('laboratorio')}
               className={filtroTarjeta === 'laboratorio' ? TARJETA_ACTIVA : ''} />
-            <TarjetaKpi titulo="SLA Vencido" valor={String(reclamos.filter(r => getSLAStatus(r)?.type === 'danger').length)} icono={AlertCircle} testId="kpi-reclamos-sla"
+            <TarjetaKpi titulo="SLA Vencido" valor={String(reclamos.filter(r => getSLAStatus(r)?.type === 'danger').length)} icono={AlertCircle} testId="kpi-reclamos-sla" centrado
               onClick={() => elegirTarjeta('sla')}
               className={filtroTarjeta === 'sla' ? TARJETA_ACTIVA : ''} />
           </div>
