@@ -71,6 +71,22 @@ export async function getPublicCatalog(options?: { search?: string; category?: s
     multiCatAssignments = mcRow?.value || {};
   } catch {}
 
+  // Círculo de color de cada SKU, igual que en la tienda: el elegido a mano en
+  // "Editar Producto" (pantonera + brillo) y, de respaldo, el hex de la paleta
+  // por nombre de color. Son solo colores: nada de precios.
+  let swatchMap: Record<string, { hex: string; acabado: string; nombreColor?: string }> = {};
+  try {
+    const sw = await db.execute(sql`SELECT value FROM app_config WHERE key = 'product_color_swatches'`);
+    swatchMap = ((sw as any).rows?.[0]?.value as typeof swatchMap) || {};
+  } catch { /* sin pantonera: queda la paleta */ }
+  const paletteHexMap = new Map<string, string>();
+  try {
+    const pal = await db.execute(sql`SELECT nombre_color, hex FROM color_palette`);
+    for (const pr of ((pal as any).rows || []) as any[]) {
+      if (pr.nombre_color && pr.hex) paletteHexMap.set(String(pr.nombre_color).trim().toUpperCase(), pr.hex);
+    }
+  } catch { /* sin paleta: el círculo usa la imagen */ }
+
   // Group products by genericName (same as B2B logic)
   const productsMap = new Map<string, {
     genericName: string;
@@ -155,6 +171,8 @@ export async function getPublicCatalog(options?: { search?: string; category?: s
       ...reglaDeVentaCotizadorWeb(row.min_unit, row.step_size),
       description: row.description,
       imageUrl: row.imagen_url || null,
+      swatch: swatchMap[String(sku).toUpperCase()] || null,
+      paletteHex: paletteHexMap.get(color.toUpperCase()) || null,
     });
   }
 
