@@ -47,11 +47,22 @@ import { getQuoteRequests, getQuoteRequestById, updateQuoteRequestStatus } from 
 import { renderQuoteRequestPdfHtml } from './services/quote-request-pdf';
 import { isValidRut, formatRut } from '@shared/rut';
 import { getCommissionSummary, getSalespersonDetail } from './commissions';
+import { exigirPermisoMcp, permisosDeQuienLlama, filtrarCatalogo } from './permisos-mcp';
+import { usarPuenteIntranet } from './puente-intranet-mcp';
 
 const router = Router();
 
 // All external API routes require API key authentication
 router.use(validateApiKey);
+
+// Quien conecta el asistente con su usuario solo usa lo que ve en su menú de la
+// intranet (Roles y Permisos). Ver server/permisos-mcp.ts.
+router.use(exigirPermisoMcp);
+
+// Muestras, crédito, nuevo cliente, detalle de facturación y libro de fórmulas:
+// el asistente usa las mismas rutas de la intranet con la cuenta de la persona.
+// Ver server/puente-intranet-mcp.ts.
+router.use('/intranet', usarPuenteIntranet);
 
 // Parse `limit` from query string with sensible defaults for AI/chat clients.
 // Default 500 rows, hard cap 5000 to protect the DB.
@@ -2115,8 +2126,9 @@ router.get('/openapi.json', (_req: ApiAuthRequest, res) => {
 // Self-describing help endpoint (for AI/chat clients)
 // ============================================
 
-router.get('/help', async (_req: ApiAuthRequest, res) => {
-  res.json({
+router.get('/help', async (req: ApiAuthRequest, res) => {
+  const permisos = await permisosDeQuienLlama(req);
+  const ayuda = {
     description: 'External API for Panorámica intranet — read & write access for integrations and AI assistants.',
     openapi: '/api/external/openapi.json',
     auth: { header: 'X-API-Key', roles: ['readonly', 'read_write', 'admin'] },
@@ -2309,7 +2321,11 @@ router.get('/help', async (_req: ApiAuthRequest, res) => {
       'GET /usuarios': { filters: ['role', 'source (users|salespeople|all)', 'limit'], note: 'returns { users, salespeople, counts }' },
       'GET /notificaciones': { filters: ['type', 'priority', 'departamento', 'archived', 'targetType', 'userId', 'limit', 'offset'] },
       'POST /notificaciones': { body: ['title*', 'message*', 'type', 'priority', 'departamento', 'actionUrl'] },
-      'GET /reclamos': { filters: ['estado', 'areaResponsable', 'gravedad', 'vendedorId', 'tecnicoId', 'responsableAreaId', 'limit', 'offset'] },
+      'GET /reclamos': { filters: ['estado', 'areaResponsable', 'gravedad', 'vendedorId', 'tecnicoId', 'responsableAreaId', 'numero (N° de trazabilidad NN/DD/MM/YY, ej. 03/26/11/26)', 'periodo (YYYY | YYYY-MM, por fecha de registro)', 'desde', 'hasta (YYYY-MM-DD)', 'soloSinLeer (true)', 'limit', 'offset'], note: 'con usuario conectado cada reclamo trae mensajesSinLeer; los roles de área ven solo la cola de su área' },
+      'GET /reclamos/mensajes-sin-leer': { note: 'mensajes de la conversación que el usuario no ha leído: { count, porReclamo: { reclamoId: n } }' },
+      'GET /reclamos/:id/mensajes': { note: 'conversación del reclamo, del más antiguo al más nuevo' },
+      'POST /reclamos/:id/mensajes': { role: 'read_write', body: ['mensaje* (máx 4000)'], note: 'escribe en la conversación y avisa a los involucrados (campana, teléfono y correo a quien lo registró)' },
+      'POST /reclamos/:id/mensajes/leidos': { note: 'marca la conversación como leída por el usuario conectado' },
       'POST /reclamos': { body: ['clienteNombre*', 'motivo*', 'clienteRut', 'clienteEmail', 'clienteTelefono', 'descripcion', 'severidad'] },
       'GET /mantencion': { filters: ['estado', 'tipoMantencion', 'gravedad', 'area', 'solicitanteId', 'tecnicoAsignadoId', 'limit', 'offset'] },
       'POST /mantencion': { body: ['equipoNombre*', 'descripcionProblema*', 'equipoCodigo', 'equipoArea', 'tipoMantencion', 'severidad', 'solicitadoPor'] },
@@ -2369,7 +2385,47 @@ router.get('/help', async (_req: ApiAuthRequest, res) => {
       'GET /ventas/ficha-cliente': { filters: ['nombre* (parcial, se resuelve al del ERP)', 'period | startDate+endDate', 'limitProductos'], note: 'Métricas del cliente en el período + qué le vendimos + quién se lo vendió.' },
       'GET /ventas/ficha-vendedor': { filters: ['nombre*', 'period | startDate+endDate', 'limitClientes', 'limitProductos'], note: 'Métricas del vendedor + su cartera top + productos + apertura por segmento.' },
       'GET /ventas/ficha-producto': { filters: ['nombre*', 'period | startDate+endDate', 'segment'], note: 'Quién compra el producto y quién lo vende.' },
+      'GET /ventas/sin-cargo': { filters: ['period | startDate+endDate', 'groupBy (vendedor|segmento|cliente)', 'salesperson', 'segment', 'client', 'limit (default 10, max 200)'], note: 'Ventas marcadas SIN CARGO en el ERP, igual que el panel "Sin cargo" del dashboard. GDV fuera.' },
+      // ═══ Módulos que usan las reglas de la intranet con la cuenta de la persona ═══
+      // Solo con usuario conectado (OAuth). Responden lo mismo que la intranet.
+      'GET /intranet/solicitudes-muestra': { note: 'solicitudes de muestra que la persona ve en la intranet (las suyas, las de su equipo o la bandeja según su rol); cada una con puedeAprobar' },
+      'GET /intranet/solicitudes-muestra/:id': { note: 'detalle con conversación y lo que la persona puede hacer: puedeAprobar, puedeEditar, puedeGestionar, puedePreparar (dejarla lista / cerrarla), puedeReabrir' },
+      'POST /intranet/solicitudes-muestra': { role: 'read_write', note: 'crear solicitud de muestra (mismos campos que el formulario de la intranet)' },
+      'PATCH /intranet/solicitudes-muestra/:id/datos': { role: 'read_write', note: 'quien la pidió corrige los datos después de enviarla' },
+      'POST /intranet/solicitudes-muestra/:id/aprobacion': { role: 'read_write', body: ['decision* (aprobada|rechazada)', 'comentario'], note: 'supervisor o aprobador' },
+      'POST /intranet/solicitudes-muestra/:id/lista': { role: 'read_write', body: ['ubicacion*', 'fecha* (YYYY-MM-DD, no futura)'], note: 'laboratorio o Administración: la deja lista para retiro y avisa por correo' },
+      'POST /intranet/solicitudes-muestra/:id/cerrar': { role: 'read_write', body: ['comentario'], note: 'laboratorio o Administración: se entregó (requiere NVV registrada)' },
+      'POST /intranet/solicitudes-muestra/:id/reabrir': { role: 'read_write', body: ['motivo'], note: 'solo admin: vuelve una muestra entregada a en curso' },
+      'POST /intranet/solicitudes-muestra/:id/mensajes': { role: 'read_write', body: ['mensaje*'], note: 'escribe en la conversación de la solicitud' },
+      'GET /intranet/solicitudes-credito': { note: 'solicitudes de crédito que la persona ve en la intranet' },
+      'POST /intranet/solicitudes-credito': { role: 'read_write', note: 'crear solicitud de crédito' },
+      'PATCH /intranet/solicitudes-credito/:id/datos': { role: 'read_write', note: 'quien la pidió corrige los datos después de enviarla' },
+      'PATCH /intranet/solicitudes-credito/:id': { role: 'read_write', note: 'resolver la solicitud (quien gestiona crédito)' },
+      'GET /intranet/nuevo-cliente/catalogos': { note: 'listas para el formulario de nuevo cliente' },
+      'GET /intranet/solicitudes-nuevo-cliente': { note: 'solicitudes de nuevo cliente que la persona ve en la intranet' },
+      'POST /intranet/solicitudes-nuevo-cliente': { role: 'read_write', note: 'crear solicitud de nuevo cliente' },
+      'PATCH /intranet/solicitudes-nuevo-cliente/:id/datos': { role: 'read_write', note: 'quien la pidió corrige los datos después de enviarla' },
+      'PATCH /intranet/solicitudes-nuevo-cliente/:id': { role: 'read_write', note: 'resolver la solicitud' },
+      'GET /intranet/detalle-facturacion/resumen': { filters: ['desde*', 'hasta* (YYYY-MM-DD, máx 12 meses)', 'sucursal', 'vendedor', 'cliente', 'segmento', 'categoria', 'busqueda'], note: 'admin y Recepción: resumen de documentos (ventas netas, por sucursal)' },
+      'GET /intranet/detalle-facturacion/documentos': { filters: ['desde*', 'hasta*', 'sucursal', 'vendedor', 'cliente', 'segmento', 'categoria', 'busqueda'], note: 'documentos del período con sucursal' },
+      'GET /intranet/detalle-facturacion/lineas': { filters: ['desde*', 'hasta*', 'sucursal', 'vendedor', 'cliente'], note: 'productos de cada documento' },
+      'GET /intranet/tintometria/carta': { note: 'carta de colores' },
+      'GET /intranet/tintometria/carta/:id/formulas': { note: 'fórmulas de un color (permiso de fórmulas)' },
+      'GET /intranet/tintometria/libros': { note: 'libros de fórmulas por producto' },
+      'GET /intranet/tintometria/libros/:id/formulas': { note: 'fórmulas de un libro (gramos con 3 decimales)' },
+      'GET /intranet/tintometria/libro/resumen': { note: 'admin de tintometría: resumen del libro cargado' },
+    } as Record<string, unknown>,
+  };
+  if (!permisos) return res.json(ayuda);
+  // Con un usuario conectado, el catálogo muestra solo lo que su rol permite.
+  res.json({
+    ...ayuda,
+    tuAcceso: {
+      usuario: req.oauthUser?.nombre,
+      rol: req.oauthUser?.rolIntranet,
+      nota: 'Este catálogo muestra solo lo que tu usuario tiene habilitado en Roles y Permisos de la intranet.',
     },
+    endpoints: filtrarCatalogo(ayuda.endpoints, permisos),
   });
 });
 
@@ -2728,24 +2784,132 @@ router.post('/notificaciones', requireApiRole(['read_write', 'admin']), async (r
 // campo interanetUserId).
 // ============================================
 
+// Período de un reclamo por fecha de registro: periodo=YYYY o YYYY-MM (como el
+// selector de la pantalla de Reclamos), o desde/hasta en YYYY-MM-DD.
+function rangoReclamos(q: Record<string, unknown>): { desde?: string; hasta?: string } | { error: string } {
+  const periodo = String(q.periodo ?? q.period ?? '').trim();
+  if (periodo) {
+    const anio = /^(\d{4})$/.exec(periodo);
+    if (anio) return { desde: `${anio[1]}-01-01`, hasta: `${anio[1]}-12-31` };
+    const mes = /^(\d{4})-(\d{2})$/.exec(periodo);
+    if (mes) {
+      const ultimo = new Date(Date.UTC(Number(mes[1]), Number(mes[2]), 0)).getUTCDate();
+      return { desde: `${mes[1]}-${mes[2]}-01`, hasta: `${mes[1]}-${mes[2]}-${String(ultimo).padStart(2, '0')}` };
+    }
+    return { error: 'periodo debe ser YYYY o YYYY-MM' };
+  }
+  const fecha = /^\d{4}-\d{2}-\d{2}$/;
+  const desde = q.desde ? String(q.desde) : undefined;
+  const hasta = q.hasta ? String(q.hasta) : undefined;
+  if ((desde && !fecha.test(desde)) || (hasta && !fecha.test(hasta))) return { error: 'desde y hasta van en YYYY-MM-DD' };
+  return { desde, hasta };
+}
+
 router.get('/reclamos', async (req: ApiAuthRequest, res) => {
   try {
-    const { estado, areaResponsable, gravedad, vendedorId, tecnicoId, responsableAreaId } = req.query;
+    const { estado, gravedad, vendedorId, tecnicoId, responsableAreaId, numero } = req.query;
+    let areaResponsable = req.query.areaResponsable as string | undefined;
+
+    const rango = rangoReclamos(req.query as Record<string, unknown>);
+    if ('error' in rango) return res.status(400).json({ error: rango.error });
+
+    // Igual que en la intranet: quien tiene un rol de área (laboratorio,
+    // producción, logística…) ve la cola de su área; admin, supervisor y jefe
+    // de planta ven todo.
+    const rol = req.oauthUser?.rolIntranet;
+    if (rol) {
+      const { getRoleArea, canViewAllReclamos } = await import('@shared/reclamosAreas');
+      if (!canViewAllReclamos(rol)) {
+        const area = getRoleArea(rol);
+        if (area) areaResponsable = area;
+      }
+    }
 
     const reclamos = await storage.getReclamosGenerales({
       estado: estado as string | undefined,
-      areaResponsable: areaResponsable as string | undefined,
+      areaResponsable,
       gravedad: gravedad as string | undefined,
       vendedorId: vendedorId as string | undefined,
       tecnicoId: tecnicoId as string | undefined,
       responsableAreaId: responsableAreaId as string | undefined,
+      numeroTrazabilidad: numero ? String(numero).trim() : undefined,
+      desde: rango.desde,
+      hasta: rango.hasta,
       limit: parseLimit(req.query.limit),
       offset: parseOffset(req.query.offset),
     });
 
+    // Con un usuario conectado, cada reclamo dice cuántos mensajes tiene sin leer.
+    if (req.oauthUser) {
+      const { contarMensajesSinLeer } = await import('./services/reclamos-mensajes.service');
+      const { porReclamo } = await contarMensajesSinLeer({ id: req.oauthUser.userId, role: req.oauthUser.rolIntranet })
+        .catch(() => ({ porReclamo: {} as Record<string, number> }));
+      const conMensajes = reclamos.map((r) => ({ ...r, mensajesSinLeer: porReclamo[r.id] ?? 0 }));
+      if (String(req.query.soloSinLeer ?? '') === 'true') {
+        return res.json(conMensajes.filter((r) => r.mensajesSinLeer > 0));
+      }
+      return res.json(conMensajes);
+    }
+
     res.json(reclamos);
   } catch (error) {
     console.error('Error fetching reclamos:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ── Conversación del reclamo (mensajes) ──
+// Misma lógica que la intranet: server/services/reclamos-mensajes.service.ts.
+
+router.get('/reclamos/mensajes-sin-leer', async (req: ApiAuthRequest, res) => {
+  try {
+    if (!req.oauthUser) return res.status(400).json({ error: 'Solo disponible con un usuario conectado (OAuth): los no leídos son de cada persona.' });
+    const { contarMensajesSinLeer } = await import('./services/reclamos-mensajes.service');
+    res.json(await contarMensajesSinLeer({ id: req.oauthUser.userId, role: req.oauthUser.rolIntranet }));
+  } catch (error) {
+    console.error('Error counting unread reclamo messages:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/reclamos/:id/mensajes', async (req: ApiAuthRequest, res) => {
+  try {
+    const { mensajesDelReclamo } = await import('./services/reclamos-mensajes.service');
+    res.json(await mensajesDelReclamo(req.params.id));
+  } catch (error) {
+    console.error('Error fetching reclamo messages:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/reclamos/:id/mensajes', requireApiRole(['read_write', 'admin']), async (req: ApiAuthRequest, res) => {
+  try {
+    // El mensaje queda firmado por una persona: con una API key compartida no hay a quién.
+    if (!req.oauthUser) return res.status(400).json({ error: 'Solo disponible con un usuario conectado (OAuth): el mensaje queda a nombre de la persona.' });
+    const mensaje = typeof req.body?.mensaje === 'string' ? req.body.mensaje.trim() : '';
+    if (!mensaje) return res.status(400).json({ error: 'El mensaje está vacío' });
+    if (mensaje.length > 4000) return res.status(400).json({ error: 'El mensaje es demasiado largo' });
+    const { escribirMensajeReclamo } = await import('./services/reclamos-mensajes.service');
+    const nuevo = await escribirMensajeReclamo({
+      reclamoId: req.params.id,
+      autor: { id: req.oauthUser.userId, nombre: req.oauthUser.nombre, role: req.oauthUser.rolIntranet },
+      mensaje,
+    });
+    if (!nuevo) return res.status(404).json({ error: 'Reclamo no encontrado' });
+    res.status(201).json(nuevo);
+  } catch (error) {
+    console.error('Error writing reclamo message:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/reclamos/:id/mensajes/leidos', async (req: ApiAuthRequest, res) => {
+  try {
+    if (!req.oauthUser) return res.status(400).json({ error: 'Solo disponible con un usuario conectado (OAuth).' });
+    const { marcarMensajesLeidos } = await import('./services/reclamos-mensajes.service');
+    res.json(await marcarMensajesLeidos(req.params.id, req.oauthUser.userId));
+  } catch (error) {
+    console.error('Error marking reclamo messages read:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -9337,6 +9501,74 @@ router.post('/finanzas/proyecciones/manual', FIN_ADMIN, async (req: ApiAuthReque
   } catch (error: any) {
     if (error.name === 'ZodError') return res.status(400).json({ error: 'Datos inválidos', details: error.issues });
     console.error('Error proyecciones upsert:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /ventas/sin-cargo — ventas marcadas "sin cargo" en el ERP (OCDO es texto
+// libre: "SIN CARGO", "SIIN CARGO"...), agrupadas por vendedor, segmento o
+// cliente. Mismo cálculo que el panel "Sin cargo" del dashboard
+// (/api/sales/sin-cargo en server/routes.ts). GDV fuera.
+router.get('/ventas/sin-cargo', async (req: ApiAuthRequest, res) => {
+  try {
+    const { factVentas } = await import('@shared/schema');
+    const { segmentSqlEq } = await import('./utils/segment-normalize');
+    const { condicionNombreCliente } = await import('./utils/sucursal-por-prefijo');
+    const { startDate, endDate, period, filterType } = ventasWindow(req.query as Record<string, unknown>);
+    const { salesperson, segment, client, groupBy } = req.query;
+    const limitNum = Math.min(parseLimit(req.query.limit, 10), 200);
+
+    const groupCol =
+      groupBy === 'segmento' ? factVentas.noruen :
+      groupBy === 'cliente' ? factVentas.nokoen :
+      factVentas.nokofu;
+
+    const conditions = [
+      sql`${factVentas.tido} != 'GDV'`,
+      sql`${factVentas.ocdo} ~* 's+i+n+\\s*c+a+r+g+o'`,
+      sql`${factVentas.feemdo} >= ${startDate}::date`,
+      sql`${factVentas.feemdo} <= ${endDate}::date`,
+    ];
+    if (salesperson) conditions.push(sql`${factVentas.nokofu} = ${salesperson as string}`);
+    if (segment) conditions.push(segmentSqlEq(sql`${factVentas.noruen}`, segment as string));
+    if (client) conditions.push(await condicionNombreCliente(factVentas.nokoen, client as string));
+
+    const whereClause = and(...conditions);
+    const nameExpr = sql<string>`COALESCE(NULLIF(btrim(${groupCol}), ''), 'Sin asignar')`;
+
+    const [totalsRow, items] = await Promise.all([
+      db.select({
+          total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+          docs: sql<number>`COUNT(DISTINCT ${factVentas.idmaeedo})`,
+          groups: sql<number>`COUNT(DISTINCT ${nameExpr})`,
+        })
+        .from(factVentas)
+        .where(whereClause)
+        .then((r) => r[0]),
+      db.select({
+          name: nameExpr,
+          total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+          docs: sql<number>`COUNT(DISTINCT ${factVentas.idmaeedo})`,
+        })
+        .from(factVentas)
+        .where(whereClause)
+        .groupBy(nameExpr)
+        .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+        .limit(limitNum),
+    ]);
+
+    res.json({
+      period,
+      filterType,
+      dateRange: { startDate, endDate },
+      groupBy: groupBy === 'segmento' || groupBy === 'cliente' ? groupBy : 'vendedor',
+      items: items.map((r) => ({ name: r.name || 'Sin asignar', total: Number(r.total), docs: Number(r.docs) })),
+      periodTotal: Number(totalsRow?.total || 0),
+      totalDocs: Number(totalsRow?.docs || 0),
+      totalCount: Number(totalsRow?.groups || 0),
+    });
+  } catch (error) {
+    console.error('Error fetching sin cargo:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

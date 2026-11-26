@@ -112,6 +112,35 @@ Mapeo de rol de intranet → rol de API:
 | `supervisor`, `encargado_area`, `salesperson`, `jefe_planta`, `marketing`, `mantencion`, `laboratorio`, `produccion`, `logistica_bodega`, `planificacion`, `bodega_materias_primas` | `read_write` |
 | `client`, `tecnico_obra` y cualquier otro | sin acceso — no pueden conectar asistentes |
 
+### Qué ve cada persona (Roles y Permisos) — nov-2026
+
+El rol de API solo decide si se puede **escribir**. **Qué módulos** puede usar cada persona sale de lo mismo que arma su menú en la intranet: Configuración → Roles y Permisos, con los ajustes propios de cada usuario. El código está en `server/permisos-mcp.ts`.
+
+- Cada ruta de `/api/external` está asociada a uno o más permisos de la intranet (basta uno). Sin el permiso responde **403** con el nombre del módulo: *No tienes acceso a "Margen"…*. Ejemplo: un vendedor no tiene `margen` ni `rrhh.comisiones`, así que el asistente no le muestra márgenes ni comisiones.
+- Una ruta nueva **sin regla** queda cerrada para todos menos el admin. Al agregar un endpoint, sumarle su regla en `REGLAS`.
+- `/help` con un usuario conectado muestra solo lo que esa persona puede usar, y agrega `tuAcceso` (nombre y rol).
+- **Vendedores (`salesperson`)**: en las consultas que filtran por vendedor (ventas, dashboard, clientes, GDV/NVV, pedidos del ERP, cotizaciones, CRM, pedidos eCommerce) el filtro se fija siempre en el propio vendedor, aunque el asistente pida otro. El ranking de vendedores, las estadísticas del CRM por vendedor y las comisiones del equipo no están disponibles para ellos.
+- **Reclamos**: igual que en la intranet, los roles de área (laboratorio, producción, logística…) ven la cola de su área.
+- El admin y las API keys compartidas no pasan por este filtro.
+
+### Módulos que usan las reglas de la intranet — `/intranet/*`
+
+Muestras, crédito, nuevo cliente, detalle de facturación y libro de fórmulas tienen reglas finas por persona (quién aprueba, quién deja lista o cierra una muestra, quién edita una solicitud ya enviada, qué roles ven la facturación). En vez de copiarlas, el asistente usa **las mismas rutas de la intranet con la cuenta de quien lo conectó** (`server/puente-intranet-mcp.ts`). Responden exactamente lo que la intranet le respondería a esa persona.
+
+Se llaman como `/api/external/intranet/<ruta de la intranet sin /api>`. Solo con token OAuth; un token sin `mcp:write` solo consulta.
+
+| Ruta | Qué hace |
+|---|---|
+| `GET /intranet/solicitudes-muestra` · `GET /intranet/solicitudes-muestra/:id` | Lista y detalle, con `puedeAprobar`, `puedeEditar`, `puedePreparar`, `puedeReabrir` |
+| `POST /intranet/solicitudes-muestra` · `PATCH …/:id/datos` | Crear y corregir después de enviar |
+| `POST …/:id/aprobacion` | Aprobar o rechazar (supervisor o aprobador) |
+| `POST …/:id/lista` `{ ubicacion, fecha }` · `POST …/:id/cerrar` | Laboratorio o Administración: lista para retiro y entregada |
+| `POST …/:id/reabrir` `{ motivo }` | Solo admin: vuelve una entregada a en curso |
+| `GET/POST /intranet/solicitudes-credito` · `PATCH …/:id/datos` · `PATCH …/:id` | Solicitudes de crédito |
+| `GET /intranet/nuevo-cliente/catalogos` · `GET/POST /intranet/solicitudes-nuevo-cliente` · `PATCH …/:id/datos` · `PATCH …/:id` | Solicitudes de nuevo cliente |
+| `GET /intranet/detalle-facturacion/resumen` · `/documentos` · `/lineas` (`desde`, `hasta`, `sucursal`, …) | Admin y Recepción |
+| `GET /intranet/tintometria/carta` · `/carta/:id/formulas` · `/libros` · `/libros/:id/formulas` | Carta de colores y libro de fórmulas por producto |
+
 ### Variables de entorno
 
 `PUBLIC_BASE_URL` — URL pública de la intranet (`https://ai.pinturaspanoramica.cl`). Se usa para armar las URLs de la metadata OAuth. Si falta, se deduce del header `Host`, lo que detrás de un proxy puede quedar mal.
@@ -313,9 +342,22 @@ GET  /reclamos
 POST /reclamos
 ```
 
-**Filtros GET:** `estado`, `areaResponsable`, `gravedad`, `vendedorId`, `tecnicoId`, `responsableAreaId`, `limit`, `offset`
+**Filtros GET:** `estado`, `areaResponsable`, `gravedad`, `vendedorId`, `tecnicoId`, `responsableAreaId`, `numero` (N° de trazabilidad `NN/DD/MM/YY`), `periodo` (`YYYY` o `YYYY-MM`, por fecha de registro) o `desde`/`hasta` (`YYYY-MM-DD`), `soloSinLeer=true`, `limit`, `offset`
+
+Con usuario conectado (OAuth) cada reclamo trae `mensajesSinLeer`, y los roles de área ven solo la cola de su área.
 
 Estados: `registrado`, `en_revision_tecnica`, `en_area_responsable`, `resuelto`, `cerrado`.
+
+**Conversación del reclamo** (misma lógica que la intranet, `server/services/reclamos-mensajes.service.ts`):
+
+```http
+GET  /reclamos/mensajes-sin-leer        # { count, porReclamo: { reclamoId: n } } del usuario conectado
+GET  /reclamos/:id/mensajes             # del más antiguo al más nuevo
+POST /reclamos/:id/mensajes             # { "mensaje": "..." } — avisa a los involucrados (campana, teléfono, correo)
+POST /reclamos/:id/mensajes/leidos      # marca la conversación como leída
+```
+
+Los tres que dependen de la persona (`mensajes-sin-leer`, `POST mensajes` y `leidos`) piden token OAuth.
 
 **Body POST:**
 ```json

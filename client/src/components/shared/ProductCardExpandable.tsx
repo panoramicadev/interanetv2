@@ -656,11 +656,8 @@ export default function ProductCardExpandable(props: ProductCardExpandableProps)
                             </>
                           )}
 
-                          {isCotizador && (
-                            <p className="text-[10px] text-gray-400 mt-0.5">
-                              {variant.available === false ? '○ Consultar' : '● Disponible'}
-                            </p>
-                          )}
+                          {/* En el cotizador va solo el nombre del color, como en la tienda:
+                              la disponibilidad se confirma en la cotización. */}
                         </div>
                       </div>
 

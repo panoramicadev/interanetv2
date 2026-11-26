@@ -1,4 +1,5 @@
 import { Truck, Clock, MapPin, Phone, Mail, MessageCircle } from 'lucide-react';
+import { rutaCatalogo } from '@/lib/slug-producto';
 
 interface Props {
   config?: {
@@ -8,7 +9,7 @@ interface Props {
 }
 
 const LINKS = [
-  { href: '/', label: 'Catálogo' },
+  { href: rutaCatalogo(), label: 'Catálogo' },
   { href: '/donde-comprar', label: 'Dónde comprar' },
   { href: '/seguimiento', label: 'Seguir mi pedido' },
 ];

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search, FileText, Phone, Mail, Menu, X, Truck, MapPin, PackageSearch, LayoutGrid } from 'lucide-react';
 import { useQuote } from '@/contexts/QuoteContext';
+import { rutaCatalogo } from '@/lib/slug-producto';
 
 interface CotizadorHeaderProps {
   searchTerm: string;
@@ -16,7 +17,7 @@ interface CotizadorHeaderProps {
 }
 
 const NAV = [
-  { href: '/', label: 'Catálogo', icon: LayoutGrid },
+  { href: rutaCatalogo(), label: 'Catálogo', icon: LayoutGrid },
   { href: '/donde-comprar', label: 'Dónde comprar', icon: MapPin },
   { href: '/seguimiento', label: 'Seguir mi pedido', icon: PackageSearch },
 ];
@@ -99,7 +100,7 @@ export default function CotizadorHeader({ searchTerm, onSearchChange, onSearchSu
       {/* Fila principal */}
       <div className="max-w-7xl mx-auto px-4">
         <div className="h-16 md:h-[72px] flex items-center gap-3 md:gap-8">
-          <a href="/" className="flex-shrink-0" aria-label="Inicio">
+          <a href={rutaCatalogo()} className="flex-shrink-0" aria-label="Catálogo">
             <img
               src={config?.logoUrl || '/panoramica-logo.png'}
               alt={config?.siteName || 'Pinturas Panorámica'}
@@ -109,7 +110,9 @@ export default function CotizadorHeader({ searchTerm, onSearchChange, onSearchSu
 
           <nav className="hidden lg:flex items-center gap-1">
             {NAV.map(({ href, label }) => {
-              const activo = href === '/' ? path === '/' || path.startsWith('/productos') : path.startsWith(href);
+              const activo = href === rutaCatalogo()
+                ? path === href || path.startsWith('/productos')
+                : path.startsWith(href);
               return (
                 <a
                   key={href}
