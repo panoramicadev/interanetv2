@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -46,7 +46,8 @@ import {
   ArrowLeft,
   FlaskConical,
   Factory,
-  Wrench
+  Wrench,
+  MessageSquare
 } from "lucide-react";
 import type { ReclamoGeneral, ReclamoGeneralPhoto } from "@shared/schema";
 import { RECLAMOS_AREAS, AREA_LABELS, getAreaLabel, getRoleArea } from "@shared/reclamosAreas";
@@ -1378,6 +1379,26 @@ export default function ReclamosGeneralesPage() {
     setFiltroTarjeta((prev) => (tarjeta === null || prev === tarjeta ? null : tarjeta));
   };
 
+  // Mensajes sin leer de cada reclamo: la etiqueta roja de su tarjeta. Es la misma
+  // consulta del punto del menú, así comparten lo ya cargado.
+  const { data: mensajesSinLeerData } = useQuery<{ count: number; porReclamo: Record<string, number> }>({
+    queryKey: ["/api/reclamos-generales/mensajes-sin-leer"],
+    refetchInterval: 60000,
+  });
+  const mensajesSinLeer = mensajesSinLeerData?.porReclamo ?? {};
+
+  // El aviso de un mensaje trae ?reclamo=<id>: se abre ese reclamo directo.
+  const busqueda = useSearch();
+  useEffect(() => {
+    const id = new URLSearchParams(busqueda).get("reclamo");
+    if (!id) return;
+    setSelectedReclamoId(id);
+    setShowDetailModal(true);
+    window.scrollTo({ top: 0 });
+    setLocation("/reclamos-generales", { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busqueda]);
+
   const filteredReclamos = reclamos.filter(reclamo => {
     // Apply tab-based filtering first
     const tabFiltered = filterByTab([reclamo]).length > 0;
@@ -1388,7 +1409,11 @@ export default function ReclamosGeneralesPage() {
     const matchesGravedad = filterGravedad === 'all' || reclamo.gravedad === filterGravedad;
 
     return tabFiltered && coincideTarjeta(reclamo) && matchesSearch && matchesEstado && matchesGravedad;
-  });
+  })
+    // Los que tienen mensajes sin leer van arriba del todo; el resto mantiene su orden.
+    .map((reclamo, i) => ({ reclamo, i, nuevos: mensajesSinLeer[reclamo.id] ?? 0 }))
+    .sort((a, b) => (b.nuevos > 0 ? 1 : 0) - (a.nuevos > 0 ? 1 : 0) || a.i - b.i)
+    .map(({ reclamo }) => reclamo);
 
   const hasAccess = user && (
     user.role === 'salesperson' || 
@@ -1642,6 +1667,15 @@ export default function ReclamosGeneralesPage() {
                                 </h3>
                                 <GravedadChip gravedad={reclamo.gravedad} testId={`badge-gravedad-${reclamo.id}`} />
                                 <EstadoReclamoChip estado={reclamo.estado} testId={`badge-estado-${reclamo.id}`} />
+                                {(mensajesSinLeer[reclamo.id] ?? 0) > 0 && (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                                    data-testid={`badge-mensajes-nuevos-${reclamo.id}`}
+                                  >
+                                    <MessageSquare className="h-3 w-3" />
+                                    {mensajesSinLeer[reclamo.id] === 1 ? "1 mensaje nuevo" : `${mensajesSinLeer[reclamo.id]} mensajes nuevos`}
+                                  </span>
+                                )}
                               </div>
                               
                               

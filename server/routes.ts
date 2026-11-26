@@ -26897,6 +26897,38 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  /** Mensajes de reclamos que el usuario todavía no lee: total y por reclamo. */
+  app.get('/api/reclamos-generales/mensajes-sin-leer', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { notifications, notificationReads } = await import('@shared/schema');
+      const filas = await db
+        .select({ reclamoId: notifications.relatedReclamoId, n: sql<number>`count(*)::int` })
+        .from(notifications)
+        .leftJoin(
+          notificationReads,
+          and(eq(notificationReads.notificationId, notifications.id), eq(notificationReads.userId, req.user.id)),
+        )
+        .where(and(
+          eq(notifications.userId, req.user.id),
+          eq(notifications.type, 'reclamo_mensaje'),
+          eq(notifications.isArchived, false),
+          isNull(notificationReads.id),
+        ))
+        .groupBy(notifications.relatedReclamoId);
+      const porReclamo: Record<string, number> = {};
+      let count = 0;
+      for (const f of filas) {
+        if (!f.reclamoId) continue;
+        porReclamo[f.reclamoId] = f.n;
+        count += f.n;
+      }
+      res.json({ count, porReclamo });
+    } catch (error: any) {
+      console.error('[reclamos] no se pudieron contar mensajes sin leer:', error.message);
+      res.json({ count: 0, porReclamo: {} });
+    }
+  }));
+
   // Get all reclamos with optional filters
   app.get('/api/reclamos-generales', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
@@ -26992,6 +27024,145 @@ export function registerRoutes(app: Express): Server {
       mensaje,
     }).returning();
     res.status(201).json(nuevo);
+
+    // Aviso a los involucrados: va después de responder para que el chat no espere,
+    // y si falla el mensaje igual quedó guardado.
+    avisarMensajeReclamo(reclamo, user.id, nombre, mensaje).catch((err: any) =>
+      console.error('[reclamos] no se pudo avisar el mensaje:', err?.message),
+    );
+  }));
+
+  /**
+   * Manda a la campana (y al teléfono, si lo tiene activado) un aviso de mensaje
+   * nuevo a quienes están metidos en el reclamo: quien lo registró, el técnico,
+   * el responsable del área, quienes ya escribieron, el equipo del área asignada
+   * y los administradores. Nunca a quien escribió.
+   */
+  async function avisarMensajeReclamo(reclamo: any, autorId: string, autorNombre: string, mensaje: string) {
+    const { users, notifications } = await import('@shared/schema');
+    const { getRoleArea, mapToOperativeArea, normalizeAreaName } = await import('@shared/reclamosAreas');
+
+    const destinatarios = new Set<string>(
+      [reclamo.vendedorId, reclamo.tecnicoId, reclamo.responsableAreaId].filter(Boolean),
+    );
+
+    const escribieron = await db
+      .selectDistinct({ userId: reclamosGeneralesMensajes.userId })
+      .from(reclamosGeneralesMensajes)
+      .where(eq(reclamosGeneralesMensajes.reclamoId, reclamo.id));
+    escribieron.forEach((e) => e.userId && destinatarios.add(e.userId));
+
+    // Equipo del área: los roles que ven ese reclamo en su cola (la misma
+    // equivalencia que usa la lista, p. ej. "envase" lo atiende Logística).
+    const area = reclamo.areaResponsableActual || reclamo.categoriaResponsable || reclamo.areaAsignadaInicial;
+    const areas = new Set([normalizeAreaName(area), mapToOperativeArea(area)].filter(Boolean));
+    const todos = await db.select({ id: users.id, role: users.role }).from(users);
+    for (const u of todos) {
+      if (u.role === 'admin') destinatarios.add(u.id);
+      else if (areas.size > 0 && areas.has(getRoleArea(u.role))) destinatarios.add(u.id);
+    }
+    destinatarios.delete(autorId);
+    if (destinatarios.size === 0) return;
+
+    // Correo a quien registró el reclamo: solo si no tiene ya un aviso sin leer de
+    // esta conversación, así una seguidilla de mensajes no le llena la bandeja.
+    // Se decide antes de guardar el aviso nuevo, que contaría como "sin leer".
+    const creadorId: string | null = reclamo.vendedorId && reclamo.vendedorId !== autorId ? reclamo.vendedorId : null;
+    let correoAlCreador = false;
+    if (creadorId) {
+      const { notificationReads } = await import('@shared/schema');
+      const [pendiente] = await db
+        .select({ id: notifications.id })
+        .from(notifications)
+        .leftJoin(
+          notificationReads,
+          and(eq(notificationReads.notificationId, notifications.id), eq(notificationReads.userId, creadorId)),
+        )
+        .where(and(
+          eq(notifications.userId, creadorId),
+          eq(notifications.type, 'reclamo_mensaje'),
+          eq(notifications.relatedReclamoId, reclamo.id),
+          isNull(notificationReads.id),
+        ))
+        .limit(1);
+      correoAlCreador = !pendiente;
+    }
+
+    const numero = reclamo.numeroTrazabilidad ? `N° ${reclamo.numeroTrazabilidad}` : 'un reclamo';
+    const titulo = `Mensaje nuevo en reclamo ${numero}`;
+    const resumen = mensaje.length > 140 ? `${mensaje.slice(0, 140)}…` : mensaje;
+    const texto = `${autorNombre} escribió en el reclamo de ${reclamo.clientName}: "${resumen}"`;
+    const actionUrl = `/reclamos-generales?reclamo=${reclamo.id}`;
+
+    await db.insert(notifications).values(
+      Array.from(destinatarios).map((userId) => ({
+        userId,
+        targetType: 'personal',
+        type: 'reclamo_mensaje',
+        title: titulo,
+        message: texto,
+        priority: 'media',
+        relatedReclamoId: reclamo.id,
+        actionUrl,
+        createdBy: autorId,
+        createdByName: autorNombre,
+      })),
+    );
+
+    for (const userId of Array.from(destinatarios)) {
+      sendPushForNotification({ targetType: 'personal', targetUserId: userId, title: titulo, message: texto, actionUrl })
+        .catch((err: any) => console.error('[push] Error enviando push:', err?.message));
+    }
+
+    if (correoAlCreador && creadorId) {
+      const [creador] = await db
+        .select({ email: users.email, firstName: users.firstName })
+        .from(users)
+        .where(eq(users.id, creadorId));
+      if (!creador?.email) return;
+      const { buildReclamoMensajeEmail } = await import('./email-templates');
+      const { subject, html } = buildReclamoMensajeEmail({
+        destinatarioNombre: creador.firstName || reclamo.vendedorName,
+        autorNombre,
+        reclamoId: reclamo.id,
+        numeroTrazabilidad: reclamo.numeroTrazabilidad,
+        clientName: reclamo.clientName,
+        productName: reclamo.productName,
+        mensaje,
+      });
+      await NotifyHelper.sendAutoCustomerEmail({
+        notificationType: 'reclamo_mensaje',
+        to: creador.email,
+        subject,
+        html,
+        force: true,
+      });
+    }
+  }
+
+  /** Al ver la conversación: sus avisos de mensaje quedan leídos para este usuario. */
+  app.post('/api/reclamos-generales/:id/mensajes/leidos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { notifications, notificationReads } = await import('@shared/schema');
+    const pendientes = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .leftJoin(
+        notificationReads,
+        and(eq(notificationReads.notificationId, notifications.id), eq(notificationReads.userId, req.user.id)),
+      )
+      .where(and(
+        eq(notifications.userId, req.user.id),
+        eq(notifications.type, 'reclamo_mensaje'),
+        eq(notifications.relatedReclamoId, req.params.id),
+        isNull(notificationReads.id),
+      ));
+    if (pendientes.length > 0) {
+      await db
+        .insert(notificationReads)
+        .values(pendientes.map((p) => ({ notificationId: p.id, userId: req.user.id })))
+        .onConflictDoNothing();
+    }
+    res.json({ marcados: pendientes.length });
   }));
 
   // Create reclamo

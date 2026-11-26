@@ -669,6 +669,60 @@ export function buildLeadWebAsignadoEmail(data: LeadWebAsignadoData): { subject:
   return { subject, html };
 }
 
+interface ReclamoMensajeData {
+  destinatarioNombre?: string | null;
+  autorNombre: string;
+  reclamoId: string;
+  numeroTrazabilidad?: string | null;
+  clientName: string;
+  productName?: string | null;
+  mensaje: string;
+}
+
+/** Aviso a quien registró un reclamo: alguien escribió en su conversación. */
+export function buildReclamoMensajeEmail(data: ReclamoMensajeData): { subject: string; html: string } {
+  const esc = (s?: string | null) =>
+    String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const base = PUBLIC_BASE_URL.replace(/\/$/, '');
+  const numero = data.numeroTrazabilidad ? `N° ${data.numeroTrazabilidad}` : '';
+  const subject = `💬 ${data.autorNombre} escribió en tu reclamo ${numero ? numero + ' · ' : ''}${data.clientName}`;
+  const mensaje = data.mensaje.length > 1500 ? `${data.mensaje.slice(0, 1500)}…` : data.mensaje;
+
+  const html = wrapEmailContent(`
+    <h2 style="color: #1a1f2e; margin: 0 0 16px 0; font-family: Arial, sans-serif;">${data.destinatarioNombre ? `Hola ${esc(data.destinatarioNombre)}, t` : 'T'}ienes un mensaje nuevo en tu reclamo</h2>
+    <p style="color: #333; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
+      <strong>${esc(data.autorNombre)}</strong> escribió en la conversación del reclamo que registraste.
+    </p>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 16px 0; background-color: #f8f9fa; border-radius: 6px;">
+      ${numero ? `<tr>
+        <td style="padding: 6px 12px; font-size: 13px; color: #888; white-space: nowrap;">Reclamo</td>
+        <td style="padding: 6px 12px; font-size: 13px; color: #fd6301; font-weight: bold;">${esc(numero)}</td>
+      </tr>` : ''}
+      <tr>
+        <td style="padding: 6px 12px; font-size: 13px; color: #888; white-space: nowrap;">Cliente</td>
+        <td style="padding: 6px 12px; font-size: 13px; color: #1a1f2e; font-weight: bold;">${esc(data.clientName)}</td>
+      </tr>
+      ${data.productName ? `<tr>
+        <td style="padding: 6px 12px; font-size: 13px; color: #888; white-space: nowrap;">Producto</td>
+        <td style="padding: 6px 12px; font-size: 13px; color: #1a1f2e; font-weight: bold;">${esc(data.productName)}</td>
+      </tr>` : ''}
+    </table>
+    <div style="background-color: #fff7ed; border-left: 4px solid #fd6301; padding: 12px 16px; border-radius: 4px; margin: 0 0 16px 0;">
+      <p style="color: #1a1f2e; margin: 0 0 6px 0; font-size: 13px; font-weight: bold;">${esc(data.autorNombre)} escribió:</p>
+      <p style="color: #333; margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${esc(mensaje)}</p>
+    </div>
+    <p style="text-align: center; margin: 20px 0 0 0;">
+      <a href="${base}/reclamos-generales?reclamo=${encodeURIComponent(data.reclamoId)}" style="display: inline-block; background-color: #fd6301; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold; font-size: 14px;">
+        Ver el reclamo y responder
+      </a>
+    </p>
+    <p style="color: #888; font-size: 12px; line-height: 1.5; margin: 16px 0 0 0; text-align: center;">
+      Mientras no leas este mensaje no te llegarán más correos de esta conversación.
+    </p>
+  `);
+  return { subject, html };
+}
+
 interface CustomColorPricedData {
   clientName: string;
   productName: string;
