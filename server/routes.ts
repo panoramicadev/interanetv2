@@ -455,7 +455,7 @@ import { sendPushForNotification } from './push';
 import { encodeScopeSucursal } from './utils/sucursal-scope';
 import { marcarCadenas, sucursalesDeCadenasQueCalzan, condicionNombreCliente, nombresParaFiltrarCliente } from './utils/sucursal-por-prefijo';
 import { warehouses, ecommerceOrders, informesRendicion } from "@shared/schema";
-import { reclamosGeneralesMensajes } from "@shared/schema";
+import { reclamosGeneralesMensajes, reclamosMensajesLecturas } from "@shared/schema";
 import { normalizeTrackingCode, looksLikeUuid } from "./utils/tracking-code";
 import { fetchTmsShipping, fetchTmsOrdersByClient, fetchTmsOrderDetail, fetchTmsOrders, fetchTmsEstadoCounts, fetchTmsRutas, fetchTmsRutaDetail, isTmsConfigured, TMS_ETAPAS, TMS_ESTADOS_ALL, TMS_RUTA_ESTADOS } from "./utils/tms-logistica";
 import { matchEcommerceOrdersToErp } from "./utils/erp-match";
@@ -26897,28 +26897,72 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  /** Mensajes de reclamos que el usuario todavía no lee: total y por reclamo. */
+  /**
+   * Mensajes de reclamos que el usuario todavía no lee: total y por reclamo.
+   * Sale de los mensajes mismos (no de los avisos de la campana), así cuentan
+   * también los que llegaron antes de que existieran los avisos. No leído = lo
+   * que escribió otro después de la última vez que la persona abrió esa
+   * conversación, en reclamos donde está metida (los mismos a quienes se avisa).
+   */
   app.get('/api/reclamos-generales/mensajes-sin-leer', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { notifications, notificationReads } = await import('@shared/schema');
+      const yo = req.user;
       const filas = await db
-        .select({ reclamoId: notifications.relatedReclamoId, n: sql<number>`count(*)::int` })
-        .from(notifications)
+        .select({ reclamoId: reclamosGeneralesMensajes.reclamoId, n: sql<number>`count(*)::int` })
+        .from(reclamosGeneralesMensajes)
         .leftJoin(
-          notificationReads,
-          and(eq(notificationReads.notificationId, notifications.id), eq(notificationReads.userId, req.user.id)),
+          reclamosMensajesLecturas,
+          and(
+            eq(reclamosMensajesLecturas.reclamoId, reclamosGeneralesMensajes.reclamoId),
+            eq(reclamosMensajesLecturas.userId, yo.id),
+          ),
         )
         .where(and(
-          eq(notifications.userId, req.user.id),
-          eq(notifications.type, 'reclamo_mensaje'),
-          eq(notifications.isArchived, false),
-          isNull(notificationReads.id),
+          ne(reclamosGeneralesMensajes.userId, yo.id),
+          or(
+            isNull(reclamosMensajesLecturas.id),
+            sql`${reclamosGeneralesMensajes.createdAt} > ${reclamosMensajesLecturas.leidoHasta}`,
+          ),
         ))
-        .groupBy(notifications.relatedReclamoId);
+        .groupBy(reclamosGeneralesMensajes.reclamoId);
+      if (filas.length === 0) return res.json({ count: 0, porReclamo: {} });
+
+      const { reclamosGenerales } = await import('@shared/schema');
+      const { getRoleArea } = await import('@shared/reclamosAreas');
+      const ids = filas.map((f) => f.reclamoId);
+      const reclamos = await db
+        .select({
+          id: reclamosGenerales.id,
+          vendedorId: reclamosGenerales.vendedorId,
+          tecnicoId: reclamosGenerales.tecnicoId,
+          responsableAreaId: reclamosGenerales.responsableAreaId,
+          areaResponsableActual: reclamosGenerales.areaResponsableActual,
+          categoriaResponsable: reclamosGenerales.categoriaResponsable,
+          areaAsignadaInicial: reclamosGenerales.areaAsignadaInicial,
+        })
+        .from(reclamosGenerales)
+        .where(inArray(reclamosGenerales.id, ids));
+      const escribi = new Set(
+        (await db
+          .selectDistinct({ reclamoId: reclamosGeneralesMensajes.reclamoId })
+          .from(reclamosGeneralesMensajes)
+          .where(and(eq(reclamosGeneralesMensajes.userId, yo.id), inArray(reclamosGeneralesMensajes.reclamoId, ids)))
+        ).map((e) => e.reclamoId),
+      );
+      const miArea = getRoleArea(yo.role);
+      const involucrados = new Set<string>();
+      for (const r of reclamos) {
+        const metido = yo.role === 'admin'
+          || [r.vendedorId, r.tecnicoId, r.responsableAreaId].includes(yo.id)
+          || escribi.has(r.id)
+          || (!!miArea && (await areasDelReclamo(r)).has(miArea));
+        if (metido) involucrados.add(r.id);
+      }
+
       const porReclamo: Record<string, number> = {};
       let count = 0;
       for (const f of filas) {
-        if (!f.reclamoId) continue;
+        if (!involucrados.has(f.reclamoId)) continue;
         porReclamo[f.reclamoId] = f.n;
         count += f.n;
       }
@@ -26928,6 +26972,20 @@ export function registerRoutes(app: Express): Server {
       res.json({ count: 0, porReclamo: {} });
     }
   }));
+
+  /**
+   * Áreas que tienen un reclamo en su cola: la actual y su equivalente operativa
+   * (p. ej. "envase" lo atiende Logística). Misma regla para avisar y para contar.
+   */
+  async function areasDelReclamo(reclamo: {
+    areaResponsableActual?: string | null;
+    categoriaResponsable?: string | null;
+    areaAsignadaInicial?: string | null;
+  }) {
+    const { mapToOperativeArea, normalizeAreaName } = await import('@shared/reclamosAreas');
+    const area = reclamo.areaResponsableActual || reclamo.categoriaResponsable || reclamo.areaAsignadaInicial;
+    return new Set<string | null>([normalizeAreaName(area), mapToOperativeArea(area)].filter(Boolean));
+  }
 
   // Get all reclamos with optional filters
   app.get('/api/reclamos-generales', requireAuth, asyncHandler(async (req: any, res: any) => {
@@ -27040,7 +27098,7 @@ export function registerRoutes(app: Express): Server {
    */
   async function avisarMensajeReclamo(reclamo: any, autorId: string, autorNombre: string, mensaje: string) {
     const { users, notifications } = await import('@shared/schema');
-    const { getRoleArea, mapToOperativeArea, normalizeAreaName } = await import('@shared/reclamosAreas');
+    const { getRoleArea } = await import('@shared/reclamosAreas');
 
     const destinatarios = new Set<string>(
       [reclamo.vendedorId, reclamo.tecnicoId, reclamo.responsableAreaId].filter(Boolean),
@@ -27054,8 +27112,7 @@ export function registerRoutes(app: Express): Server {
 
     // Equipo del área: los roles que ven ese reclamo en su cola (la misma
     // equivalencia que usa la lista, p. ej. "envase" lo atiende Logística).
-    const area = reclamo.areaResponsableActual || reclamo.categoriaResponsable || reclamo.areaAsignadaInicial;
-    const areas = new Set([normalizeAreaName(area), mapToOperativeArea(area)].filter(Boolean));
+    const areas = await areasDelReclamo(reclamo);
     const todos = await db.select({ id: users.id, role: users.role }).from(users);
     for (const u of todos) {
       if (u.role === 'admin') destinatarios.add(u.id);
@@ -27161,6 +27218,18 @@ export function registerRoutes(app: Express): Server {
         .insert(notificationReads)
         .values(pendientes.map((p) => ({ notificationId: p.id, userId: req.user.id })))
         .onConflictDoNothing();
+    }
+    // Hasta aquí leyó esta conversación: lo de antes deja de contar como no leído.
+    try {
+      await db
+        .insert(reclamosMensajesLecturas)
+        .values({ reclamoId: req.params.id, userId: req.user.id, leidoHasta: sql`now()` })
+        .onConflictDoUpdate({
+          target: [reclamosMensajesLecturas.reclamoId, reclamosMensajesLecturas.userId],
+          set: { leidoHasta: sql`now()` },
+        });
+    } catch (err: any) {
+      console.error('[reclamos] no se pudo guardar la lectura de la conversación:', err?.message);
     }
     res.json({ marcados: pendientes.length });
   }));

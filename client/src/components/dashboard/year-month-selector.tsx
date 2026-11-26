@@ -4,6 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar, Check, ChevronRight } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { buildPeriodDisplay } from "@/contexts/FilterContext";
+import { cn } from "@/lib/utils";
 
 export interface YearMonthSelection {
   years: number[];
@@ -35,6 +36,8 @@ interface YearMonthSelectorProps {
   availablePeriods?: string[];
   /** Qué dice el botón cuando no hay nada elegido. */
   placeholder?: string;
+  /** Clases extra del botón, para que calce con los campos de la pantalla que lo usa. */
+  triggerClassName?: string;
 }
 
 const MONTHS = [
@@ -51,6 +54,7 @@ export function YearMonthSelector({
   hideDays = false,
   availablePeriods,
   placeholder = "Seleccionar período",
+  triggerClassName,
 }: YearMonthSelectorProps) {
   // En modo inline el panel está siempre "abierto": no hay popover que abrir ni cerrar,
   // así que el estado queda fijo en true y los cierres se ignoran.
@@ -557,7 +561,7 @@ export function YearMonthSelector({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="h-8 min-w-[200px] justify-between text-left font-normal text-xs border-gray-200 shadow-sm"
+          className={cn("h-8 min-w-[200px] justify-between text-left font-normal text-xs border-gray-200 shadow-sm", triggerClassName)}
           data-testid="year-month-selector"
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">

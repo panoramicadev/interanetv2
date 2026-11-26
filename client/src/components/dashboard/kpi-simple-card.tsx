@@ -34,6 +34,11 @@ interface TarjetaKpiProps {
   className?: string;
   /** Centra chip, título y cifra (por defecto van a la izquierda). */
   centrado?: boolean;
+  /**
+   * Algo pendiente que hay que mirar ya (p. ej. mensajes sin leer): la tarjeta
+   * pasa a rojo, el chip late y arriba a la derecha va esta etiqueta.
+   */
+  alerta?: string;
 }
 
 /**
@@ -58,15 +63,33 @@ export default function TarjetaKpi({
   testId,
   className = "",
   centrado = false,
+  alerta,
 }: TarjetaKpiProps) {
   return (
     <div
-      className={`${KPI_TARJETA} ${onClick ? "cursor-pointer" : ""} ${centrado ? "text-center" : ""} ${className}`}
+      className={`${KPI_TARJETA} ${onClick ? "cursor-pointer" : ""} ${centrado ? "text-center" : ""} ${
+        alerta ? "!border-2 !border-red-500 !bg-red-50 dark:!bg-red-950/40 shadow-[0_0_18px_rgba(239,68,68,0.35)]" : ""
+      } ${className}`}
       onClick={onClick}
     >
+      {alerta && (
+        <span className="absolute top-2 right-2 sm:top-3 sm:right-3 inline-flex items-center gap-1.5 rounded-full bg-red-500 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-white shadow-[0_0_8px_rgba(239,68,68,0.6)]">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-75 animate-ping motion-reduce:animate-none" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+          </span>
+          {alerta}
+        </span>
+      )}
       <div className={`${KPI_CHIP_FILA} ${centrado ? "justify-center" : ""}`}>
-        <div className={ICONO_CHIP}>
-          <Icono className={ICONO_CHIP_ICONO} />
+        <div className="relative">
+          {/* Onda que late detrás del chip mientras haya algo pendiente */}
+          {alerta && (
+            <span className="absolute inset-0 rounded-xl bg-red-500 opacity-60 animate-ping motion-reduce:animate-none" />
+          )}
+          <div className={`${ICONO_CHIP} relative ${alerta ? "!bg-red-500 !shadow-red-500/40" : ""}`}>
+            <Icono className={ICONO_CHIP_ICONO} />
+          </div>
         </div>
       </div>
 
@@ -77,7 +100,7 @@ export default function TarjetaKpi({
 
         {/* El tamaño sale del largo del valor: una cifra de plata se muestra ENTERA,
             nunca recortada con puntos suspensivos. */}
-        <p className={kpiCifraClase(valor)} data-testid={testId} title={valor}>
+        <p className={`${kpiCifraClase(valor)} ${alerta ? "!text-red-600 dark:!text-red-400" : ""}`} data-testid={testId} title={valor}>
           {valor}
         </p>
 
