@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -21,8 +21,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   Plus, 
   FileText, 
-  BarChart3, 
-  Calendar,
   User,
   CheckCircle2,
   AlertTriangle,
@@ -46,13 +44,18 @@ import {
   ChevronDown,
   ChevronUp,
   Download,
-  ArrowLeft
+  ArrowLeft,
+  FlaskConical,
+  Factory,
+  Wrench
 } from "lucide-react";
 import type { ReclamoGeneral, ReclamoGeneralPhoto } from "@shared/schema";
 import { RECLAMOS_AREAS, AREA_LABELS, getAreaLabel, getRoleArea } from "@shared/reclamosAreas";
 import { format } from "date-fns";
 import { ICONO_CHIP, ICONO_CHIP_ICONO } from "@/lib/icono-chip";
 import { ReclamoChat } from "@/components/reclamos/reclamo-chat";
+import TarjetaKpi from "@/components/dashboard/kpi-simple-card";
+import { clienteDelReclamo, etiquetaNumeroReclamo } from "@/lib/reclamo-numero";
 import { es } from "date-fns/locale";
 
 interface Client {
@@ -103,10 +106,12 @@ const AREA_ASIGNADA_OPTIONS = [
   { value: RECLAMOS_AREAS.COMERCIAL, label: AREA_LABELS[RECLAMOS_AREAS.COMERCIAL] },
 ];
 
+// Gravedad (nov-2026): pastilla blanca con un punto que sube de gris a ámbar y a rojo.
+// Va distinta del chip de estado a propósito: así las dos etiquetas no se confunden.
 const GRAVEDAD_OPTIONS = [
-  { value: 'baja', label: 'Baja', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
-  { value: 'media', label: 'Media', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
-  { value: 'alta', label: 'Alta', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
+  { value: 'baja', label: 'Baja', punto: 'bg-slate-400' },
+  { value: 'media', label: 'Media', punto: 'bg-amber-500' },
+  { value: 'alta', label: 'Alta', punto: 'bg-red-600' },
   // "Crítica" salió (oct-2026): la gravedad es Baja / Media / Alta.
 ];
 
@@ -131,43 +136,83 @@ const CATEGORIA_RESPONSABLE_OPTIONS = [
 // La validación técnica deriva a las mismas cinco áreas del formulario.
 const VALIDACION_AREA_OPTIONS = AREA_ASIGNADA_OPTIONS;
 
+// Estados (nov-2026): gris al registrarse, naranjo de marca mientras se trabaja
+// (cada área con su ícono), verde al resolverse y negro al cerrarse.
+// Sin relleno de color (pedido del usuario): solo el texto y el borde llevan el tono,
+// salvo Cerrado, que va en negro sólido con letra blanca.
+const CHIP_EN_PROCESO = 'text-[#c2410c] ring-orange-200 dark:text-orange-300 dark:ring-orange-900';
 const ESTADO_LABELS: Record<string, { label: string; color: string; icon: any }> = {
-  'registrado': { 
-    label: 'Registrado', 
-    color: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200',
+  'registrado': {
+    label: 'Registrado',
+    color: 'text-slate-600 ring-slate-200 dark:text-slate-300 dark:ring-slate-700',
     icon: FileText
   },
-  'en_revision_tecnica': { 
-    label: 'En Revisión Técnica', 
-    color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    icon: User
+  'en_revision_tecnica': {
+    label: 'En Revisión Técnica',
+    color: CHIP_EN_PROCESO,
+    icon: Wrench
   },
-  'en_laboratorio': { 
-    label: 'En Laboratorio', 
-    color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-    icon: BarChart3
+  'en_laboratorio': {
+    label: 'En Laboratorio',
+    color: CHIP_EN_PROCESO,
+    icon: FlaskConical
   },
-  'en_area_responsable': { 
-    label: 'En Área Responsable', 
-    color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
+  'en_area_responsable': {
+    label: 'En Área Responsable',
+    color: CHIP_EN_PROCESO,
     icon: Building2
   },
-  'resuelto': { 
-    label: 'Resuelto', 
-    color: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200',
+  'en_produccion': {
+    label: 'En Producción',
+    color: CHIP_EN_PROCESO,
+    icon: Factory
+  },
+  'resuelto': {
+    label: 'Resuelto',
+    color: 'text-emerald-700 ring-emerald-200 dark:text-emerald-300 dark:ring-emerald-900',
     icon: CheckCircle2
   },
-  'en_produccion': { 
-    label: 'En Producción', 
-    color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-    icon: Building2
-  },
-  'cerrado': { 
-    label: 'Cerrado', 
-    color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    icon: CheckCircle2
+  'cerrado': {
+    label: 'Cerrado',
+    color: 'bg-[#0a0a0a] text-white ring-[#0a0a0a] dark:bg-slate-100 dark:text-slate-900 dark:ring-slate-100',
+    icon: CheckCheck
   },
 };
+
+/** Chip de gravedad: punto de color + nombre. `sobreOscuro` para el encabezado negro del detalle. */
+function GravedadChip({ gravedad, sobreOscuro = false, testId }: { gravedad: string; sobreOscuro?: boolean; testId?: string }) {
+  const g = GRAVEDAD_OPTIONS.find(o => o.value === gravedad);
+  if (!g) return null;
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+        sobreOscuro
+          ? 'border-white/25 bg-transparent text-white'
+          : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
+      }`}
+      data-testid={testId}
+    >
+      <span className={`h-2 w-2 rounded-full ${g.punto}`} aria-hidden />
+      {g.label}
+    </span>
+  );
+}
+
+/** Chip de estado: MAYÚSCULAS con ícono, como el EstadoChip de Rendición de Gastos. */
+function EstadoReclamoChip({ estado, conIcono = true, sobreOscuro = false, testId }: { estado: string; conIcono?: boolean; sobreOscuro?: boolean; testId?: string }) {
+  const e = ESTADO_LABELS[estado];
+  if (!e) return null;
+  const Icono = e.icon;
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-inset ${sobreOscuro ? 'text-white ring-white/25' : e.color}`}
+      data-testid={testId}
+    >
+      {conIcono && <Icono className="h-3 w-3" aria-hidden />}
+      {e.label}
+    </span>
+  );
+}
 
 // Organizational roles constant
 const organizationalRoles = ['produccion', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
@@ -195,11 +240,19 @@ function PortaledFilePicker({ inputRef, onChange, accept = "image/*", multiple =
   );
 }
 
+/** Busca por N° de reclamo (con o sin "N°"), nombre o RUT del cliente, y descripción. */
+function coincideBusqueda(reclamo: ReclamoGeneral, termino: string): boolean {
+  const t = termino.trim().toLowerCase().replace(/^n[°º]\s*/, "");
+  if (!t) return true;
+  const cliente = clienteDelReclamo(reclamo);
+  return [reclamo.numeroTrazabilidad, cliente.nombre, cliente.rut, reclamo.description]
+    .some((campo) => (campo || "").toLowerCase().includes(t));
+}
+
 export default function ReclamosGeneralesPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState("mis-reclamos");
   const [filterTab, setFilterTab] = useState(() => {
     // Initialize with "asignados-area" for area, laboratorio, jefe_planta, and organizational roles
     if (user?.role === 'laboratorio' || user?.role === 'jefe_planta' || user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role))) {
@@ -1271,8 +1324,7 @@ export default function ReclamosGeneralesPage() {
     };
 
     return filterBySpecificTab(reclamos.filter(reclamo => {
-      const matchesSearch = reclamo.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        reclamo.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = coincideBusqueda(reclamo, searchTerm);
       const matchesEstado = filterEstado === 'all' || reclamo.estado === filterEstado;
       const matchesGravedad = filterGravedad === 'all' || reclamo.gravedad === filterGravedad;
       return matchesSearch && matchesEstado && matchesGravedad;
@@ -1284,8 +1336,7 @@ export default function ReclamosGeneralesPage() {
     const tabFiltered = filterByTab([reclamo]).length > 0;
     
     // Apply search and other filters
-    const matchesSearch = reclamo.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reclamo.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = coincideBusqueda(reclamo, searchTerm);
     const matchesEstado = filterEstado === 'all' || reclamo.estado === filterEstado;
     const matchesGravedad = filterGravedad === 'all' || reclamo.gravedad === filterGravedad;
     
@@ -1397,15 +1448,8 @@ export default function ReclamosGeneralesPage() {
     <div className="container mx-auto p-4 sm:p-6 space-y-6">
       {!showDetailModal && (<>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className={ICONO_CHIP}>
-            <AlertTriangle className={ICONO_CHIP_ICONO} />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-slate-100">Reclamos de Clientes</h1>
-            <p className="hidden sm:block text-muted-foreground">Gestión de reclamos y seguimiento</p>
-          </div>
-        </div>
+        {/* Solo el título (nov-2026): sin ícono ni bajada, a pedido del usuario. */}
+        <h1 className="min-w-0 text-2xl sm:text-3xl font-bold text-slate-800 dark:text-slate-100">Reclamos de Clientes</h1>
         {(user?.role === 'salesperson' || user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'tecnico_obra') && (
           <Button 
             onClick={() => setShowNewReclamoModal(true)}
@@ -1418,28 +1462,19 @@ export default function ReclamosGeneralesPage() {
         )}
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        {user?.role !== 'salesperson' && user?.role !== 'tecnico_obra' ? (
-          <TabsList className={TABS_RIEL} data-testid="tabs-reclamos">
-            <TabsTrigger value="mis-reclamos" data-testid="tab-mis-reclamos" className={TAB_PRINCIPAL}>
-              <FileText className="h-4 w-4 shrink-0" />
-              Mis Reclamos
-            </TabsTrigger>
-            <TabsTrigger value="estadisticas" data-testid="tab-estadisticas" className={TAB_PRINCIPAL}>
-              <BarChart3 className="h-4 w-4 shrink-0" />
-              Estadísticas
-            </TabsTrigger>
-          </TabsList>
-        ) : (
-          <TabsList className={TABS_RIEL} data-testid="tabs-reclamos">
-            <TabsTrigger value="mis-reclamos" data-testid="tab-mis-reclamos" className={TAB_PRINCIPAL}>
-              <FileText className="h-4 w-4 shrink-0" />
-              Mis Reclamos
-            </TabsTrigger>
-          </TabsList>
+      {/* Una sola vista (nov-2026): los indicadores que vivían en la pestaña
+          "Estadísticas" van arriba de la lista. Los ven los mismos que veían esa pestaña. */}
+      <div className="space-y-6">
+        {user?.role !== 'salesperson' && user?.role !== 'tecnico_obra' && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4" data-testid="indicadores-reclamos">
+            <TarjetaKpi titulo="Total Reclamos" valor={String(reclamos.length)} icono={FileText} testId="kpi-reclamos-total" />
+            <TarjetaKpi titulo="Abiertos" valor={String(reclamos.filter(r => r.estado !== 'cerrado').length)} icono={Clock} testId="kpi-reclamos-abiertos" />
+            <TarjetaKpi titulo="En Laboratorio" valor={String(reclamos.filter(r => r.estado === 'en_laboratorio').length)} icono={FlaskConical} testId="kpi-reclamos-laboratorio" />
+            <TarjetaKpi titulo="SLA Vencido" valor={String(reclamos.filter(r => getSLAStatus(r)?.type === 'danger').length)} icono={AlertCircle} testId="kpi-reclamos-sla" />
+          </div>
         )}
 
-        <TabsContent value="mis-reclamos" className="space-y-4">
+        <div className="space-y-4">
           {/* Filters - hidden for salesperson */}
           {user?.role !== 'salesperson' && (
           <div>
@@ -1450,7 +1485,7 @@ export default function ReclamosGeneralesPage() {
                   <div className="relative">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#fd6301]" />
                     <Input
-                      placeholder="Buscar por cliente o descripción..."
+                      placeholder="Buscar por N° de reclamo, cliente o descripción..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className={`pl-10 ${CAMPO} focus-visible:border-[#fd6301] focus-visible:ring-orange-500/20`}
@@ -1540,10 +1575,9 @@ export default function ReclamosGeneralesPage() {
               ) : (
                 <div className="space-y-3">
                   {filteredReclamos.map((reclamo) => {
-                    const estadoInfo = ESTADO_LABELS[reclamo.estado];
-                    const gravedadInfo = GRAVEDAD_OPTIONS.find(g => g.value === reclamo.gravedad);
                     const slaStatus = getSLAStatus(reclamo);
-                    const Icon = estadoInfo?.icon || FileText;
+                    const cliente = clienteDelReclamo(reclamo);
+                    const numero = etiquetaNumeroReclamo(reclamo);
                     
                     return (
                       <Card
@@ -1560,23 +1594,17 @@ export default function ReclamosGeneralesPage() {
                             <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className="font-semibold text-slate-800 dark:text-slate-100" data-testid={`text-reclamo-cliente-${reclamo.id}`}>
-                                  {reclamo.clientName} {reclamo.clientRut && <span className="font-semibold">- {reclamo.clientRut}</span>}
+                                  {numero && <span className="text-[#fd6301] tabular-nums" data-testid={`text-reclamo-numero-${reclamo.id}`}>{numero}</span>}
+                                  {numero && <span className="text-slate-400"> · </span>}
+                                  {cliente.nombre}
                                 </h3>
-                                <Badge className={gravedadInfo?.color} data-testid={`badge-gravedad-${reclamo.id}`}>
-                                  {gravedadInfo?.label}
-                                </Badge>
-                                <Badge className={estadoInfo?.color} data-testid={`badge-estado-${reclamo.id}`}>
-                                  <Icon className="h-3 w-3 mr-1" />
-                                  {estadoInfo?.label}
-                                </Badge>
+                                <GravedadChip gravedad={reclamo.gravedad} testId={`badge-gravedad-${reclamo.id}`} />
+                                <EstadoReclamoChip estado={reclamo.estado} testId={`badge-estado-${reclamo.id}`} />
                               </div>
                               
                               
                               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                <span className={CHIP_META}>
-                                  <Calendar className="h-3.5 w-3.5 text-[#fd6301]" />
-                                  {format(new Date(reclamo.fechaRegistro || ''), "dd MMM yyyy", { locale: es })}
-                                </span>
+                                {/* Sin fecha ni RUT (nov-2026): la fecha ya va en el N° del reclamo, y el RUT queda en el detalle y el PDF. */}
                                 {reclamo.productName && (
                                   <span className={CHIP_META}>Producto: {reclamo.productName}</span>
                                 )}
@@ -1709,57 +1737,8 @@ export default function ReclamosGeneralesPage() {
               )}
             </div>
           </div>
-        </TabsContent>
-
-        <TabsContent value="estadisticas" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Total Reclamos</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{reclamos.length}</div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Abiertos</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {reclamos.filter(r => r.estado !== 'cerrado').length}
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">En Laboratorio</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {reclamos.filter(r => r.estado === 'en_laboratorio').length}
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">SLA Vencido</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600">
-                  {reclamos.filter(r => {
-                    const sla = getSLAStatus(r);
-                    return sla?.type === 'danger';
-                  }).length}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
       </>)}
 
       {/* Create/Edit Reclamo Dialog */}
@@ -1812,16 +1791,16 @@ export default function ReclamosGeneralesPage() {
                             onClick={() => {
                               setFormData(prev => ({
                                 ...prev,
-                                clientName: client.koen,
-                                clientRut: client.nokoen,
+                                clientName: client.nokoen,
+                                clientRut: client.koen,
                               }));
-                              setClientSearchTerm(client.koen);
+                              setClientSearchTerm(client.nokoen);
                               setShowClientDropdown(false);
                             }}
                             data-testid={`option-cliente-${client.id}`}
                           >
-                            <div className="font-medium">{client.koen}</div>
-                            <div className="text-xs text-muted-foreground">{client.nokoen}</div>
+                            <div className="font-medium">{client.nokoen}</div>
+                            <div className="text-xs text-muted-foreground">{client.koen}</div>
                           </div>
                         ))}
                       </CardContent>
@@ -2189,23 +2168,25 @@ export default function ReclamosGeneralesPage() {
               <div className="bg-[#0a0a0a] px-5 sm:px-6 py-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
+                    {etiquetaNumeroReclamo(reclamoDetails) && (
+                      <p className="text-[#fd6301] font-semibold text-sm tabular-nums" data-testid="text-reclamo-numero-detalle">
+                        {etiquetaNumeroReclamo(reclamoDetails)}
+                      </p>
+                    )}
                     <div className="flex items-center gap-2 mb-1">
                       <h2 className="text-white font-semibold text-lg truncate">
-                        {reclamoDetails.clientName}{reclamoDetails.clientRut ? ` - ${reclamoDetails.clientRut}` : ''}
+                        {clienteDelReclamo(reclamoDetails).nombre}
                       </h2>
                     </div>
                     <p className="text-slate-300 text-xs">
+                      {clienteDelReclamo(reclamoDetails).rut && <span>RUT {clienteDelReclamo(reclamoDetails).rut} · </span>}
                       {format(new Date(reclamoDetails.fechaRegistro || ''), "dd MMM yyyy · HH:mm", { locale: es })}
                       {reclamoDetails.vendedorName && <span> · por <span className="text-slate-200 font-medium">{reclamoDetails.vendedorName}</span></span>}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Badge className={`${GRAVEDAD_OPTIONS.find(g => g.value === reclamoDetails.gravedad)?.color} text-[10px] px-2 py-0.5`}>
-                      {GRAVEDAD_OPTIONS.find(g => g.value === reclamoDetails.gravedad)?.label}
-                    </Badge>
-                    <Badge className={`${ESTADO_LABELS[reclamoDetails.estado]?.color} text-[10px] px-2 py-0.5`}>
-                      {ESTADO_LABELS[reclamoDetails.estado]?.label}
-                    </Badge>
+                    <GravedadChip gravedad={reclamoDetails.gravedad} sobreOscuro />
+                    <EstadoReclamoChip estado={reclamoDetails.estado} sobreOscuro />
                   </div>
                 </div>
 
@@ -2436,9 +2417,7 @@ export default function ReclamosGeneralesPage() {
                                   <span className="text-[10px] text-slate-400">→</span>
                                 </>
                               )}
-                              <Badge className={`${ESTADO_LABELS[entry.estadoNuevo]?.color} text-[10px] px-1.5 py-0`}>
-                                {ESTADO_LABELS[entry.estadoNuevo]?.label}
-                              </Badge>
+                              <EstadoReclamoChip estado={entry.estadoNuevo} conIcono={false} />
                               <span className="text-[10px] text-slate-400 ml-auto shrink-0">
                                 {format(new Date(entry.createdAt), "dd MMM HH:mm", { locale: es })}
                               </span>

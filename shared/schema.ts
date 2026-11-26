@@ -5298,6 +5298,13 @@ export type InsertNotificationReadInput = z.infer<typeof insertNotificationReadS
 export const reclamosGenerales = pgTable("reclamos_generales", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
 
+  // Número de trazabilidad (nov-2026): correlativo del día / fecha de Chile,
+  // "01/26/11/26", "02/26/11/26"... Lo asigna el servidor al crear el reclamo
+  // (storage.createReclamoGeneral) y ensureReclamosNumeroTrazabilidad numera los antiguos.
+  numeroDia: integer("numero_dia"),
+  numeroFecha: date("numero_fecha"),
+  numeroTrazabilidad: varchar("numero_trazabilidad"),
+
   // Información del cliente
   clientName: text("client_name").notNull(),
   clientRut: varchar("client_rut"),
@@ -5364,6 +5371,7 @@ export const reclamosGenerales = pgTable("reclamos_generales", {
   responsableAreaIdIdx: index("IDX_reclamos_gen_responsable_area_id").on(table.responsableAreaId),
   estadoIdx: index("IDX_reclamos_gen_estado").on(table.estado),
   gravedadIdx: index("IDX_reclamos_gen_gravedad").on(table.gravedad),
+  numeroDiaUnico: uniqueIndex("UQ_reclamos_gen_numero_dia").on(table.numeroFecha, table.numeroDia),
 }));
 
 // Tabla de fotos de reclamos generales
@@ -5477,6 +5485,9 @@ export const insertReclamoGeneralSchema = createInsertSchema(reclamosGenerales).
   createdAt: true,
   updatedAt: true,
   fechaRegistro: true,
+  numeroDia: true,
+  numeroFecha: true,
+  numeroTrazabilidad: true,
 }).extend({
   clientName: z.string().min(1, "El nombre del cliente es requerido"),
   productName: z.string().min(1, "El nombre del producto es requerido"),

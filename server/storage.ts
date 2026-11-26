@@ -19374,10 +19374,29 @@ export class DatabaseStorage implements IStorage {
   // ==================================================================================
 
   async createReclamoGeneral(reclamo: InsertReclamoGeneral): Promise<ReclamoGeneral> {
-    const [newReclamo] = await db
-      .insert(reclamosGenerales)
-      .values(reclamo)
-      .returning();
+    // Número de trazabilidad "NN/DD/MM/YY": el que sigue en el día de Chile.
+    // El candado de la transacción evita que dos altas simultáneas tomen el mismo.
+    const newReclamo = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('reclamos_generales_numero'))`);
+      const result = await tx.execute(sql`
+        SELECT h.hoy::text AS hoy,
+               to_char(h.hoy, 'DD/MM/YY') AS sufijo,
+               COALESCE((SELECT MAX(numero_dia) FROM reclamos_generales WHERE numero_fecha = h.hoy), 0) + 1 AS siguiente
+        FROM (SELECT (now() AT TIME ZONE 'America/Santiago')::date AS hoy) h
+      `);
+      const fila = result.rows[0] as { hoy: string; sufijo: string; siguiente: number | string };
+      const numeroDia = Number(fila.siguiente);
+      const [creado] = await tx
+        .insert(reclamosGenerales)
+        .values({
+          ...reclamo,
+          numeroDia,
+          numeroFecha: fila.hoy,
+          numeroTrazabilidad: `${String(numeroDia).padStart(2, '0')}/${fila.sufijo}`,
+        })
+        .returning();
+      return creado;
+    });
 
     // Create initial historial entry
     await this.createReclamoGeneralHistorial({
@@ -19400,7 +19419,7 @@ export class DatabaseStorage implements IStorage {
         userId: user.id,
         type: 'reclamo_nuevo',
         title: 'Nuevo Reclamo Registrado',
-        message: `Nuevo reclamo #${newReclamo.numeroReclamo} del cliente "${newReclamo.clientName}" (${newReclamo.gravedad})`,
+        message: `Nuevo reclamo N° ${newReclamo.numeroTrazabilidad} del cliente "${newReclamo.clientName}" (${newReclamo.gravedad})`,
         relatedReclamoId: newReclamo.id,
         read: false,
       })
@@ -19509,8 +19528,8 @@ export class DatabaseStorage implements IStorage {
   async getReclamosNotificaciones(): Promise<{
     nuevosReclamos: number;
     nuevasResoluciones: number;
-    reclamosMasRecientes: { id: string; numeroReclamo: string; clientName: string; createdAt: Date }[];
-    resolucionesMasRecientes: { id: string; numeroReclamo: string; clientName: string; resolvedAt: Date }[];
+    reclamosMasRecientes: { id: string; numeroReclamo: string | null; clientName: string; createdAt: Date | null }[];
+    resolucionesMasRecientes: { id: string; numeroReclamo: string | null; clientName: string; resolvedAt: Date | null }[];
   }> {
     const hace24Horas = new Date();
     hace24Horas.setHours(hace24Horas.getHours() - 24);
@@ -19533,7 +19552,7 @@ export class DatabaseStorage implements IStorage {
     const reclamosMasRecientes = await db
       .select({
         id: reclamosGenerales.id,
-        numeroReclamo: reclamosGenerales.numeroReclamo,
+        numeroReclamo: reclamosGenerales.numeroTrazabilidad,
         clientName: reclamosGenerales.clientName,
         createdAt: reclamosGenerales.createdAt,
       })
@@ -19545,7 +19564,7 @@ export class DatabaseStorage implements IStorage {
     const resolucionesMasRecientes = await db
       .select({
         id: reclamosGenerales.id,
-        numeroReclamo: reclamosGenerales.numeroReclamo,
+        numeroReclamo: reclamosGenerales.numeroTrazabilidad,
         clientName: reclamosGenerales.clientName,
         resolvedAt: reclamosGenerales.updatedAt,
       })
@@ -19709,7 +19728,7 @@ export class DatabaseStorage implements IStorage {
           userId: updated.vendedorId,
           type: 'reclamo_estado_cambiado',
           title: 'Cambio de Estado en Reclamo',
-          message: `El reclamo #${updated.numeroReclamo} cambió de "${reclamo.estado}" a "${nuevoEstado}"`,
+          message: `El reclamo N° ${updated.numeroTrazabilidad} cambió de "${reclamo.estado}" a "${nuevoEstado}"`,
           relatedReclamoId: updated.id,
           read: false,
         })
@@ -19722,7 +19741,7 @@ export class DatabaseStorage implements IStorage {
           userId: updated.tecnicoId,
           type: 'reclamo_estado_cambiado',
           title: 'Cambio de Estado en Reclamo',
-          message: `El reclamo #${updated.numeroReclamo} cambió de "${reclamo.estado}" a "${nuevoEstado}"`,
+          message: `El reclamo N° ${updated.numeroTrazabilidad} cambió de "${reclamo.estado}" a "${nuevoEstado}"`,
           relatedReclamoId: updated.id,
           read: false,
         })
@@ -20070,7 +20089,7 @@ export class DatabaseStorage implements IStorage {
           userId: updated.tecnicoId,
           type: 'reclamo_resuelto',
           title: 'Reclamo Resuelto',
-          message: `El reclamo #${updated.numeroReclamo} del cliente "${updated.clientName}" ha sido resuelto por el laboratorio.`,
+          message: `El reclamo N° ${updated.numeroTrazabilidad} del cliente "${updated.clientName}" ha sido resuelto por el laboratorio.`,
           relatedReclamoId: updated.id,
           read: false,
         })
@@ -20084,7 +20103,7 @@ export class DatabaseStorage implements IStorage {
           userId: updated.vendedorId,
           type: 'reclamo_resuelto',
           title: 'Reclamo Resuelto',
-          message: `El reclamo #${updated.numeroReclamo} del cliente "${updated.clientName}" ha sido resuelto por el laboratorio.`,
+          message: `El reclamo N° ${updated.numeroTrazabilidad} del cliente "${updated.clientName}" ha sido resuelto por el laboratorio.`,
           relatedReclamoId: updated.id,
           read: false,
         })
@@ -20226,7 +20245,7 @@ export class DatabaseStorage implements IStorage {
           userId: updated.tecnicoId,
           type: 'reclamo_resuelto',
           title: 'Reclamo Resuelto',
-          message: `El reclamo #${updated.numeroReclamo} del cliente "${updated.clientName}" ha sido resuelto por el área ${areaUsuario}.`,
+          message: `El reclamo N° ${updated.numeroTrazabilidad} del cliente "${updated.clientName}" ha sido resuelto por el área ${areaUsuario}.`,
           relatedReclamoId: updated.id,
           read: false,
         })
@@ -20240,7 +20259,7 @@ export class DatabaseStorage implements IStorage {
           userId: updated.vendedorId,
           type: 'reclamo_resuelto',
           title: 'Reclamo Resuelto',
-          message: `El reclamo #${updated.numeroReclamo} del cliente "${updated.clientName}" ha sido resuelto por el área ${areaUsuario}.`,
+          message: `El reclamo N° ${updated.numeroTrazabilidad} del cliente "${updated.clientName}" ha sido resuelto por el área ${areaUsuario}.`,
           relatedReclamoId: updated.id,
           read: false,
         })

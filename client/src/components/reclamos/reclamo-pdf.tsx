@@ -1,12 +1,14 @@
 import { Document, Page, Text, View, StyleSheet, pdf } from "@react-pdf/renderer";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { clienteDelReclamo } from "@/lib/reclamo-numero";
 
 // PDF de un reclamo, para la opción "Descargar" del listado de Reclamos. Se carga
 // con import() desde la página para no sumar @react-pdf al módulo de entrada.
 
 export interface ReclamoPdfDatos {
   id: string;
+  numeroTrazabilidad?: string | null;
   clientName?: string | null;
   clientRut?: string | null;
   clientEmail?: string | null;
@@ -62,12 +64,13 @@ function Fila({ etiqueta, valor }: { etiqueta: string; valor?: string | null }) 
 
 function ReclamoPdf({ r, etiquetas }: { r: ReclamoPdfDatos; etiquetas: Etiquetas }) {
   const informe = r.resolucionDescripcion || r.informeLaboratorio;
+  const cliente = clienteDelReclamo(r);
   return (
-    <Document title={`Reclamo ${r.clientName ?? ""}`}>
+    <Document title={`Reclamo ${r.numeroTrazabilidad ? `N° ${r.numeroTrazabilidad} ` : ""}${cliente.nombre}`}>
       <Page size="A4" style={estilos.pagina}>
         <View style={estilos.encabezado}>
           <Text style={estilos.marca}>PINTURAS PANORÁMICA</Text>
-          <Text style={estilos.titulo}>Reclamo de Cliente</Text>
+          <Text style={estilos.titulo}>Reclamo de Cliente{r.numeroTrazabilidad ? ` N° ${r.numeroTrazabilidad}` : ""}</Text>
           <Text style={estilos.subtitulo}>
             Registrado el {fecha(r.fechaRegistro)} · Estado: {etiquetas.estado(r.estado)} · Gravedad: {etiquetas.gravedad(r.gravedad)}
           </Text>
@@ -75,8 +78,8 @@ function ReclamoPdf({ r, etiquetas }: { r: ReclamoPdfDatos; etiquetas: Etiquetas
 
         <View style={estilos.seccion}>
           <Text style={estilos.seccionTitulo}>Cliente</Text>
-          <Fila etiqueta="Nombre" valor={r.clientName} />
-          <Fila etiqueta="RUT" valor={r.clientRut} />
+          <Fila etiqueta="Nombre" valor={cliente.nombre} />
+          <Fila etiqueta="RUT" valor={cliente.rut} />
           <Fila etiqueta="Correo" valor={r.clientEmail} />
           <Fila etiqueta="Teléfono" valor={r.clientPhone} />
           <Fila etiqueta="Dirección" valor={r.clientAddress} />
@@ -148,8 +151,10 @@ export async function descargarReclamoPdf(r: ReclamoPdfDatos, etiquetas: Etiquet
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  const nombre = (r.clientName || "cliente").replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ]+/g, "-").replace(/^-|-$/g, "");
-  a.download = `reclamo-${nombre}-${fecha(r.fechaRegistro, "yyyy-MM-dd")}.pdf`;
+  // El número lleva "/": en el nombre del archivo va con guiones (01-26-11-26).
+  const numero = r.numeroTrazabilidad ? `${r.numeroTrazabilidad.replace(/\//g, "-")}-` : "";
+  const nombre = (clienteDelReclamo(r).nombre || "cliente").replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ]+/g, "-").replace(/^-|-$/g, "");
+  a.download = `reclamo-${numero}${nombre}-${fecha(r.fechaRegistro, "yyyy-MM-dd")}.pdf`;
   document.body.appendChild(a);
   a.click();
   a.remove();
