@@ -36,7 +36,6 @@ import {
   Eye,
   AlertCircle,
   Building2,
-  List,
   XCircle,
   MoreVertical,
   Edit,
@@ -249,6 +248,11 @@ function coincideBusqueda(reclamo: ReclamoGeneral, termino: string): boolean {
     .some((campo) => (campo || "").toLowerCase().includes(t));
 }
 
+type FiltroTarjeta = 'abiertos' | 'laboratorio' | 'sla' | null;
+
+// Marca de la tarjeta de arriba que está filtrando la lista.
+const TARJETA_ACTIVA = "ring-2 ring-[#fd6301] ring-offset-2 dark:ring-offset-slate-950";
+
 export default function ReclamosGeneralesPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -260,6 +264,9 @@ export default function ReclamosGeneralesPage() {
     }
     return 'todos';
   });
+  const [filtroTarjeta, setFiltroTarjeta] = useState<FiltroTarjeta>(null);
+  // Vendedores y técnicos de obra no ven las tarjetas de indicadores.
+  const muestraTarjetas = user?.role !== 'salesperson' && user?.role !== 'tecnico_obra';
   const [showNewReclamoModal, setShowNewReclamoModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showCerrarModal, setShowCerrarModal] = useState(false);
@@ -1207,23 +1214,16 @@ export default function ReclamosGeneralesPage() {
                        user?.role?.startsWith('area_') || 
                        organizationalRoles.includes(user?.role || '');
     
-    // Jefe de planta ve todos los reclamos y los asignados a producción
+    // No hay pestaña "Todos": la lista completa es lo que se ve sin ninguna
+    // pestaña marcada (filterTab = 'todos'). Tocar la pestaña activa la desmarca.
     if (user?.role === 'jefe_planta') {
-      tabs.push(
-        { value: 'asignados-area', label: 'Asignados a Producción', icon: Building2 },
-        { value: 'todos', label: 'Todos', icon: List }
-      );
+      tabs.push({ value: 'asignados-area', label: 'Asignados a Producción', icon: Building2 });
     } else if (isAreaRole) {
-      tabs.push(
-        { value: 'asignados-area', label: 'Asignados a Mi Área', icon: Building2 },
-        { value: 'todos', label: 'Todos', icon: List }
-      );
-    } else {
-      // For vendedores, admin, supervisor, tecnico_obra
-      tabs.push(
-        { value: 'todos', label: 'Todos', icon: List },
-        { value: 'mis-reclamos', label: 'Mis Reclamos', icon: User }
-      );
+      tabs.push({ value: 'asignados-area', label: 'Asignados a Mi Área', icon: Building2 });
+    } else if (!muestraTarjetas) {
+      // Solo vendedores y técnicos de obra (sin tarjetas); quien ve las tarjetas
+      // filtra con ellas.
+      tabs.push({ value: 'mis-reclamos', label: 'Mis Reclamos', icon: User });
     }
 
     // Add "Pendientes Validación" only for tecnico_obra
@@ -1231,10 +1231,13 @@ export default function ReclamosGeneralesPage() {
       tabs.push({ value: 'pendientes-validacion', label: 'Pendientes Validación', icon: Clock });
     }
 
-    tabs.push(
-      { value: 'resueltos', label: 'Resueltos', icon: CheckCircle2 },
-      { value: 'cerrados', label: 'Cerrados', icon: XCircle }
-    );
+    // Quien ve las tarjetas filtra con ellas; el resto conserva estas pestañas.
+    if (!muestraTarjetas) {
+      tabs.push(
+        { value: 'resueltos', label: 'Resueltos', icon: CheckCircle2 },
+        { value: 'cerrados', label: 'Cerrados', icon: XCircle }
+      );
+    }
 
     return tabs;
   };
@@ -1331,18 +1334,6 @@ export default function ReclamosGeneralesPage() {
     }), tabValue).length;
   };
 
-  const filteredReclamos = reclamos.filter(reclamo => {
-    // Apply tab-based filtering first
-    const tabFiltered = filterByTab([reclamo]).length > 0;
-    
-    // Apply search and other filters
-    const matchesSearch = coincideBusqueda(reclamo, searchTerm);
-    const matchesEstado = filterEstado === 'all' || reclamo.estado === filterEstado;
-    const matchesGravedad = filterGravedad === 'all' || reclamo.gravedad === filterGravedad;
-    
-    return tabFiltered && matchesSearch && matchesEstado && matchesGravedad;
-  });
-
   const getDaysSinceRegistro = (fecha: string) => {
     const now = new Date();
     const registro = new Date(fecha);
@@ -1362,9 +1353,42 @@ export default function ReclamosGeneralesPage() {
         return { type: 'warning', message: 'SLA por vencer: respuesta de laboratorio pendiente' };
       }
     }
-    
+
     return null;
   };
+
+  // Las tarjetas de arriba filtran la lista con el mismo criterio con que cuentan.
+  const coincideTarjeta = (reclamo: ReclamoGeneral) => {
+    switch (filtroTarjeta) {
+      case 'abiertos':
+        return reclamo.estado !== 'cerrado';
+      case 'laboratorio':
+        return reclamo.estado === 'en_laboratorio';
+      case 'sla':
+        return getSLAStatus(reclamo)?.type === 'danger';
+      default:
+        return true;
+    }
+  };
+
+  // Tocar una tarjeta la marca y suelta la pestaña; tocarla de nuevo (o "Total")
+  // vuelve a la lista completa.
+  const elegirTarjeta = (tarjeta: FiltroTarjeta) => {
+    setFilterTab('todos');
+    setFiltroTarjeta((prev) => (tarjeta === null || prev === tarjeta ? null : tarjeta));
+  };
+
+  const filteredReclamos = reclamos.filter(reclamo => {
+    // Apply tab-based filtering first
+    const tabFiltered = filterByTab([reclamo]).length > 0;
+
+    // Apply search and other filters
+    const matchesSearch = coincideBusqueda(reclamo, searchTerm);
+    const matchesEstado = filterEstado === 'all' || reclamo.estado === filterEstado;
+    const matchesGravedad = filterGravedad === 'all' || reclamo.gravedad === filterGravedad;
+
+    return tabFiltered && coincideTarjeta(reclamo) && matchesSearch && matchesEstado && matchesGravedad;
+  });
 
   const hasAccess = user && (
     user.role === 'salesperson' || 
@@ -1465,12 +1489,20 @@ export default function ReclamosGeneralesPage() {
       {/* Una sola vista (nov-2026): los indicadores que vivían en la pestaña
           "Estadísticas" van arriba de la lista. Los ven los mismos que veían esa pestaña. */}
       <div className="space-y-6">
-        {user?.role !== 'salesperson' && user?.role !== 'tecnico_obra' && (
+        {muestraTarjetas && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4" data-testid="indicadores-reclamos">
-            <TarjetaKpi titulo="Total Reclamos" valor={String(reclamos.length)} icono={FileText} testId="kpi-reclamos-total" />
-            <TarjetaKpi titulo="Abiertos" valor={String(reclamos.filter(r => r.estado !== 'cerrado').length)} icono={Clock} testId="kpi-reclamos-abiertos" />
-            <TarjetaKpi titulo="En Laboratorio" valor={String(reclamos.filter(r => r.estado === 'en_laboratorio').length)} icono={FlaskConical} testId="kpi-reclamos-laboratorio" />
-            <TarjetaKpi titulo="SLA Vencido" valor={String(reclamos.filter(r => getSLAStatus(r)?.type === 'danger').length)} icono={AlertCircle} testId="kpi-reclamos-sla" />
+            <TarjetaKpi titulo="Total Reclamos" valor={String(reclamos.length)} icono={FileText} testId="kpi-reclamos-total" centrado
+              onClick={() => elegirTarjeta(null)}
+              className={filtroTarjeta === null && filterTab === 'todos' ? TARJETA_ACTIVA : ''} />
+            <TarjetaKpi titulo="Abiertos" valor={String(reclamos.filter(r => r.estado !== 'cerrado').length)} icono={Clock} testId="kpi-reclamos-abiertos" centrado
+              onClick={() => elegirTarjeta('abiertos')}
+              className={filtroTarjeta === 'abiertos' ? TARJETA_ACTIVA : ''} />
+            <TarjetaKpi titulo="En Laboratorio" valor={String(reclamos.filter(r => r.estado === 'en_laboratorio').length)} icono={FlaskConical} testId="kpi-reclamos-laboratorio" centrado
+              onClick={() => elegirTarjeta('laboratorio')}
+              className={filtroTarjeta === 'laboratorio' ? TARJETA_ACTIVA : ''} />
+            <TarjetaKpi titulo="SLA Vencido" valor={String(reclamos.filter(r => getSLAStatus(r)?.type === 'danger').length)} icono={AlertCircle} testId="kpi-reclamos-sla" centrado
+              onClick={() => elegirTarjeta('sla')}
+              className={filtroTarjeta === 'sla' ? TARJETA_ACTIVA : ''} />
           </div>
         )}
 
@@ -1497,10 +1529,10 @@ export default function ReclamosGeneralesPage() {
                   <Label className="sr-only">Estado</Label>
                   <Select value={filterEstado} onValueChange={setFilterEstado}>
                     <SelectTrigger data-testid="select-filter-estado" className={`${CAMPO} font-semibold text-sm text-slate-700 dark:text-slate-200 hover:border-orange-200 focus:ring-orange-500/20`}>
-                      <SelectValue placeholder="Todos los estados" />
+                      <SelectValue placeholder="Estado" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos los estados</SelectItem>
+                      <SelectItem value="all">Estado</SelectItem>
                       {Object.entries(ESTADO_LABELS).map(([value, { label }]) => (
                         <SelectItem key={value} value={value}>{label}</SelectItem>
                       ))}
@@ -1511,10 +1543,10 @@ export default function ReclamosGeneralesPage() {
                   <Label className="sr-only">Gravedad</Label>
                   <Select value={filterGravedad} onValueChange={setFilterGravedad}>
                     <SelectTrigger data-testid="select-filter-gravedad" className={`${CAMPO} font-semibold text-sm text-slate-700 dark:text-slate-200 hover:border-orange-200 focus:ring-orange-500/20`}>
-                      <SelectValue placeholder="Todas las gravedades" />
+                      <SelectValue placeholder="Prioridad" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas las gravedades</SelectItem>
+                      <SelectItem value="all">Prioridad</SelectItem>
                       {GRAVEDAD_OPTIONS.map(({ value, label }) => (
                         <SelectItem key={value} value={value}>{label}</SelectItem>
                       ))}
@@ -1526,9 +1558,15 @@ export default function ReclamosGeneralesPage() {
           </div>
           )}
 
-          {/* Filtro por bandeja: mismo riel de subrayado, con el contador naranjo */}
+          {/* Filtro por bandeja: mismo riel de subrayado, con el contador naranjo.
+              Si al rol no le queda ninguna pestaña (filtra con las tarjetas), no se muestra. */}
+          {getAvailableTabs().length > 0 && (
           <div>
-            <Tabs value={filterTab} onValueChange={setFilterTab} className="w-full">
+            <Tabs
+              value={filterTab}
+              onValueChange={(v) => { setFiltroTarjeta(null); setFilterTab(v); }}
+              className="w-full"
+            >
               <TabsList className={TABS_RIEL}>
                 {getAvailableTabs().map((tab) => {
                   const Icon = tab.icon;
@@ -1539,6 +1577,14 @@ export default function ReclamosGeneralesPage() {
                       value={tab.value}
                       data-testid={`tab-filter-${tab.value}`}
                       className={TAB_PRINCIPAL}
+                      // Con el mouse, la pestaña funciona como interruptor: tocar la
+                      // activa vuelve a la lista completa. El teclado sigue por onValueChange.
+                      onMouseDown={(e) => {
+                        if (e.button !== 0 || e.ctrlKey) return;
+                        e.preventDefault();
+                        setFiltroTarjeta(null);
+                        setFilterTab((prev) => (prev === tab.value ? 'todos' : tab.value));
+                      }}
                     >
                       <Icon className="h-4 w-4 shrink-0" />
                       <span>{tab.label}</span>
@@ -1551,15 +1597,11 @@ export default function ReclamosGeneralesPage() {
               </TabsList>
             </Tabs>
           </div>
+          )}
 
           {/* Reclamos list */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Lista de Reclamos</h2>
-              <Badge className="bg-gradient-to-r from-orange-500 to-[#fd6301] text-white border-0 text-xs font-semibold px-3 py-1 shadow-sm shadow-orange-500/25 rounded-full">
-                {filteredReclamos.length} reclamo{filteredReclamos.length !== 1 ? 's' : ''}
-              </Badge>
-            </div>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Lista de Reclamos</h2>
             <div>
               {reclamosLoading ? (
                 <div className="flex justify-center p-8">
