@@ -19437,10 +19437,27 @@ export class DatabaseStorage implements IStorage {
     estado?: string;
     gravedad?: string;
     areaResponsable?: string;
+    /** Fecha de registro desde (incluida), YYYY-MM-DD */
+    desde?: string;
+    /** Fecha de registro hasta (incluida), YYYY-MM-DD */
+    hasta?: string;
+    numeroTrazabilidad?: string;
     limit?: number;
     offset?: number;
   }): Promise<ReclamoGeneral[]> {
     const conditions = [];
+
+    if (filters?.desde) {
+      conditions.push(sql`${reclamosGenerales.fechaRegistro} >= ${filters.desde}::date`);
+    }
+
+    if (filters?.hasta) {
+      conditions.push(sql`${reclamosGenerales.fechaRegistro} < (${filters.hasta}::date + 1)`);
+    }
+
+    if (filters?.numeroTrazabilidad) {
+      conditions.push(eq(reclamosGenerales.numeroTrazabilidad, filters.numeroTrazabilidad));
+    }
 
     if (filters?.vendedorId) {
       conditions.push(eq(reclamosGenerales.vendedorId, filters.vendedorId));
