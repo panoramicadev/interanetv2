@@ -2822,3 +2822,58 @@ export async function ensureMensajesDestacadosTabla(): Promise<void> {
   await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_mensajes_destacados_audiencia" ON mensajes_destacados (audiencia)`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_mensajes_destacados_creador" ON mensajes_destacados (creado_por_id)`);
 }
+
+/**
+ * Número de trazabilidad de los reclamos (nov-2026): "NN/DD/MM/YY", el
+ * correlativo del día con la fecha de Chile ("01/26/11/26", "02/26/11/26"...).
+ * Crea las columnas y numera los reclamos que todavía no tienen número, en el
+ * orden en que se registraron cada día. Solo llena los vacíos: un número ya
+ * asignado no se vuelve a tocar.
+ * Los timestamp sin zona de esta tabla se guardan en UTC (defaultNow de la base
+ * y toISOString de drizzle), por eso se pasan a hora de Chile antes de tomar el día.
+ */
+export async function ensureReclamosNumeroTrazabilidad(): Promise<void> {
+  await db.execute(sql`
+    ALTER TABLE reclamos_generales
+      ADD COLUMN IF NOT EXISTS numero_dia INTEGER,
+      ADD COLUMN IF NOT EXISTS numero_fecha DATE,
+      ADD COLUMN IF NOT EXISTS numero_trazabilidad VARCHAR
+  `);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "UQ_reclamos_gen_numero_dia" ON reclamos_generales (numero_fecha, numero_dia)`);
+
+  const numerados = await db.transaction(async (tx) => {
+    // El mismo candado que toma el alta de un reclamo: nadie numera a la vez.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('reclamos_generales_numero'))`);
+    const result = await tx.execute(sql`
+      WITH base AS (
+        SELECT id,
+          (COALESCE(fecha_registro, created_at, now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AT TIME ZONE 'America/Santiago')::date AS dia,
+          COALESCE(fecha_registro, created_at) AS orden
+        FROM reclamos_generales
+        WHERE numero_trazabilidad IS NULL
+      ),
+      maximos AS (
+        SELECT numero_fecha, MAX(numero_dia) AS max_dia
+        FROM reclamos_generales
+        WHERE numero_fecha IS NOT NULL
+        GROUP BY numero_fecha
+      ),
+      numerados AS (
+        SELECT b.id, b.dia,
+          COALESCE(m.max_dia, 0) + ROW_NUMBER() OVER (PARTITION BY b.dia ORDER BY b.orden NULLS LAST, b.id) AS n
+        FROM base b
+        LEFT JOIN maximos m ON m.numero_fecha = b.dia
+      )
+      UPDATE reclamos_generales rg
+      SET numero_dia = numerados.n,
+          numero_fecha = numerados.dia,
+          numero_trazabilidad = (CASE WHEN numerados.n < 10 THEN '0' ELSE '' END) || numerados.n::text || '/' || to_char(numerados.dia, 'DD/MM/YY')
+      FROM numerados
+      WHERE rg.id = numerados.id
+    `);
+    return (result as any).rowCount || 0;
+  });
+  if (numerados > 0) {
+    console.log(`🔢 ${numerados} reclamo(s) recibieron su número de trazabilidad`);
+  }
+}

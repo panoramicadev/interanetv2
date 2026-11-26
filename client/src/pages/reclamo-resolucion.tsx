@@ -13,6 +13,7 @@ import { ArrowLeft, Camera, FileText, Loader2, X, CheckCircle2 } from "lucide-re
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import imageCompression from "browser-image-compression";
+import { clienteDelReclamo } from "@/lib/reclamo-numero";
 
 const CATEGORIA_RESPONSABLE_OPTIONS = [
   { value: 'produccion', label: 'Producción' },
@@ -346,12 +347,13 @@ export default function ReclamoResolucionPage() {
             {user?.role === 'laboratorio' ? 'Resolución del Laboratorio' : 'Resolución del Área Responsable'}
           </CardTitle>
           <CardDescription>
-            Reclamo: {reclamoDetails.clientName} - {reclamoDetails.descripcionProblema?.substring(0, 50)}...
+            Reclamo {reclamoDetails.numeroTrazabilidad ? `N° ${reclamoDetails.numeroTrazabilidad} ` : ''}· {clienteDelReclamo(reclamoDetails).nombre} - {reclamoDetails.descripcionProblema?.substring(0, 50)}...
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="bg-muted p-3 rounded-lg text-sm">
-            <p><strong>Cliente:</strong> {reclamoDetails.clientName}</p>
+            {reclamoDetails.numeroTrazabilidad && <p><strong>N° de reclamo:</strong> {reclamoDetails.numeroTrazabilidad}</p>}
+            <p><strong>Cliente:</strong> {clienteDelReclamo(reclamoDetails).nombre}</p>
             <p><strong>Producto:</strong> {reclamoDetails.productoCausante}</p>
             <p><strong>Fecha:</strong> {reclamoDetails.createdAt && format(new Date(reclamoDetails.createdAt), "dd MMMM yyyy", { locale: es })}</p>
           </div>

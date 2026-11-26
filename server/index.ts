@@ -7,7 +7,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations, ensureOAuthTables, ensureMarketSubUserColumns, ensureTaskCommentsAudioColumns, ensureSucursalPrefijoColumns, ensureSucursalesRedmat, ensureTintometriaTablas, ensureSolicitudesMuestraTablas, ensureMensajesDestacadosTabla, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
+import { runProductionMigrations, ensureOAuthTables, ensureMarketSubUserColumns, ensureTaskCommentsAudioColumns, ensureSucursalPrefijoColumns, ensureSucursalesRedmat, ensureTintometriaTablas, ensureSolicitudesMuestraTablas, ensureMensajesDestacadosTabla, ensureReclamosNumeroTrazabilidad, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, populateProductSlugs, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
 import { startDailySalesReportScheduler } from "./daily-sales-report";
 import { imputarSucursalesPorPrefijo } from "./utils/sucursal-por-prefijo";
 
@@ -117,6 +117,13 @@ app.use((req, res, next) => {
       await ensureMensajesDestacadosTabla();
     } catch (error: any) {
       console.error('❌ Error al preparar la tabla de mensajes destacados:', error.message);
+    }
+    // Reclamos: número de trazabilidad (01/26/11/26). La lista y el alta leen
+    // estas columnas, así que no pueden esperar al bucle de migraciones.
+    try {
+      await ensureReclamosNumeroTrazabilidad();
+    } catch (error: any) {
+      console.error('❌ Error al numerar los reclamos:', error.message);
     }
     // Con las fichas listas, cada venta toma el nombre de su ferretería por el
     // prefijo de la orden de compra. Corre acá para que un despliegue lo aplique
