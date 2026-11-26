@@ -43,6 +43,19 @@ export function ReclamoChat({ reclamoId, userId }: { reclamoId: string; userId?:
     finRef.current?.scrollIntoView({ block: "nearest" });
   }, [mensajes.length]);
 
+  // Con la conversación abierta, lo que llega ya está visto: se apagan el punto
+  // del menú, la etiqueta de la tarjeta y el aviso de la campana.
+  useEffect(() => {
+    if (isLoading) return;
+    apiRequest(`/api/reclamos-generales/${reclamoId}/mensajes/leidos`, { method: "POST" })
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/reclamos-generales/mensajes-sin-leer"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      })
+      .catch(() => {});
+  }, [reclamoId, mensajes.length, isLoading]);
+
   const mandar = () => {
     const limpio = texto.trim();
     if (limpio && !enviar.isPending) enviar.mutate(limpio);

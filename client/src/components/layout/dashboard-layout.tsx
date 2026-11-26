@@ -100,7 +100,7 @@ type NavItemProps = {
   unreadCount: number;
   pendingOrdersCount: number;
   marketingPorAceptar: number;
-  /** Lo pendiente de cada sub-sección de "Solicitudes", por ruta. */
+  /** Lo pendiente por ruta: sub-secciones de "Solicitudes" y Reclamos (mensajes sin leer). */
   solicitudesPendientes: Record<string, number>;
   cotizacionesWebPendientes: number;
   publicSlug?: string;
@@ -132,6 +132,8 @@ const NavItem = memo(function NavItem({
   // cuando cuelga del grupo "Marketing".
   const isMarketingInbox = item.href === "/marketing/solicitudes";
   const isCotizacionesWeb = item.href === "/cotizaciones-b2c";
+  // Ítem suelto con algo por ver (p. ej. Reclamos con mensajes sin leer).
+  const pendientesItem = solicitudesPendientes[item.href] ?? 0;
   const isPremium = item.isPremium;
   // Novedad: el nombre lleva el naranjo de marca corriendo de lado a lado
   const isNuevo = item.isNuevo;
@@ -319,7 +321,7 @@ const NavItem = memo(function NavItem({
             data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
           >
             <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-white" : isPremium ? "text-amber-400" : "text-slate-400"}`} />
-            {((isNotif && unreadCount > 0) || (isMarketingInbox && marketingPorAceptar > 0) || (isCotizacionesWeb && cotizacionesWebPendientes > 0)) && (
+            {((isNotif && unreadCount > 0) || (isMarketingInbox && marketingPorAceptar > 0) || (isCotizacionesWeb && cotizacionesWebPendientes > 0) || pendientesItem > 0) && (
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
             )}
           </button>
@@ -395,6 +397,16 @@ const NavItem = memo(function NavItem({
               data-testid="badge-cotizaciones-web"
             >
               {cotizacionesWebPendientes}
+            </span>
+          )}
+          {pendientesItem > 0 && (
+            <span
+              className={`flex-shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${
+                isActive ? "bg-white text-red-600" : "bg-red-500 text-white shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse motion-reduce:animate-none"
+              }`}
+              data-testid={`badge-pendientes${item.href.replace(/\//g, "-")}`}
+            >
+              {pendientesItem > 99 ? "99+" : pendientesItem}
             </span>
           )}
         </button>
@@ -655,14 +667,23 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const creditoPendientes = solicitudesCredito.filter((s) => ["enviada", "analizando"].includes(s.estado)).length;
   const nuevoClientePendientes = solicitudesNuevoCliente.filter((s) => s.estado === "enviada").length;
   const muestraPendientes = solicitudesMuestra.filter((s) => ["pendiente", "en_curso"].includes(s.estado)).length;
+  // Reclamos: mensajes de sus conversaciones que la persona todavía no lee.
+  // Se apaga solo al abrir el reclamo (la conversación los marca leídos).
+  const { data: reclamosMensajesData } = useQuery<{ count: number }>({
+    queryKey: ["/api/reclamos-generales/mensajes-sin-leer"],
+    refetchInterval: 60000,
+    enabled: !!user && tieneSolicitud("/reclamos-generales"),
+  });
+  const reclamosMensajesSinLeer = reclamosMensajesData?.count || 0;
   const solicitudesPendientes = useMemo(
     () => ({
       "/tintometria/solicitudes": laboratorioPendientes,
       "/solicitud-credito": creditoPendientes,
       "/nuevo-cliente": nuevoClientePendientes,
       "/solicitud-muestra": muestraPendientes,
+      "/reclamos-generales": reclamosMensajesSinLeer,
     }),
-    [laboratorioPendientes, creditoPendientes, nuevoClientePendientes, muestraPendientes],
+    [laboratorioPendientes, creditoPendientes, nuevoClientePendientes, muestraPendientes, reclamosMensajesSinLeer],
   );
 
   // Cotizaciones Web (cotizador público) pendientes de atender. Misma consulta que
