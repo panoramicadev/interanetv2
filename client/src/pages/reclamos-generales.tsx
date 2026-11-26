@@ -55,6 +55,8 @@ import { format } from "date-fns";
 import { ICONO_CHIP, ICONO_CHIP_ICONO } from "@/lib/icono-chip";
 import { ReclamoChat } from "@/components/reclamos/reclamo-chat";
 import TarjetaKpi from "@/components/dashboard/kpi-simple-card";
+import { YearMonthSelector, type YearMonthSelection } from "@/components/dashboard/year-month-selector";
+import { gastosDatesFromSelection } from "@/contexts/FilterContext";
 import { clienteDelReclamo, etiquetaNumeroReclamo } from "@/lib/reclamo-numero";
 import { es } from "date-fns/locale";
 
@@ -249,7 +251,7 @@ function coincideBusqueda(reclamo: ReclamoGeneral, termino: string): boolean {
     .some((campo) => (campo || "").toLowerCase().includes(t));
 }
 
-type FiltroTarjeta = 'abiertos' | 'laboratorio' | 'sla' | null;
+type FiltroTarjeta = 'abiertos' | 'mensajes' | 'laboratorio' | 'sla' | 'resueltos' | null;
 
 // Marca de la tarjeta de arriba que está filtrando la lista.
 const TARJETA_ACTIVA = "ring-2 ring-[#fd6301] ring-offset-2 dark:ring-offset-slate-950";
@@ -266,6 +268,9 @@ export default function ReclamosGeneralesPage() {
     return 'todos';
   });
   const [filtroTarjeta, setFiltroTarjeta] = useState<FiltroTarjeta>(null);
+  // Período con el mismo selector del dashboard principal, solo por año y mes.
+  // Sin elección = todo el histórico. Filtra por fecha de registro del reclamo.
+  const [periodoSel, setPeriodoSel] = useState<YearMonthSelection | null>(null);
   // Vendedores y técnicos de obra no ven las tarjetas de indicadores.
   const muestraTarjetas = user?.role !== 'salesperson' && user?.role !== 'tecnico_obra';
   const [showNewReclamoModal, setShowNewReclamoModal] = useState(false);
@@ -1363,10 +1368,14 @@ export default function ReclamosGeneralesPage() {
     switch (filtroTarjeta) {
       case 'abiertos':
         return reclamo.estado !== 'cerrado';
+      case 'mensajes':
+        return (mensajesSinLeer[reclamo.id] ?? 0) > 0;
       case 'laboratorio':
         return reclamo.estado === 'en_laboratorio';
       case 'sla':
         return getSLAStatus(reclamo)?.type === 'danger';
+      case 'resueltos':
+        return reclamo.estado === 'resuelto';
       default:
         return true;
     }
@@ -1387,6 +1396,20 @@ export default function ReclamosGeneralesPage() {
   });
   const mensajesSinLeer = mensajesSinLeerData?.porReclamo ?? {};
 
+  // Los reclamos registrados dentro del período elegido: de aquí salen las
+  // tarjetas y la lista, así el número de cada tarjeta calza con lo que filtra.
+  const rangoPeriodo = periodoSel ? gastosDatesFromSelection(periodoSel) : null;
+  const reclamosDelPeriodo = rangoPeriodo
+    ? reclamos.filter((r) => {
+        if (!r.createdAt) return false;
+        const dia = format(new Date(r.createdAt), "yyyy-MM-dd");
+        return dia >= rangoPeriodo.diaDesde && dia <= rangoPeriodo.diaHasta;
+      })
+    : reclamos;
+  // Solo los de reclamos que esta persona ve en la lista, para que el número
+  // coincida con lo que queda al tocar la tarjeta.
+  const mensajesNoAbiertos = reclamosDelPeriodo.reduce((total, r) => total + (mensajesSinLeer[r.id] ?? 0), 0);
+
   // El aviso de un mensaje trae ?reclamo=<id>: se abre ese reclamo directo.
   const busqueda = useSearch();
   useEffect(() => {
@@ -1399,7 +1422,7 @@ export default function ReclamosGeneralesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busqueda]);
 
-  const filteredReclamos = reclamos.filter(reclamo => {
+  const filteredReclamos = reclamosDelPeriodo.filter(reclamo => {
     // Apply tab-based filtering first
     const tabFiltered = filterByTab([reclamo]).length > 0;
 
@@ -1497,8 +1520,16 @@ export default function ReclamosGeneralesPage() {
     <div className="container mx-auto p-4 sm:p-6 space-y-6">
       {!showDetailModal && (<>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        {/* Solo el título (nov-2026): sin ícono ni bajada, a pedido del usuario. */}
-        <h1 className="min-w-0 text-2xl sm:text-3xl font-bold text-slate-800 dark:text-slate-100">Reclamos de Clientes</h1>
+        {/* Título sin ícono (nov-2026). La bajada explica las tarjetas: solo
+            aparece para quien las ve. */}
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-slate-100">Reclamos de Clientes</h1>
+          {muestraTarjetas && (
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400" data-testid="text-reclamos-bajada">
+              Selecciona una de las tarjetas para filtrar.
+            </p>
+          )}
+        </div>
         {(user?.role === 'salesperson' || user?.role === 'admin' || (user?.role === 'supervisor' || user?.role === 'encargado_area') || user?.role === 'tecnico_obra') && (
           <Button 
             onClick={() => setShowNewReclamoModal(true)}
@@ -1515,19 +1546,29 @@ export default function ReclamosGeneralesPage() {
           "Estadísticas" van arriba de la lista. Los ven los mismos que veían esa pestaña. */}
       <div className="space-y-6">
         {muestraTarjetas && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4" data-testid="indicadores-reclamos">
-            <TarjetaKpi titulo="Total Reclamos" valor={String(reclamos.length)} icono={FileText} testId="kpi-reclamos-total" centrado
+          <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-3 sm:gap-4" data-testid="indicadores-reclamos">
+            <TarjetaKpi titulo="Total Reclamos" valor={String(reclamosDelPeriodo.length)} icono={FileText} testId="kpi-reclamos-total" centrado
               onClick={() => elegirTarjeta(null)}
               className={filtroTarjeta === null && filterTab === 'todos' ? TARJETA_ACTIVA : ''} />
-            <TarjetaKpi titulo="Abiertos" valor={String(reclamos.filter(r => r.estado !== 'cerrado').length)} icono={Clock} testId="kpi-reclamos-abiertos" centrado
+            <TarjetaKpi titulo="Abiertos" valor={String(reclamosDelPeriodo.filter(r => r.estado !== 'cerrado').length)} icono={Clock} testId="kpi-reclamos-abiertos" centrado
               onClick={() => elegirTarjeta('abiertos')}
               className={filtroTarjeta === 'abiertos' ? TARJETA_ACTIVA : ''} />
-            <TarjetaKpi titulo="En Laboratorio" valor={String(reclamos.filter(r => r.estado === 'en_laboratorio').length)} icono={FlaskConical} testId="kpi-reclamos-laboratorio" centrado
+            {/* Mensajes de la conversación que la persona todavía no abre, en los
+                reclamos de esta lista. Se apaga al abrir cada reclamo. */}
+            <TarjetaKpi titulo="Mensajes" valor={String(mensajesNoAbiertos)} icono={MessageSquare} testId="kpi-reclamos-mensajes" centrado
+              onClick={() => elegirTarjeta('mensajes')}
+              alerta={mensajesNoAbiertos > 0 ? 'Sin leer' : undefined}
+              className={filtroTarjeta === 'mensajes' ? TARJETA_ACTIVA : ''} />
+            <TarjetaKpi titulo="En Laboratorio" valor={String(reclamosDelPeriodo.filter(r => r.estado === 'en_laboratorio').length)} icono={FlaskConical} testId="kpi-reclamos-laboratorio" centrado
               onClick={() => elegirTarjeta('laboratorio')}
               className={filtroTarjeta === 'laboratorio' ? TARJETA_ACTIVA : ''} />
-            <TarjetaKpi titulo="SLA Vencido" valor={String(reclamos.filter(r => getSLAStatus(r)?.type === 'danger').length)} icono={AlertCircle} testId="kpi-reclamos-sla" centrado
+            <TarjetaKpi titulo="SLA Vencido" valor={String(reclamosDelPeriodo.filter(r => getSLAStatus(r)?.type === 'danger').length)} icono={AlertCircle} testId="kpi-reclamos-sla" centrado
               onClick={() => elegirTarjeta('sla')}
               className={filtroTarjeta === 'sla' ? TARJETA_ACTIVA : ''} />
+            {/* Resueltos: ya tienen solución y esperan el cierre (siguen contando en "Abiertos"). */}
+            <TarjetaKpi titulo="Resueltos" valor={String(reclamosDelPeriodo.filter(r => r.estado === 'resuelto').length)} icono={CheckCircle2} testId="kpi-reclamos-resueltos" centrado
+              onClick={() => elegirTarjeta('resueltos')}
+              className={filtroTarjeta === 'resueltos' ? TARJETA_ACTIVA : ''} />
           </div>
         )}
 
@@ -1536,7 +1577,7 @@ export default function ReclamosGeneralesPage() {
           {user?.role !== 'salesperson' && (
           <div>
             <div>
-              <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr] gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1.2fr_1fr_1fr] gap-3">
                 <div>
                   <Label className="sr-only">Buscar</Label>
                   <div className="relative">
@@ -1549,6 +1590,29 @@ export default function ReclamosGeneralesPage() {
                       data-testid="input-search-reclamos"
                     />
                   </div>
+                </div>
+                <div className="relative">
+                  <Label className="sr-only">Período</Label>
+                  <YearMonthSelector
+                    value={periodoSel}
+                    onChange={setPeriodoSel}
+                    hideDays
+                    placeholder="Período: todo"
+                    triggerClassName={`w-full min-w-0 ${CAMPO} px-4 ${periodoSel ? 'pr-10' : ''} font-semibold text-sm text-slate-700 dark:text-slate-200 hover:border-orange-200 hover:bg-white dark:hover:bg-slate-900 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-[#fd6301]`}
+                  />
+                  {/* El selector no trae cómo volver a "todo": esta X lo deja sin período. */}
+                  {periodoSel && (
+                    <button
+                      type="button"
+                      onClick={() => setPeriodoSel(null)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
+                      title="Ver todo el período"
+                      aria-label="Quitar el filtro de período"
+                      data-testid="button-quitar-periodo"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
                 <div>
                   <Label className="sr-only">Estado</Label>
@@ -1653,7 +1717,9 @@ export default function ReclamosGeneralesPage() {
                         tabIndex={0}
                         onClick={() => abrirReclamo(reclamo.id)}
                         onKeyDown={(e) => { if (e.key === 'Enter') abrirReclamo(reclamo.id); }}
-                        className={`${PANEL} cursor-pointer hover:border-orange-200 hover:shadow-md transition-all`}
+                        className={`${PANEL} cursor-pointer hover:border-orange-200 hover:shadow-md transition-all ${
+                          (mensajesSinLeer[reclamo.id] ?? 0) > 0 ? '!border-l-4 !border-l-red-500 bg-red-50/40 dark:bg-red-950/20' : ''
+                        }`}
                         data-testid={`button-view-reclamo-${reclamo.id}`}
                       >
                         <CardContent className="p-4">
@@ -1669,11 +1735,17 @@ export default function ReclamosGeneralesPage() {
                                 <EstadoReclamoChip estado={reclamo.estado} testId={`badge-estado-${reclamo.id}`} />
                                 {(mensajesSinLeer[reclamo.id] ?? 0) > 0 && (
                                   <span
-                                    className="inline-flex items-center gap-1 rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                                    className="inline-flex items-center gap-1.5 rounded-full bg-red-500 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                                    title="Hay mensajes de la conversación que todavía no abres"
                                     data-testid={`badge-mensajes-nuevos-${reclamo.id}`}
                                   >
+                                    {/* Punto que late: alerta de mensaje no leído */}
+                                    <span className="relative flex h-2 w-2">
+                                      <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-75 animate-ping motion-reduce:animate-none" />
+                                      <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+                                    </span>
                                     <MessageSquare className="h-3 w-3" />
-                                    {mensajesSinLeer[reclamo.id] === 1 ? "1 mensaje nuevo" : `${mensajesSinLeer[reclamo.id]} mensajes nuevos`}
+                                    {mensajesSinLeer[reclamo.id] === 1 ? "1 mensaje no leído" : `${mensajesSinLeer[reclamo.id]} mensajes no leídos`}
                                   </span>
                                 )}
                               </div>

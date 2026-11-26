@@ -209,6 +209,18 @@ export async function bootstrapDatabase(): Promise<void> {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_reclamos_gen_mensajes_reclamo_id" ON reclamos_generales_mensajes(reclamo_id)`);
 
+    // Hasta dónde leyó cada persona cada conversación (mensajes no leídos).
+    console.log('  📋 Verificando tabla reclamos_mensajes_lecturas...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS reclamos_mensajes_lecturas (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        reclamo_id VARCHAR NOT NULL,
+        user_id VARCHAR NOT NULL,
+        leido_hasta TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "UQ_reclamos_mensajes_lecturas" ON reclamos_mensajes_lecturas(reclamo_id, user_id)`);
+
     // 3. Crear tablas staging de GDV
     console.log('  📋 Verificando tablas de GDV...');
     

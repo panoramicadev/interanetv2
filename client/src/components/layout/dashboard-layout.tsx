@@ -215,10 +215,11 @@ const NavItem = memo(function NavItem({
             </span>
           ) : isPremium ? (
             <span
-              className="flex-1 text-left font-bold tracking-tight bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] animate-[shimmer_3s_ease-in-out_infinite] max-lg:animate-none motion-reduce:animate-none bg-[length:200%_100%]"
+              className="flex-1 text-left font-bold tracking-tight leading-tight whitespace-pre-line bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] animate-[shimmer_3s_ease-in-out_infinite] max-lg:animate-none motion-reduce:animate-none bg-[length:200%_100%]"
               style={{ WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
             >
-              {item.label}
+              {/* La última palabra va abajo: "Panorámica" / "Market". */}
+              {item.label.replace(/ (?=\S+$)/, "\n")}
             </span>
           ) : (
             <span className="flex-1 text-left">{item.label}</span>
@@ -542,6 +543,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       if (!particulas.has(palabra.toLowerCase())) break;
     }
     if (!primerNombre && apellido.length === 0) return email || "Usuario";
+    // Siglas (p. ej. "PCA"): un nombre solo, sin apellido, corto y todo en
+    // mayúsculas va tal cual; pasarlo a "Pca" lo deja irreconocible.
+    if (apellido.length === 0 && /^[A-ZÁÉÍÓÚÑ]{2,4}$/.test(primerNombre)) return primerNombre;
     return [
       primerNombre && capitalizar(primerNombre),
       ...apellido.map((p) => (particulas.has(p.toLowerCase()) ? p.toLowerCase() : capitalizar(p))),

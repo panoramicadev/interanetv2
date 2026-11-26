@@ -5401,6 +5401,18 @@ export const reclamosGeneralesMensajes = pgTable("reclamos_generales_mensajes", 
 
 export type ReclamoGeneralMensaje = typeof reclamosGeneralesMensajes.$inferSelect;
 
+// Hasta cuándo leyó cada persona la conversación de cada reclamo (nov-2026).
+// Lo que otros escribieron después de `leidoHasta` es "no leído" para esa persona;
+// sin fila, todo lo que escribieron otros cuenta como no leído.
+export const reclamosMensajesLecturas = pgTable("reclamos_mensajes_lecturas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reclamoId: varchar("reclamo_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  leidoHasta: timestamp("leido_hasta").notNull().defaultNow(),
+}, (table) => ({
+  reclamoUsuarioUnico: uniqueIndex("UQ_reclamos_mensajes_lecturas").on(table.reclamoId, table.userId),
+}));
+
 // Tabla de fotos de resolución del laboratorio
 export const reclamosGeneralesResolucionPhotos = pgTable("reclamos_generales_resolucion_photos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
