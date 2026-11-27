@@ -2836,11 +2836,21 @@ export async function ensureMensajesDestacadosTabla(): Promise<void> {
 }
 
 /**
- * Número de trazabilidad de los reclamos (nov-2026): "NN/DD/MM/YY", el
- * correlativo del día con la fecha de Chile ("01/26/11/26", "02/26/11/26"...).
+ * Número de trazabilidad de los reclamos (nov-2026): "NN/DD/MM/YY", donde NN
+ * es el correlativo del MES de Chile (parte en 01 cada mes, sin importar el
+ * cliente) y DD/MM/YY el día del alta: "01/11/11/26", "02/17/11/26"...
+ * La columna numero_dia guarda ese correlativo del mes (el nombre quedó de la
+ * primera versión, que reiniciaba cada día).
+ *
  * Crea las columnas y numera los reclamos que todavía no tienen número, en el
- * orden en que se registraron cada día. Solo llena los vacíos: un número ya
- * asignado no se vuelve a tocar.
+ * orden en que se registraron. Un número ya asignado no se vuelve a tocar.
+ *
+ * Paso único al correlativo mensual: la marca es el índice único por mes. Si
+ * no existe, se respaldan los números diarios en reclamos_numero_respaldo, se
+ * renumeran todos mes a mes (conservando su fecha y el orden que ya tenían en
+ * el día) y se crea el índice. Todo en una transacción: si algo falla no
+ * cambia nada y se reintenta en el próximo arranque.
+ *
  * Los timestamp sin zona de esta tabla se guardan en UTC (defaultNow de la base
  * y toISOString de drizzle), por eso se pasan a hora de Chile antes de tomar el día.
  */
@@ -2853,28 +2863,68 @@ export async function ensureReclamosNumeroTrazabilidad(): Promise<void> {
   `);
   await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS "UQ_reclamos_gen_numero_dia" ON reclamos_generales (numero_fecha, numero_dia)`);
 
-  const numerados = await db.transaction(async (tx) => {
+  const { numerados, renumerados } = await db.transaction(async (tx) => {
     // El mismo candado que toma el alta de un reclamo: nadie numera a la vez.
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('reclamos_generales_numero'))`);
+
+    const marca = await tx.execute(sql`SELECT to_regclass('public."UQ_reclamos_gen_numero_mes"') IS NOT NULL AS listo`);
+    const yaMensual = Boolean((marca.rows[0] as { listo: boolean }).listo);
+    let renumerados = 0;
+    if (!yaMensual) {
+      await tx.execute(sql`
+        CREATE TABLE IF NOT EXISTS reclamos_numero_respaldo (
+          reclamo_id VARCHAR PRIMARY KEY,
+          numero_anterior VARCHAR,
+          numero_dia_anterior INTEGER,
+          numero_fecha DATE,
+          respaldado_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await tx.execute(sql`
+        INSERT INTO reclamos_numero_respaldo (reclamo_id, numero_anterior, numero_dia_anterior, numero_fecha)
+        SELECT id, numero_trazabilidad, numero_dia, numero_fecha
+        FROM reclamos_generales
+        WHERE numero_trazabilidad IS NOT NULL
+        ON CONFLICT (reclamo_id) DO NOTHING
+      `);
+      const vaciados = await tx.execute(sql`
+        UPDATE reclamos_generales
+        SET numero_dia = NULL, numero_trazabilidad = NULL
+        WHERE numero_dia IS NOT NULL OR numero_trazabilidad IS NOT NULL
+      `);
+      renumerados = (vaciados as any).rowCount || 0;
+    }
+
+    // reclamos_numero_respaldo ya existe: se crea en el mismo paso que el índice mensual.
+    // Los que ya tenían número conservan su fecha (numero_fecha) y, dentro del
+    // día, el orden de su número anterior; los demás toman el día de registro.
     const result = await tx.execute(sql`
       WITH base AS (
-        SELECT id,
-          (COALESCE(fecha_registro, created_at, now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AT TIME ZONE 'America/Santiago')::date AS dia,
-          COALESCE(fecha_registro, created_at) AS orden
-        FROM reclamos_generales
-        WHERE numero_trazabilidad IS NULL
+        SELECT rg.id,
+          COALESCE(
+            rg.numero_fecha,
+            (COALESCE(rg.fecha_registro, rg.created_at, now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AT TIME ZONE 'America/Santiago')::date
+          ) AS dia,
+          r.numero_dia_anterior,
+          COALESCE(rg.fecha_registro, rg.created_at) AS orden
+        FROM reclamos_generales rg
+        LEFT JOIN reclamos_numero_respaldo r ON r.reclamo_id = rg.id
+        WHERE rg.numero_trazabilidad IS NULL
       ),
       maximos AS (
-        SELECT numero_fecha, MAX(numero_dia) AS max_dia
+        SELECT date_trunc('month', numero_fecha::timestamp)::date AS mes, MAX(numero_dia) AS max_mes
         FROM reclamos_generales
-        WHERE numero_fecha IS NOT NULL
-        GROUP BY numero_fecha
+        WHERE numero_fecha IS NOT NULL AND numero_dia IS NOT NULL
+        GROUP BY 1
       ),
       numerados AS (
         SELECT b.id, b.dia,
-          COALESCE(m.max_dia, 0) + ROW_NUMBER() OVER (PARTITION BY b.dia ORDER BY b.orden NULLS LAST, b.id) AS n
+          COALESCE(m.max_mes, 0) + ROW_NUMBER() OVER (
+            PARTITION BY date_trunc('month', b.dia::timestamp)
+            ORDER BY b.dia, b.numero_dia_anterior NULLS LAST, b.orden NULLS LAST, b.id
+          ) AS n
         FROM base b
-        LEFT JOIN maximos m ON m.numero_fecha = b.dia
+        LEFT JOIN maximos m ON m.mes = date_trunc('month', b.dia::timestamp)::date
       )
       UPDATE reclamos_generales rg
       SET numero_dia = numerados.n,
@@ -2883,9 +2933,19 @@ export async function ensureReclamosNumeroTrazabilidad(): Promise<void> {
       FROM numerados
       WHERE rg.id = numerados.id
     `);
-    return (result as any).rowCount || 0;
+
+    if (!yaMensual) {
+      await tx.execute(sql`
+        CREATE UNIQUE INDEX "UQ_reclamos_gen_numero_mes"
+        ON reclamos_generales ((date_trunc('month', numero_fecha::timestamp)), numero_dia)
+      `);
+    }
+    return { numerados: (result as any).rowCount || 0, renumerados };
   });
-  if (numerados > 0) {
-    console.log(`🔢 ${numerados} reclamo(s) recibieron su número de trazabilidad`);
+  if (renumerados > 0) {
+    console.log(`🔢 ${renumerados} reclamo(s) pasaron al correlativo mensual (respaldo en reclamos_numero_respaldo)`);
+  }
+  if (numerados > renumerados) {
+    console.log(`🔢 ${numerados - renumerados} reclamo(s) recibieron su número de trazabilidad`);
   }
 }
