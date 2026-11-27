@@ -19374,14 +19374,20 @@ export class DatabaseStorage implements IStorage {
   // ==================================================================================
 
   async createReclamoGeneral(reclamo: InsertReclamoGeneral): Promise<ReclamoGeneral> {
-    // Número de trazabilidad "NN/DD/MM/YY": el que sigue en el día de Chile.
+    // Número de trazabilidad "NN/DD/MM/YY": NN es el que sigue en el MES de Chile
+    // (parte en 01 cada mes, sin importar el cliente) y DD/MM/YY el día del alta.
+    // La columna se llama numero_dia por historia: guarda el correlativo del mes.
     // El candado de la transacción evita que dos altas simultáneas tomen el mismo.
     const newReclamo = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('reclamos_generales_numero'))`);
       const result = await tx.execute(sql`
         SELECT h.hoy::text AS hoy,
                to_char(h.hoy, 'DD/MM/YY') AS sufijo,
-               COALESCE((SELECT MAX(numero_dia) FROM reclamos_generales WHERE numero_fecha = h.hoy), 0) + 1 AS siguiente
+               COALESCE((
+                 SELECT MAX(numero_dia) FROM reclamos_generales
+                 WHERE numero_fecha >= date_trunc('month', h.hoy::timestamp)::date
+                   AND numero_fecha < (date_trunc('month', h.hoy::timestamp) + interval '1 month')::date
+               ), 0) + 1 AS siguiente
         FROM (SELECT (now() AT TIME ZONE 'America/Santiago')::date AS hoy) h
       `);
       const fila = result.rows[0] as { hoy: string; sufijo: string; siguiente: number | string };

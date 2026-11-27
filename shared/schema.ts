@@ -5298,9 +5298,12 @@ export type InsertNotificationReadInput = z.infer<typeof insertNotificationReadS
 export const reclamosGenerales = pgTable("reclamos_generales", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
 
-  // Número de trazabilidad (nov-2026): correlativo del día / fecha de Chile,
-  // "01/26/11/26", "02/26/11/26"... Lo asigna el servidor al crear el reclamo
-  // (storage.createReclamoGeneral) y ensureReclamosNumeroTrazabilidad numera los antiguos.
+  // Número de trazabilidad (nov-2026): "NN/DD/MM/YY", NN es el correlativo del
+  // MES de Chile (parte en 01 cada mes) y DD/MM/YY el día del alta: "01/11/11/26",
+  // "02/17/11/26"... numero_dia guarda ese correlativo del mes (el nombre viene de
+  // la primera versión, diaria). Lo asigna el servidor al crear el reclamo
+  // (storage.createReclamoGeneral); ensureReclamosNumeroTrazabilidad numera los
+  // antiguos y crea el índice único por mes "UQ_reclamos_gen_numero_mes".
   numeroDia: integer("numero_dia"),
   numeroFecha: date("numero_fecha"),
   numeroTrazabilidad: varchar("numero_trazabilidad"),
